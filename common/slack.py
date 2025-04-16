@@ -22,14 +22,6 @@ def table_to_clean_text(table):
     return clean_text
 
 def send_slack_blocks_table_with_color(title, headers, rows, max_attachments=30):
-    """
-    Slack Blocks Kit과 attachments을 사용해 테이블 형식으로 메시지를 전송.
-    너무 많은 rows가 들어오면 'too_many_attachments' 오류가 날 수 있으므로,
-    임계값 max_attachments를 넘어가면 요약 메시지만 전송한다.
-    """
-    import os
-    from aws.common.log import log_error, log_info
-
     webhook_url = os.getenv("SLACK_WEBHOOK_URL")
     if not webhook_url:
         log_error("Slack Webhook URL이 설정되지 않았습니다.")
