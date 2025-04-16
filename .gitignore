@@ -172,3 +172,88 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+**/logs
+
+# OS 시스템 파일
+.DS_Store
+Thumbs.db
+
+# 환경 설정 파일
+.env
+.env.local
+.env.*.local
+
+# node_modules
+node_modules/
+jspm_packages/
+
+# 빌드 결과물
+dist/
+build/
+tmp/
+out/
+coverage/
+
+# IDE/Editor 설정 파일
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# Dependency 디렉토리
+vendor/
+composer.lock
+
+# Python 관련 파일
+*.py[cod]
+__pycache__/
+*.egg-info/
+.eggs/
+
+# Java 관련 파일
+*.class
+*.jar
+*.war
+*.ear
+
+# MacOS 관련 파일
+*.DS_Store
+
+# 기타 사용자 설정 파일
+*.iml
+*.sublime-project
+*.sublime-workspace
+
+# 임시 파일
+*.swp
+*.bak
+*.tmp
+
+# Docker 관련 파일
+docker-compose.override.yml
+
+# Terraform 관련 파일
+.terraform/
+*.tfstate
+*.tfstate.backup
+
+# Ansible 관련 파일
+*.retry
+
+# 특정 폴더 내용 제외
+logs/
+*.log
+excel/
+backup/
+json/
+*.json
+*.xlsx
