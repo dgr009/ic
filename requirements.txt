@@ -11,3 +11,6 @@ flake8
 rich
 dotenv
 requests
+paramiko
+oci
+InquirerPy

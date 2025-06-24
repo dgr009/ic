@@ -52,16 +52,39 @@ def gather_env_for_command(platform, service, command):
     # OCI
     # -----------------------------------
     elif platform == "oci":
-        # oci_info.py에서 사용될 수 있는 env
-        # 프로젝트 구조에 따라 더 있으면 추가
-        relevant_keys = [
-            "OCI_TENANCY_OCID",    # 예: OCI에서 tenancy OCID
-            "OCI_USER_OCID",
-            "OCI_KEY_FILE",        # API 서명용 private key 경로
-            "OCI_FINGERPRINT",     # key fingerprint
-            "OCI_REGION",          # ex) ap-seoul-1
-            "LOG_LEVEL",
-        ]
+        if service == "info":
+            # oci_info.py에서 사용될 수 있는 env
+            relevant_keys = [
+                "OCI_TENANCY_OCID",    # 예: OCI에서 tenancy OCID
+                "OCI_USER_OCID",
+                "OCI_KEY_FILE",        # API 서명용 private key 경로
+                "OCI_FINGERPRINT",     # key fingerprint
+                "OCI_REGION",          # ex) ap-seoul-1
+                "LOG_LEVEL",
+            ]
+        elif service == "search":
+            # policy_search.py에서 사용될 수 있는 env
+            relevant_keys = [
+                "OCI_CONFIG_PATH",     # ~/.oci/config 경로
+                "OCI_TENANCY_OCID",    # tenancy OCID
+                "OCI_USER_OCID",       # user OCID
+                "OCI_KEY_FILE",        # API 서명용 private key 경로
+                "OCI_FINGERPRINT",     # key fingerprint
+                "OCI_REGION",          # region
+                "SHOW_EMPTY_COMPARTMENTS",  # 빈 컴파트먼트 표시 여부
+                "LOG_LEVEL",
+            ]
+        else:
+            # 기본 OCI 환경변수
+            relevant_keys = [
+                "OCI_TENANCY_OCID",
+                "OCI_USER_OCID", 
+                "OCI_KEY_FILE",
+                "OCI_FINGERPRINT",
+                "OCI_REGION",
+                "LOG_LEVEL",
+            ]
+        
         for k in relevant_keys:
             val = os.getenv(k)
             if val:

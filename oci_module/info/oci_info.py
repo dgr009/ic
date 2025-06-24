@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import os
 import sys
 import datetime
 import concurrent.futures
 
+import re
 import oci
 import oci.usage_api
 from rich.console import Console
@@ -21,6 +21,7 @@ def add_arguments(parser):
     parser.add_argument("--nsg", "-s", action="store_true", help="NSG 인바운드 룰만 표시")
     parser.add_argument("--volume", "-v", action="store_true", help="볼륨 정보만 표시 (부팅/블록)")
     parser.add_argument("--object", "-o", action="store_true", help="오브젝트 스토리지(버킷) 정보만 표시")
+    parser.add_argument("--policy", "-p", action="store_true", help="IAM Policy 정보만 표시")
 
     # 비용 조회
     parser.add_argument("--cost", action="store_true", help="비용 정보 표시 (Usage API)")
@@ -109,12 +110,15 @@ def fetch_instances_one_comp(config, region, comp, name_filter):
         # shape
         vcpus = "-"
         memory_gbs = "-"
+        ad_val = inst.availability_domain or "-"
+        fault_domain = "-"
         try:
             details = compute_client.get_instance(inst.id).data
             sc = details.shape_config
             if sc and sc.ocpus is not None:
                 vcpus = str(int(sc.ocpus * 2))
                 memory_gbs = str(sc.memory_in_gbs)
+            fault_domain = details.fault_domain or "-"
         except:
             pass
 
@@ -162,10 +166,14 @@ def fetch_instances_one_comp(config, region, comp, name_filter):
         except:
             pass
 
-        # Block Volume
+        # Block Volume (용량 합계 문자열)
         block_str = "-"
         try:
-            vol_atts = compute_client.list_volume_attachments(comp.id, inst.id).data
+            vol_atts = compute_client.list_volume_attachments(
+                availability_domain=inst.availability_domain,
+                compartment_id=comp.id,
+                instance_id=inst.id
+            ).data
             block_list = []
             for va2 in vol_atts:
                 if not isinstance(va2, oci.core.models.BootVolumeAttachment):
@@ -174,7 +182,7 @@ def fetch_instances_one_comp(config, region, comp, name_filter):
                     block_list.append(f"{vol_data.size_in_gbs}GB")
             if block_list:
                 block_str = ", ".join(block_list)
-        except:
+        except Exception:
             pass
 
         color = state_color_map.get(inst.lifecycle_state, "white")
@@ -183,6 +191,8 @@ def fetch_instances_one_comp(config, region, comp, name_filter):
         results.append({
             "compartment_name": comp.name,
             "region": region,
+            "ad": ad_val,
+            "fault_domain": fault_domain,
             "instance_name": inst.display_name,
             "state_colored": state_colored,
             "subnet": subnet_str,
@@ -251,6 +261,17 @@ def fetch_lb_one_comp(config, region, comp, name_filter):
         ip_addr_str = ", ".join(ip_list) if ip_list else "-"
         lb_type = "PRIVATE" if (getattr(lb, 'is_private', False)) else "PUBLIC"
 
+        # Flexible LB 의 대역폭 범위 (Mbps)
+        min_bw = max_bw = "-"
+        sd = getattr(lb, "shape_details", None)
+        if sd:
+            mbw = getattr(sd, "minimum_bandwidth_in_mbps", None)
+            xbw = getattr(sd, "maximum_bandwidth_in_mbps", None)
+            if mbw is not None:
+                min_bw = str(mbw)
+            if xbw is not None:
+                max_bw = str(xbw)
+
         # backend sets
         bsets = []
         try:
@@ -265,6 +286,8 @@ def fetch_lb_one_comp(config, region, comp, name_filter):
                 "lb_state": lb_state,
                 "ip_addrs": ip_addr_str,
                 "shape": shape_name,
+                "min_bw": min_bw,
+                "max_bw": max_bw,
                 "lb_type": lb_type,
                 "backend_set": "(No Backend Sets)",
                 "backend_target": "-"
@@ -285,6 +308,8 @@ def fetch_lb_one_comp(config, region, comp, name_filter):
                         "lb_state": lb_state,
                         "ip_addrs": ip_addr_str,
                         "shape": shape_name,
+                        "min_bw": min_bw,
+                        "max_bw": max_bw,
                         "lb_type": lb_type,
                         "backend_set": "(No Backends)",
                         "backend_target": "(No Backends)"
@@ -299,6 +324,8 @@ def fetch_lb_one_comp(config, region, comp, name_filter):
                             "lb_state": lb_state,
                             "ip_addrs": ip_addr_str,
                             "shape": shape_name,
+                            "min_bw": min_bw,
+                            "max_bw": max_bw,
                             "lb_type": lb_type,
                             "backend_set": bset.name,
                             "backend_target": tgt
@@ -378,6 +405,15 @@ def fetch_nsg_one_comp(config, region, comp, name_filter):
                 elif rule.udp_options and rule.udp_options.destination_port_range:
                     rng = rule.udp_options.destination_port_range
                     port_range=f"{rng.min}-{rng.max}"
+                if rule.source_type == "NETWORK_SECURITY_GROUP" and rule.source:
+                    try:
+                        # rule.source : 대상 NSG 의 OCID
+                        ref_nsg = vcn_client.get_network_security_group(rule.source).data
+                        source_str = f"{ref_nsg.display_name}"          # → 이름으로 치환
+                    except Exception:
+                        source_str = rule.source      
+                else:
+                    source_str = rule.source or "-"                       # 실패 시 OCID 그대로
 
                 results.append({
                     "region": region,
@@ -386,7 +422,7 @@ def fetch_nsg_one_comp(config, region, comp, name_filter):
                     "desc": desc,
                     "proto": proto_str,
                     "port_range": port_range,
-                    "source": rule.source or "-"
+                    "source": source_str
                 })
     return results
 
@@ -435,9 +471,15 @@ def fetch_volume_one_comp(config, region, comp, name_filter):
     except:
         pass
 
-    # AD 목록
+    # ───── Availability Domain 목록 (리전마다 다르게) ─────
     try:
         idy_client = oci.identity.IdentityClient(config)
+        # IdentityClient 도 조회 대상 리전으로 변경하지 않으면 tenancy 기본 리전 AD 만 반환
+        try:
+            idy_client.base_client.set_region(region)
+        except Exception:
+            pass
+
         ads = idy_client.list_availability_domains(config["tenancy"]).data
     except Exception as e:
         console.print(f"[red]AD 조회 실패[/red]: region={region}, comp={comp.name}: {e}")
@@ -446,41 +488,84 @@ def fetch_volume_one_comp(config, region, comp, name_filter):
     # Boot volumes
     for ad in ads:
         try:
-            bvs = blk_client.list_boot_volumes(ad.name, comp.id).data
-        except:
-            bvs = []
-        for bv in bvs:
-            if name_filter and (name_filter not in bv.display_name.lower()):
+            bvas = blk_client.list_boot_volumes(
+                availability_domain = ad.name,
+                compartment_id      = comp.id
+            ).data
+        except Exception:
+            bvas = []
+
+        for bva in bvas:
+            if name_filter and name_filter not in bva.display_name.lower():
                 continue
-            color = state_color_map.get(bv.lifecycle_state, "white")
-            st_colored = f"[{color}]{bv.lifecycle_state}[/{color}]"
+
+            inst_name = "-"
+            try:
+                atts = compute_client.list_boot_volume_attachments(
+                    availability_domain = ad.name,
+                    compartment_id      = comp.id,
+                    boot_volume_id      = bva.id
+                ).data
+                if atts:
+                    inst_id   = atts[0].instance_id
+                    inst_name = compute_client.get_instance(inst_id).data.display_name
+            except Exception:
+                pass
+
+            color = state_color_map.get(bva.lifecycle_state, "white")
+            st_colored = f"[{color}]{bva.lifecycle_state}[/{color}]"
+
+            vpu_val = getattr(bva, "vpus_per_gb", None)
+            vpu_str = str(vpu_val) if vpu_val is not None else "-"
+
             boot_rows.append({
                 "region": region,
                 "compartment_name": comp.name,
-                "volume_name": bv.display_name,
+                "volume_name": bva.display_name,
                 "state": st_colored,
-                "size_gb": bv.size_in_gbs,
-                "attached": "-"
+                "size_gb": bva.size_in_gbs,
+                "vpu": vpu_str,
+                "attached": inst_name
             })
 
-    # Block volumes
+    # ───────────────── Block Volumes ────────────────────────────
     try:
-        vols = blk_client.list_volumes(compartment_id=comp.id).data
-    except:
+        vols = blk_client.list_volumes(compartment_id = comp.id).data
+    except Exception:
         vols = []
 
     for vol in vols:
-        if name_filter and (name_filter not in vol.display_name.lower()):
+        if name_filter and name_filter not in vol.display_name.lower():
             continue
-        c = state_color_map.get(vol.lifecycle_state, "white")
-        st_colored = f"[{c}]{vol.lifecycle_state}[/{c}]"
+
+        # ── 인스턴스 이름 찾기 ────────────────────────────────
+        inst_name = "-"
+        try:
+            vas = compute_client.list_volume_attachments(
+                availability_domain = vol.availability_domain,
+                compartment_id      = comp.id,
+                volume_id           = vol.id
+            ).data
+            if vas:
+                inst_id   = vas[0].instance_id
+                inst_name = compute_client.get_instance(inst_id).data.display_name
+        except Exception:
+            pass
+
+        # VPU (volume performance level)
+        vpu = str(vol.vpus_per_gb) if getattr(vol, "vpus_per_gb", None) is not None else "-"
+
+        color         = state_color_map.get(vol.lifecycle_state, "white")
+        state_colored = f"[{color}]{vol.lifecycle_state}[/{color}]"
+
         block_rows.append({
-            "region": region,
+            "region"          : region,
             "compartment_name": comp.name,
-            "volume_name": vol.display_name,
-            "state": st_colored,
-            "size_gb": vol.size_in_gbs,
-            "attached": "-"
+            "volume_name"     : vol.display_name,
+            "state"           : state_colored,
+            "size_gb"         : vol.size_in_gbs,
+            "vpu"             : vpu,
+            "attached"        : inst_name
         })
 
     return (boot_rows, block_rows)
@@ -512,55 +597,105 @@ def collect_volumes_parallel_fast(config, compartments, region_list, name_filter
 # Buckets (region×comp) 병렬
 ###############################################################################
 def fetch_bucket_one_comp(config, region, comp, name_filter):
-    console = Console()
-    results = []
-    obj_client = oci.object_storage.ObjectStorageClient(config)
+    console  = Console()
+    results  = []
+    obj      = oci.object_storage.ObjectStorageClient(config)
 
+    # ---------- 리전 설정 ----------
     try:
-        obj_client.base_client.set_region(region)
-    except:
+        obj.base_client.set_region(region)
+    except Exception:
         pass
 
-    # namespace
-    namespace = None
+    # ---------- 네임스페이스 ----------
     try:
-        namespace = obj_client.get_namespace().data
-    except:
-        pass
+        namespace = obj.get_namespace().data
+    except Exception:
+        return results                      # namespace 조회 실패 시 즉시 종료
 
-    if not namespace:
-        return results
-
+    # ---------- 버킷 목록 ----------
     try:
-        bks = obj_client.list_buckets(namespace, comp.id).data
+        buckets = obj.list_buckets(namespace, comp.id).data
     except Exception as e:
         console.print(f"[red]Bucket 조회 실패[/red]: region={region}, comp={comp.name}: {e}")
         return results
 
-    for b in bks:
-        if name_filter and (name_filter not in b.name.lower()):
+    for b in buckets:
+        if name_filter and name_filter not in b.name.lower():
             continue
-        access_str = "NoPublicAccess"
-        tier_str = "-"
-        try:
-            bd = obj_client.get_bucket(namespace, b.name).data
-            if bd.public_access_type:
-                access_str=bd.public_access_type
-            if bd.storage_tier:
-                tier_str=bd.storage_tier
-        except:
-            pass
 
+        access_str      = "NoPublicAccess"
+        tier_str        = "-"
+        approx_size_str = "-"
+        approx_cnt_str  = "-"
+
+        # ---------- 1차 : get_bucket() ----------
+        try:
+            bd = obj.get_bucket(
+                namespace_name = namespace,
+                bucket_name    = b.name
+            ).data
+
+            # public / tier
+            if bd.public_access_type:
+                access_str = bd.public_access_type
+            if bd.storage_tier:
+                tier_str   = bd.storage_tier
+
+            # 값이 있으면 바로 문자열 변환
+            if bd.approximate_size is not None:
+                approx_size_str = f"{bd.approximate_size / 1024**3:.1f}"
+            if bd.approximate_count is not None:
+                approx_cnt_str  = f"{bd.approximate_count:,}"
+
+        except Exception as e:
+            console.print(f"[yellow]get_bucket 실패[/yellow] ({b.name}): {e}")
+
+        # ---------- 2차 : 값이 없으면 직접 합산 ----------
+        if approx_size_str == "-" or approx_cnt_str == "-":
+            total_size  = 0
+            total_count = 0
+            next_token  = None
+
+            try:
+                while True:
+                    resp = obj.list_objects(
+                        namespace_name = namespace,
+                        bucket_name    = b.name,
+                        start          = next_token,
+                        fields         = ["size"],   # 객체 크기만 필요
+                        limit          = 1000        # 페이지 크기
+                    ).data
+
+                    for o in resp.objects:
+                        total_size  += o.size
+                        total_count += 1
+
+                    if not resp.next_start_with:
+                        break
+                    next_token = resp.next_start_with
+
+                if total_count:
+                    approx_size_str = f"{total_size / 1024**3:.1f}"
+                    approx_cnt_str  = f"{total_count:,}"
+
+            except Exception as e:
+                console.print(f"[yellow]list_objects 실패[/yellow] ({b.name}): {e}")
+
+        # ---------- 결과 누적 ----------
         results.append({
-            "region": region,
+            "region"          : region,
             "compartment_name": comp.name,
-            "bucket_name": b.name,
-            "access_colored": access_str,
-            "tier": tier_str,
-            "approx_size": "-",
-            "approx_count": "-"
+            "bucket_name"     : b.name,
+            "access_colored"  : access_str,
+            "tier"            : tier_str,
+            "approx_size"     : approx_size_str,
+            "approx_count"    : approx_cnt_str
         })
+
     return results
+
+
 
 def collect_buckets_parallel_fast(config, compartments, region_list, name_filter, console, max_workers=10):
     all_rows = []
@@ -614,9 +749,12 @@ def get_compartment_costs(usage_client, tenancy_ocid, start_time, end_time, cons
         compartment_depth=6
     )
     cost_data={}
+    currency_cd = "USD"   
     try:
         resp = usage_client.request_summarized_usages(details)
         items = resp.data.items or []
+        if items:
+            currency_cd = items[0].currency or currency_cd
         for it in items:
             cname= it.compartment_name or "(root)"
             sname= it.service or "(UnknownService)"
@@ -626,9 +764,9 @@ def get_compartment_costs(usage_client, tenancy_ocid, start_time, end_time, cons
             cost_data[cname][sname]+= cval
     except Exception as e:
         console.print(f"[yellow][WARN][/yellow] Cost API 실패: {e}")
-    return cost_data
+    return cost_data, currency_cd
 
-def print_cost_table(cost_rows, console, start_time, end_time):
+def print_cost_table(cost_rows, console, start_time, end_time, currency_cd):
     end_time = end_time - datetime.timedelta(seconds=1)
     console.print(f"\n[bold underline]Cost Info ({start_time.strftime('%Y-%m-%d')}~{end_time.strftime('%Y-%m-%d')})[/bold underline]")
     if not cost_rows:
@@ -638,8 +776,8 @@ def print_cost_table(cost_rows, console, start_time, end_time):
     tbl = Table(show_lines=False, box=box.HEAVY_EDGE)
     tbl.add_column("Compartment", style="bold magenta")
     tbl.add_column("Service", style="bold cyan")
-    tbl.add_column("Cost($)", justify="right")
-    tbl.add_column("Total($)", justify="right")
+    tbl.add_column(f"Cost({currency_cd})", justify="right")
+    tbl.add_column(f"Total({currency_cd})", justify="right")
     account_total=0
     for ckey in sorted(cost_rows.keys(), key=lambda x:x.lower()):
         services = cost_rows[ckey]
@@ -653,15 +791,15 @@ def print_cost_table(cost_rows, console, start_time, end_time):
                 tbl.add_row(
                     ckey,
                     svc,
-                    f"{val:.2f}",
-                    f"[yellow]{ctotal:.2f}[/yellow]"
+                    f"{val:,.0f}",
+                    f"[yellow]{ctotal:,.0f}[/yellow]"
                 )
                 first=False
             else:
                 if val>0:
-                    tbl.add_row("", svc, f"{val:.2f}")
+                    tbl.add_row("", svc, f"{val:,.0f}")
         tbl.add_section()
-    tbl.add_row("[green]총 합계[/green]","","",f"[green]{account_total:.2f}[/green]")
+    tbl.add_row("[green]총 합계[/green]","","",f"[green]{account_total:,.0f}[/green]")
     tbl.add_section()
     console.print(tbl)
 
@@ -683,8 +821,14 @@ def get_credit_usage(usage_client, tenancy_ocid, year, month, initial_credit, co
         compartment_depth=6
     )
     monthly_cost={}
+    currency_cd = "USD"
+
     try:
         resp = usage_client.request_summarized_usages(details)
+        items = resp.data.items or []
+        if items:
+            currency_cd = items[0].currency or currency_cd
+
         for it in resp.data.items or []:
             cost_val= float(it.computed_amount or 0.0)
             st = it.time_usage_started
@@ -703,31 +847,130 @@ def get_credit_usage(usage_client, tenancy_ocid, year, month, initial_credit, co
         remain-= cst
         if remain<0: remain=0
         credit_data[mk]= (cst, remain)
-    return credit_data
+    return credit_data, currency_cd
 
-def print_credit_table(credit_data, console, year, initial_credit):
+def print_credit_table(credit_data, console, year, initial_credit, currency_cd):
     console.print(f"[bold underline]\nCredit Usage for {year}[/bold underline]")
     if not credit_data:
         console.print("(No credit data)")
         return
     tbl= Table(show_lines=False, box=box.SIMPLE_HEAVY)
     tbl.add_column("Month", style="bold cyan")
-    tbl.add_column("Monthly Cost($)", justify="right")
-    tbl.add_column("Remaining($)", justify="right")
+    tbl.add_column(f"Monthly Cost({currency_cd})", justify="right")
+    tbl.add_column(f"Remaining({currency_cd})", justify="right")
     tbl.add_section()
-    tbl.add_row("[magenta bold]Initial[/magenta bold]", "-", f"{initial_credit:.2f}")
+    tbl.add_row("[magenta bold]Initial[/magenta bold]", "-", f"{initial_credit:,.0f}")
     tbl.add_section()
 
     final_use=0.0
     for mk in sorted(credit_data.keys()):
         costv, rm= credit_data[mk]
         final_use+= costv
-        tbl.add_row(mk, f"{costv:.2f}", f"{rm:.2f}")
+        tbl.add_row(mk, f"{costv:,.0f}", f"{rm:,.0f}")
     final_remain = list(credit_data.values())[-1][1]
     tbl.add_section()
-    tbl.add_row("[bold]Summary[/bold]", f"[blue bold]{final_use:.2f}[/blue bold]", f"[green bold]{final_remain:.2f}[/green bold]")
+    tbl.add_row("[bold]Summary[/bold]", f"[blue bold]{final_use:,.0f}[/blue bold]", f"[green bold]{final_remain:,.0f}[/green bold]")
     console.print(tbl)
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# IAM Policy (compartment 단위, 병렬 가능하지만 API 부하 작아 단순 loop 사용)
+# ─────────────────────────────────────────────────────────────────────────────
+def collect_policies(identity_client, compartments, name_filter, console):
+    """각 컴파트먼트의 정책 이름·구문(statement)을 수집"""
+    rows = []
+    for comp in compartments:
+        try:
+            policies = identity_client.list_policies(compartment_id=comp.id,
+                                                     lifecycle_state="ACTIVE").data
+        except Exception as e:
+            console.print(f"[red]Policy 조회 실패:[/red] {comp.name}: {e}")
+            continue
+
+        for pol in policies:
+            if name_filter and name_filter not in pol.name.lower():
+                continue
+            stmt_joined = "\n".join(pol.statements) if pol.statements else "-"
+            rows.append({
+                "compartment_name": comp.name,
+                "policy_name": pol.name,
+                "statements": stmt_joined
+            })
+    return rows
+# ─────────────────────────────────────────────────────────────────────────────
+# IAM Policy 구문 분석
+# ─────────────────────────────────────────────────────────────────────────────
+stmt_pat = re.compile(
+    r"""^(allow|endorse)\s+      # Action (group 1)
+        (.*?)\s+                  # Subject (group 2, non-greedy)
+        to\s+
+        ([^{\s]+|\{[^\}]+\})\s+   # Verb (group 3, simple like 'read' or complex like '{read, WRITE}' or '{WLP_BOM_READ}')
+        # Resource Type is optional - if next word is 'in', then no resource type
+        (?:(?!in\s)(\S+)\s+)?     # Resource Type (group 4, optional, negative lookahead for 'in ')
+        # Optional Scope: 'in compartment <name/id>' or 'in tenancy'
+        # Group 5 captures the content of the scope (e.g., "compartment <name>", "tenancy")
+        (?:in\s+(.+?))?           # Scope content (group 5, optional, non-greedy)
+        \s*                       # Allow spaces between scope and where, or scope and EOL
+        # Optional Condition: 'where <conditions>'
+        # Group 6 captures the conditions string
+        (?:\s+where\s+(.*))?$    # Condition (group 6, optional, greedy)
+    """,
+    re.I | re.X,
+)
+
+def parse_stmt(stmt: str):
+    """IAM Policy 구문을 파싱하여 각 구성 요소를 추출"""
+    m = stmt_pat.match(stmt.strip())
+    if not m:
+        # 정규식 매칭 실패 시 원본 구문을 적절히 분할하여 표시
+        stmt_clean = stmt.strip()
+        
+        # 기본적인 키워드 기반 분할 시도
+        action = "UNKNOWN"
+        if stmt_clean.lower().startswith("allow"):
+            action = "ALLOW"
+            stmt_clean = stmt_clean[5:].strip()
+        elif stmt_clean.lower().startswith("endorse"):
+            action = "ENDORSE"
+            stmt_clean = stmt_clean[7:].strip()
+        
+        # 'to' 키워드로 subject와 나머지 분리
+        if " to " in stmt_clean.lower():
+            parts = stmt_clean.split(" to ", 1)
+            subject = parts[0].strip()
+            remaining = parts[1].strip() if len(parts) > 1 else ""
+        else:
+            subject = stmt_clean[:50] + "..." if len(stmt_clean) > 50 else stmt_clean
+            remaining = ""
+        
+        # 나머지 부분을 verb로 처리 (길이 제한)
+        verb = remaining[:30] + "..." if len(remaining) > 30 else remaining
+        
+        return (
+            action,
+            subject[:40] + "..." if len(subject) > 40 else subject,
+            verb,
+            "UNPARSED",
+            "-",
+            "-"
+        )
+    
+    action, subject, verb, resource, scope_content, condition_text = m.groups()
+    
+    # Verb 처리: { } 형태는 그대로 유지, 일반적인 경우만 대문자 변환
+    if verb.startswith("{") and verb.endswith("}"):
+        verb_processed = verb  # { } 형태는 그대로 유지
+    else:
+        verb_processed = verb.strip("{} ").upper()  # 일반적인 경우만 대문자 변환
+    
+    return (
+        action.upper(),      # ALLOW / ENDORSE
+        subject.strip(),     # e.g., service cloudguard / GROUP admins / any-user
+        verb_processed,      # Verb - { } 형태는 그대로, 일반적인 경우는 대문자
+        (resource.strip() if resource else "all-resources"),  # Resource type, default to "all-resources" if not specified
+        (scope_content.strip() if scope_content else "-"), # Scope, e.g., compartment <name>, tenancy, or -
+        (condition_text.strip() if condition_text else "-"), # Condition, or -
+    )
 
 ###############################################################################
 # main(args)
@@ -737,20 +980,22 @@ def main(args):
 
     # 리소스 표시 여부 결정
     # 아무것도 안주면 인스턴스/LB/NSG/Volume/Object 다 표시
-    if not (args.instance or args.lb or args.nsg or args.volume or args.object or args.cost or args.credit):
-        show_instance=True
-        show_lb=True
-        show_nsg=True
-        show_volume=True
-        show_object=True
-        show_cost=False
-        show_credit=False
+    if not (args.instance or args.lb or args.nsg or args.volume or args.object or args.cost or args.credit or args.policy):
+        show_instance   = True
+        show_lb         = True
+        show_nsg        = True
+        show_volume     = True
+        show_object     = True
+        show_policy     = False
+        show_cost       = False
+        show_credit     = False
     else:
         show_instance = args.instance
         show_lb       = args.lb
         show_nsg      = args.nsg
         show_volume   = args.volume
         show_object   = args.object
+        show_policy   = args.policy
         show_cost     = args.cost
         show_credit   = args.credit
 
@@ -788,11 +1033,12 @@ def main(args):
     boot_rows=[]
     block_rows=[]
     obj_rows=[]
+    pol_rows=[]
 
     futures=[]
     with concurrent.futures.ThreadPoolExecutor() as executor:
         if show_instance:
-            fut_inst= executor.submit(collect_instances_parallel_fast, config, compartments, region_list, name_filter, console, 10)
+            fut_inst= executor.submit(collect_instances_parallel_fast, config, compartments, region_list, name_filter, console, 30)
             futures.append(("instance", fut_inst))
 
         if show_lb:
@@ -800,16 +1046,20 @@ def main(args):
             futures.append(("lb", fut_lb))
 
         if show_nsg:
-            fut_nsg= executor.submit(collect_nsg_parallel_fast, config, compartments, region_list, name_filter, console, 10)
+            fut_nsg= executor.submit(collect_nsg_parallel_fast, config, compartments, region_list, name_filter, console, 30)
             futures.append(("nsg", fut_nsg))
 
         if show_volume:
-            fut_vol= executor.submit(collect_volumes_parallel_fast, config, compartments, region_list, name_filter, console, 10)
+            fut_vol= executor.submit(collect_volumes_parallel_fast, config, compartments, region_list, name_filter, console, 30)
             futures.append(("volume", fut_vol))
 
         if show_object:
             fut_obj= executor.submit(collect_buckets_parallel_fast, config, compartments, region_list, name_filter, console, 10)
             futures.append(("object", fut_obj))
+
+        if show_policy:
+            fut_pol= executor.submit(collect_policies, identity_client, compartments, name_filter, console)
+            futures.append(("policy", fut_pol))
 
         for label, fut in futures:
             try:
@@ -825,6 +1075,8 @@ def main(args):
                     boot_rows, block_rows = data
                 elif label=="object":
                     obj_rows=data
+                elif label=="policy":
+                    pol_rows=data
             except Exception as e:
                 console.print(f"[red]{label} 병렬 작업 실패[/red]: {e}")
 
@@ -840,6 +1092,8 @@ def main(args):
                 t= Table(show_lines=False, box=box.SIMPLE_HEAVY)
                 t.add_column("Compartment", style="bold magenta")
                 t.add_column("Region", style="bold cyan")
+                t.add_column("AD", style="bold cyan")
+                t.add_column("Fault Domain", style="bold cyan")
                 t.add_column("Instance Name")
                 t.add_column("State", justify="center")
                 t.add_column("Subnet")
@@ -862,6 +1116,8 @@ def main(args):
                     t.add_row(
                         row["compartment_name"],
                         row["region"],
+                        row["ad"],
+                        row["fault_domain"],
                         row["instance_name"],
                         row["state_colored"],
                         row["subnet"],
@@ -891,6 +1147,8 @@ def main(args):
             table.add_column("IP Addresses")
             table.add_column("Shape")
             table.add_column("Type")
+            table.add_column("Min(Mbps)", justify="right")
+            table.add_column("Max(Mbps)", justify="right")
             table.add_column("Backend Set")
             table.add_column("Backend Target")
 
@@ -918,6 +1176,8 @@ def main(args):
                     row["ip_addrs"],
                     row["shape"],
                     row["lb_type"],
+                    row["min_bw"],
+                    row["max_bw"],
                     row["backend_set"],
                     row["backend_target"]
                 )
@@ -967,6 +1227,7 @@ def main(args):
             bt.add_column("Volume Name")
             bt.add_column("State", justify="center")
             bt.add_column("Size(GB)", justify="right")
+            bt.add_column("VPU", justify="right")
             bt.add_column("Attached")
             curr=None
             for row in boot_rows:
@@ -981,6 +1242,7 @@ def main(args):
                     row["volume_name"],
                     row["state"],
                     str(row["size_gb"]),
+                    row["vpu"],
                     row["attached"]
                 )
             console.print(bt)
@@ -996,6 +1258,7 @@ def main(args):
             bt2.add_column("Volume Name")
             bt2.add_column("State", justify="center")
             bt2.add_column("Size(GB)", justify="right")
+            bt2.add_column("VPU", justify="right")
             bt2.add_column("Attached")
             curr=None
             for row in block_rows:
@@ -1010,6 +1273,7 @@ def main(args):
                     row["volume_name"],
                     row["state"],
                     str(row["size_gb"]),
+                    row["vpu"],
                     row["attached"]
                 )
             console.print(bt2)
@@ -1048,12 +1312,79 @@ def main(args):
         else:
             console.print("(No Buckets)")
 
+    # 6) policy
+    if show_policy:
+        if pol_rows:
+            console.print("\n[bold underline]IAM Policies[/bold underline]")
+            pt = Table(show_lines=False, box=box.SIMPLE_HEAVY)
+            pt.add_column("Compartment", style="bold magenta")
+            pt.add_column("Policy Name", style="bold cyan")
+            pt.add_column("Action")      # ALLOW / ENDORSE
+            pt.add_column("Subject")     # service cloudguard, GROUP admins, any-user
+            pt.add_column("Verb")
+            pt.add_column("Resource")
+            pt.add_column("Scope")
+            pt.add_column("Condition")
+            curr_comp = curr_pol = None
+            # pol_rows를 compartment_name, policy_name으로 정렬 (선택 사항이지만 권장)
+            # pol_rows.sort(key=lambda x: (x["compartment_name"], x["policy_name"]))
+
+            for row in pol_rows:
+                # Compartment 변경 시 섹션 추가 및 curr_pol 초기화
+                if row["compartment_name"] != curr_comp:
+                    if curr_comp is not None:
+                        pt.add_section()
+                    curr_comp = row["compartment_name"]
+                    curr_pol = None  # 새 compartment이므로 policy도 초기화
+
+                # Policy 변경 시 (또는 첫 번째 policy일 때) curr_pol 업데이트
+                # 이 부분은 실제 출력 로직에 직접적인 영향은 없으나, 상태 추적을 위해 유지
+                if row["policy_name"] != curr_pol :
+                    curr_pol = row["policy_name"]
+                    # 여기서 새로운 policy가 시작됨을 알 수 있음.
+                    # 만약 policy별로도 add_section()을 하고 싶다면 이 지점에서 처리 가능
+
+                stmts = row["statements"].splitlines()
+                first_statement_in_policy = True # 각 policy의 첫번째 statement인지 여부
+
+                for stmt_str in stmts:
+                    if not stmt_str.strip(): # 빈 statement 문자열은 건너뛰기
+                        continue
+                    action, subject, verb, resource, scope, cond = parse_stmt(stmt_str)
+
+                    if first_statement_in_policy:
+                        pt.add_row(
+                            row["compartment_name"],
+                            row["policy_name"],
+                            action,
+                            subject,
+                            verb,
+                            resource,
+                            scope,
+                            cond,
+                        )
+                        first_statement_in_policy = False
+                    else:
+                        pt.add_row(
+                            "",  # 동일 policy 내 두 번째 statement부터는 Compartment 이름 생략
+                            "",  # 동일 policy 내 두 번째 statement부터는 Policy 이름 생략
+                            action,
+                            subject,
+                            verb,
+                            resource,
+                            scope,
+                            cond,
+                        )
+            console.print(pt)
+        else:
+            console.print("(No Policies)")
+
     # 비용
     if show_cost:
         start_date, end_date = get_date_range(args.cost_start, args.cost_end)
-        cost_data= get_compartment_costs(usage_client, config["tenancy"], start_date, end_date, console)
+        cost_data, currency_cd= get_compartment_costs(usage_client, config["tenancy"], start_date, end_date, console)
         if cost_data:
-            print_cost_table(cost_data, console, start_date, end_date)
+            print_cost_table(cost_data, console, start_date, end_date, currency_cd)
         else:
             console.print("(No Cost Data)")
 
@@ -1068,9 +1399,9 @@ def main(args):
             month = end_date.month
 
         year= args.credit_year if args.credit_year else end_date.year
-        cd= get_credit_usage(usage_client, config["tenancy"], year, month, args.credit_initial, console)
+        cd, currency_cd= get_credit_usage(usage_client, config["tenancy"], year, month, args.credit_initial, console)
         if cd:
-            print_credit_table(cd, console, year, args.credit_initial)
+            print_credit_table(cd, console, year, args.credit_initial, currency_cd)
         else:
             console.print("(No Credit Data)")
 

@@ -91,7 +91,7 @@ def check_all_ec2_tags(args):
     profiles = get_profiles()
 
     # 테이블 초기화
-    table = Table(title="EC2 Tag Validation Results", show_header=True, header_style="bold magenta")
+    table = Table(title="EC2 Tag Validation Results", show_header=True, header_style="bold magenta", expand=True)
     table.add_column(TABLE_HEADER[0], style="green")
     table.add_column(TABLE_HEADER[1], style="blue")
     table.add_column(TABLE_HEADER[2], style="cyan")

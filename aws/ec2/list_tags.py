@@ -58,7 +58,7 @@ def list_ec2_tags(args):
     profiles = get_profiles()
 
     # 테이블 생성
-    table = Table(title="EC2 Tags Summary", show_header=True, header_style="bold magenta")
+    table = Table(title="EC2 Tags Summary", show_header=True, header_style="bold magenta", expand=True)
     table.add_column("Account", style="green")
     table.add_column("Region", style="blue")
     table.add_column("InstanceID", style="cyan")

@@ -272,30 +272,36 @@ def main(args):
         console.rule(f"Region: [bold cyan]{reg}[/bold cyan]", style="bold cyan", align="left")
 
         # 테이블
-        table = Table(show_header=True, header_style="bold white", box=box.MINIMAL_DOUBLE_HEAD)
-        table.add_column("Instance Name")
-        table.add_column("State")
-        table.add_column("Subnet")
-        table.add_column("SGs")
-        table.add_column("PrivateIP")
-        table.add_column("PublicIP")
-        table.add_column("Type")
-        table.add_column("vCPU")
-        table.add_column("Memory")
-        table.add_column("VolumeSize")
+        table = Table(
+                    show_header=True, 
+                    header_style="bold white", 
+                    box=box.MINIMAL_DOUBLE_HEAD, 
+                    expand=True
+                )
+        
+        table.add_column("Instance Name",   ratio=3)
+        table.add_column("State",           ratio=1, justify="center")
+        table.add_column("PrivateIP",       ratio=2)
+        table.add_column("PublicIP",        ratio=2)
+        table.add_column("Type",            ratio=2)
+        table.add_column("vCPU",            ratio=1, justify="right")
+        table.add_column("Memory",          ratio=1, justify="right")
+        table.add_column("Volume",          ratio=1, justify="right")
+        table.add_column("Subnet",          ratio=4)
+        table.add_column("SGs",             ratio=12, no_wrap=True)
 
         for rinfo in rows:
             table.add_row(
                 rinfo["name"],
                 rinfo["state"],
-                rinfo["subnet"],
-                rinfo["sgs"],
                 rinfo["private_ip"],
                 rinfo["public_ip"],
                 rinfo["itype"],
                 rinfo["vcpu"],
                 rinfo["memory"],
-                rinfo["vol_size"]
+                rinfo["vol_size"],
+                rinfo["subnet"],
+                rinfo["sgs"]
             )
 
         console.print(table)

@@ -1,0 +1,4 @@
+oci
+rich
+requests
+python-dotenv

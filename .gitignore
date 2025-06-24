@@ -257,3 +257,6 @@ backup/
 json/
 *.json
 *.xlsx
+
+ic.egg-info/
+
