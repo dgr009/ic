@@ -10,6 +10,7 @@ import oci
 from rich.console import Console
 from rich.table import Table
 from rich import box
+from rich.rule import Rule
 from common.log import log_info_non_console
 from oci_module.common.utils import get_all_subscribed_regions, get_compartments
 
@@ -18,7 +19,7 @@ from oci_module.common.utils import get_all_subscribed_regions, get_compartments
 # ###############################################################################
 def add_arguments(parser):
     """VM Info 에 필요한 인자만 추가"""
-    parser.add_argument("--verb", action="store_true", help="인스턴스 상세 출력 (전체 컬럼 표시)")
+    parser.add_argument("-v", "--verbose", action="store_true", help="인스턴스 상세 출력 (전체 컬럼 표시)")
     parser.add_argument("--name", "-n", default=None, help="이름 필터 (부분 일치)")
     parser.add_argument("--compartment", "-c", default=None, help="컴파트먼트 이름 필터 (부분 일치)")
     parser.add_argument("--regions","-r", default=None, help="조회할 리전(,) 예: ap-seoul-1,us-ashburn-1")
@@ -91,30 +92,36 @@ def fetch_instances_one_comp(config, region, comp, name_filter):
             except Exception: pass
 
             # Boot Volume
-            boot_str = "-"
+            boot_gb = "-"
             try:
                 bvas = cmp_cli.list_boot_volume_attachments(availability_domain=inst.availability_domain, compartment_id=comp.id, instance_id=inst.id).data
                 if bvas:
                     bv = blk_cli.get_boot_volume(bvas[0].boot_volume_id).data
-                    boot_str = f"{bv.size_in_gbs}GB"
+                    boot_gb = str(bv.size_in_gbs)
             except Exception: pass
 
             # Block Volumes
-            block_str = "-"
+            block_gb = "-"
             try:
                 vol_atts = cmp_cli.list_volume_attachments(availability_domain=inst.availability_domain, compartment_id=comp.id, instance_id=inst.id).data
-                block_list = [f"{blk_cli.get_volume(va2.volume_id).data.size_in_gbs}GB" for va2 in vol_atts if not isinstance(va2, oci.core.models.BootVolumeAttachment)]
+                block_list = [blk_cli.get_volume(va2.volume_id).data.size_in_gbs for va2 in vol_atts if not isinstance(va2, oci.core.models.BootVolumeAttachment)]
                 if block_list:
-                    block_str = ", ".join(block_list)
+                    block_gb = str(sum(block_list))
             except Exception: pass
 
             state_colored = f"[{state_color_map.get(inst.lifecycle_state, 'white')}]{inst.lifecycle_state}[/{state_color_map.get(inst.lifecycle_state, 'white')}]"
+            
+            # CreatedBy Tag
+            created_by = inst.freeform_tags.get('CreatedBy', '-')
+            if created_by == '-':
+                created_by = inst.defined_tags.get('Oracle-Tags', {}).get('CreatedBy', '-')
+
 
             row_data = {
                 "compartment_name": comp.name, "region": region, "ad": ad_val, "fault_domain": fault_domain,
                 "instance_name": inst.display_name, "state_colored": state_colored, "subnet": subnet_str, "nsg": nsg_str,
                 "private_ip": private_ip, "public_ip": public_ip, "shape": inst.shape, "vcpus": vcpus,
-                "memory": memory_gbs, "boot": boot_str, "block": block_str
+                "memory": memory_gbs, "boot": boot_gb, "block": block_gb, "created_by": created_by
             }
             elapsed = time.time() - start_ts
             log_info_non_console(f"inst data collection complete : {inst.display_name} ({elapsed:.2f}s)")
@@ -158,33 +165,50 @@ def print_instance_table(console, inst_rows, verbose):
         
     inst_rows.sort(key=lambda x: (x["compartment_name"].lower(), x["region"].lower(), x["instance_name"].lower()))
     console.print("[bold underline]Instance Info[/bold underline]")
-    t = Table(show_lines=False, box=box.HORIZONTALS)
-
+    t = Table(show_lines=False, box=box.HORIZONTALS, show_header=True, header_style="bold", expand=False)
+    t.show_edge = False
+  
     if verbose:
-        headers = ["Compartment", "Region", "AD", "Fault Domain", "Instance Name", "State", "Subnet", "NSG", "Private IP", "Public IP", "Shape", "vCPU", "Mem(GB)", "Boot", "Block"]
-        keys = ["compartment_name", "region", "ad", "fault_domain", "instance_name", "state_colored", "subnet", "nsg", "private_ip", "public_ip", "shape", "vcpus", "memory", "boot", "block"]
+        headers = ["Compartment", "Region", "AD", "Fault Domain", "Instance Name", "State", "Subnet", "NSG", "Private IP", "Public IP", "Shape", "vCPU", "Mem", "Boot", "Block", "CreatedBy"]
+        keys = ["compartment_name", "region", "ad", "fault_domain", "instance_name", "state_colored", "subnet", "nsg", "private_ip", "public_ip", "shape", "vcpus", "memory", "boot", "block", "created_by"]
     else:
-        headers = ["Comp", "Region", "Name", "State", "PrivateIP", "PublicIP", "Shape", "vCPU", "Mem", "Boot", "Block"]
+        headers = ["Comp", "Region", "Name", "State", "PrivateIP", "PublicIP", "Shape", "CPU", "Mem", "Boot", "Block"]
         keys = ["compartment_name", "region", "instance_name", "state_colored", "private_ip", "public_ip", "shape", "vcpus", "memory", "boot", "block"]
 
-    # 공통 스타일링 및 컬럼 추가
     for h in headers:
         style_opts = {}
         if h in ["Compartment", "Comp"]: style_opts = {"style": "bold magenta"}
         if h in ["Region", "AD", "Fault Domain"]: style_opts = {"style": "bold cyan"}
         if h == "State": style_opts = {"justify": "center"}
-        if h in ["vCPU", "Mem(GB)", "Mem"]: style_opts = {"justify": "right"}
+        if h in ["vCPU", "Mem", "CPU", "Boot", "Block"]: style_opts = {"justify": "right"}
         if h in ["Instance Name", "Name"]: style_opts = {"overflow": "fold"}
         t.add_column(h, **style_opts)
 
-    curr_key = None
-    for row in inst_rows:
-        key = (row["region"], row["compartment_name"])
-        if key != curr_key:
-            if curr_key is not None:
-                t.add_section()
-            curr_key = key
-        t.add_row(*(str(row.get(k, "-")) for k in keys))
+    last_comp = None
+    last_region = None
+    for i, row in enumerate(inst_rows):
+        comp_changed = row["compartment_name"] != last_comp
+        region_changed = row["region"] != last_region
+
+        if i > 0:
+            if comp_changed:
+                t.add_row(*[Rule(style="dim") for _ in headers])
+            elif region_changed:
+                t.add_row("", *[Rule(style="dim") for _ in headers[1:]])
+            elif not comp_changed and not region_changed:
+                t.add_row("", "", *[Rule(style="dim") for _ in range(len(headers) - 2)])
+        
+        display_values = []
+        display_values.append(row["compartment_name"] if comp_changed else "")
+        display_values.append(row["region"] if comp_changed or region_changed else "")
+
+        for k in keys[2:]:
+            display_values.append(str(row.get(k, "-")))
+        
+        t.add_row(*display_values)
+
+        last_comp = row["compartment_name"]
+        last_region = row["region"]
     
     console.print(t)
 
@@ -214,11 +238,11 @@ def main(args):
 
     compartments = get_compartments(identity_client, config["tenancy"], compartment_filter, console)
     inst_rows = collect_instances_parallel_fast(config, compartments, region_list, name_filter, console)
-    print_instance_table(console, inst_rows, args.verb)
+    print_instance_table(console, inst_rows, args.verbose)
 
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description="OCI Instance Info Collector")
     add_arguments(parser)
     args = parser.parse_args()
-    main(args) 
+    main(args)

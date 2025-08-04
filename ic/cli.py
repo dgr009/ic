@@ -7,7 +7,7 @@ from common.log import log_error, log_env_short, log_args_short
 from common.gather_env import gather_env_for_command
 from aws.ec2 import list_tags as ec2_list_tags
 from aws.ec2 import tag_check as ec2_tag_check
-from aws.ec2 import list_info as ec2_list_info
+from aws.ec2 import info as ec2_info
 from aws.lb import list_tags as lb_list_tags
 from aws.lb import tag_check as lb_tag_check
 from aws.vpc import tag_check as vpc_tag_check
@@ -77,9 +77,9 @@ def main():
     ec2_tag_check_parser = ec2_subparsers.add_parser("tag_check", help="EC2 태그 유효성 검사")
     ec2_tag_check.add_arguments(ec2_tag_check_parser)
     ec2_tag_check_parser.set_defaults(func=ec2_tag_check.main)
-    ec2_list_info_parser = ec2_subparsers.add_parser("list_info", help="EC2 인스턴스 정보 나열")
-    ec2_list_info.add_arguments(ec2_list_info_parser)
-    ec2_list_info_parser.set_defaults(func=ec2_list_info.main)
+    ec2_info_parser = ec2_subparsers.add_parser("info", help="EC2 인스턴스 정보 나열")
+    ec2_info.add_arguments(ec2_info_parser)
+    ec2_info_parser.set_defaults(func=ec2_info.main)
 
     lb_parser = aws_subparsers.add_parser("lb", help="LB 관련 명령어")
     lb_subparsers = lb_parser.add_subparsers(dest="command", required=True)
@@ -90,6 +90,11 @@ def main():
     lb_tag_check.add_arguments(lb_check_parser)
     lb_check_parser.set_defaults(func=lb_tag_check.main)
 
+    lb_info_parser = lb_subparsers.add_parser("info", help="LB 상세 정보 조회")
+    from aws.lb import info as lb_info
+    lb_info.add_arguments(lb_info_parser)
+    lb_info_parser.set_defaults(func=lb_info.main)
+
     vpc_parser = aws_subparsers.add_parser("vpc", help="VPC + Gateway + VPN 관련 명령어")
     vpc_subparsers = vpc_parser.add_subparsers(dest="command", required=True)
     vpc_check_parser = vpc_subparsers.add_parser("tag_check", help="VPC + Gateway + VPN 태그 유효성 검사")
@@ -98,6 +103,19 @@ def main():
     vpc_list_parser = vpc_subparsers.add_parser("list_tags", help="VPC + Gateway + VPN 태그 조회")
     vpc_tag_check.add_arguments(vpc_list_parser)
     vpc_list_parser.set_defaults(func=vpc_list_tags.main)
+
+    vpc_info_parser = vpc_subparsers.add_parser("info", help="VPC 상세 정보 조회")
+    from aws.vpc import info as vpc_info
+    vpc_info.add_arguments(vpc_info_parser)
+    vpc_info_parser.set_defaults(func=vpc_info.main)
+
+    vpn_parser = aws_subparsers.add_parser("vpn", help="TGW, VGW, VPN Connection, Endpoint 관련 명령어")
+    vpn_subparsers = vpn_parser.add_subparsers(dest="command", required=True)
+    vpn_info_parser = vpn_subparsers.add_parser("info", help="VPN 관련 상세 정보 조회")
+    from aws.vpn import info as vpn_info
+    vpn_info.add_arguments(vpn_info_parser)
+    vpn_info_parser.set_defaults(func=vpn_info.main)
+
 
     rds_parser = aws_subparsers.add_parser("rds", help="RDS 관련 명령어")
     rds_subparsers = rds_parser.add_subparsers(dest="command", required=True)
@@ -108,6 +126,11 @@ def main():
     rds_tag_check.add_arguments(rds_check_cmd)
     rds_check_cmd.set_defaults(func=rds_tag_check.main)
 
+    rds_info_parser = rds_subparsers.add_parser("info", help="RDS 상세 정보 조회")
+    from aws.rds import info as rds_info
+    rds_info.add_arguments(rds_info_parser)
+    rds_info_parser.set_defaults(func=rds_info.main)
+
     s3_parser = aws_subparsers.add_parser("s3", help="S3 관련 명령어")
     s3_subparsers = s3_parser.add_subparsers(dest="command", required=True)
     s3_list_cmd = s3_subparsers.add_parser("list_tags", help="S3 버킷 태그 조회")
@@ -116,6 +139,11 @@ def main():
     s3_check_cmd = s3_subparsers.add_parser("tag_check", help="S3 태그 유효성 검사")
     s3_tag_check.add_arguments(s3_check_cmd)
     s3_check_cmd.set_defaults(func=s3_tag_check.main)
+
+    s3_info_parser = s3_subparsers.add_parser("info", help="S3 상세 정보 조회")
+    from aws.s3 import info as s3_info
+    s3_info.add_arguments(s3_info_parser)
+    s3_info_parser.set_defaults(func=s3_info.main)
 
     # ---------------- CloudFlare ----------------
     cf_parser = cf_subparsers.add_parser("dns", help="DNS Record 관련 명령어")
