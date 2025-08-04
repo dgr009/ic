@@ -143,7 +143,7 @@ def print_s3_table(all_rows):
     
     for h in headers:
         style = {}
-        if h == "Account": style = {"style": "dim magenta"}
+        if h == "Account": style = {"style": "bold magenta"}
         elif h == "Region": style = {"style": "bold cyan"}
         elif h in ["Size(GB)", "Object Count"]: style = {"justify": "right"}
         table.add_column(h, **style)

@@ -28,8 +28,6 @@ def resolve_network_entity(network_client, entity_id):
         return "None"
     
     entity_type = entity_id.split('.')[1]
-    # console = Console()
-    # console.print(f"entity_type: {entity_type}")
     
     try:
         if entity_type == "internetgateway":
@@ -37,11 +35,9 @@ def resolve_network_entity(network_client, entity_id):
             return f"{entity.display_name} (igw)"
         elif entity_type == "natgateway":
             entity = network_client.get_nat_gateway(entity_id).data
-            # NAT Gateway는 private IP를 가질 수 있습니다.
             return f"{entity.display_name} (ngw: {entity.nat_ip})"
         elif entity_type == "servicegateway":
             entity = network_client.get_service_gateway(entity_id).data
-            # 서비스 게이트웨이는 특정 서비스 CIDR을 가리킵니다.
             services = ", ".join([s.service_name for s in entity.services])
             return f"{entity.display_name} (sgw: {services})"
         elif entity_type == "drg":
@@ -51,7 +47,6 @@ def resolve_network_entity(network_client, entity_id):
             entity = network_client.get_local_peering_gateway(entity_id).data
             return f"{entity.display_name} (lpg)"
         elif entity_type == "privateip":
-            # 이 경우 Private IP의 세부 정보를 더 가져올 수 있습니다.
             return f"Private IP ({entity_id})"
         else:
             return entity_id
@@ -59,9 +54,7 @@ def resolve_network_entity(network_client, entity_id):
         if e.status == 404:
             return f"{entity_id} (Not Found)"
         return f"{entity_id} (Error: {e.code})"
-    except Exception as e:
-        # console.print(f"Exception entity_id: {entity_id}")
-        # console.print(f"Exception e: {e}")
+    except Exception:
         return entity_id
 
 
@@ -110,7 +103,8 @@ def fetch_vcn_one_comp(config, region, comp, name_filter):
                 for rule in route_table.route_rules:
                     destination = rule.destination
                     target = resolve_network_entity(network_client, rule.network_entity_id)
-                    rule_str = f"{destination} > {target}"
+                    dest_padded = destination.ljust(18)
+                    rule_str = f"{dest_padded} > {target}"
                     
                     vcn_rows.append({
                         "compartment": comp.name, "region": region,
@@ -235,7 +229,6 @@ def main(args):
 
     vcn_data = collect_vcn_parallel_fast(config, compartments, region_list, args.name, console)
 
-    # TODO: 테이블 출력 로직 호출
     if vcn_data:
         print_vcn_table(console, vcn_data)
     else:
@@ -245,4 +238,4 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='OCI VCN Info')
     add_arguments(parser)
     args = parser.parse_args()
-    main(args) 
+    main(args)

@@ -19,6 +19,82 @@ console = Console()
 def get_name_tag(tags):
     return next((tag['Value'] for tag in tags if tag['Key'] == 'Name'), None)
 
+def resolve_route_target(ec2_client, route):
+    """
+    Route 객체를 받아 타겟의 이름과 유형, IP를 반환합니다.
+    """
+    if route.get('GatewayId'):
+        gateway_id = route['GatewayId']
+        if gateway_id.startswith('igw-'):
+            try:
+                igw = ec2_client.describe_internet_gateways(InternetGatewayIds=[gateway_id])['InternetGateways'][0]
+                name = get_name_tag(igw.get('Tags', []))
+                return f"{name} (igw)" if name else "(igw)"
+            except Exception:
+                return f"{gateway_id} (igw)"
+        elif gateway_id.startswith('vgw-'):
+            try:
+                vgw = ec2_client.describe_vpn_gateways(VpnGatewayIds=[gateway_id])['VpnGateways'][0]
+                name = get_name_tag(vgw.get('Tags', []))
+                return f"{name} (vgw)" if name else "(vgw)"
+            except Exception:
+                return f"{gateway_id} (vgw)"
+        elif gateway_id == 'local':
+            return "local"
+
+    if route.get('NatGatewayId'):
+        nat_gateway_id = route['NatGatewayId']
+        try:
+            nat = ec2_client.describe_nat_gateways(NatGatewayIds=[nat_gateway_id])['NatGateways'][0]
+            name = get_name_tag(nat.get('Tags', []))
+            public_ip = nat.get('NatGatewayAddresses', [{}])[0].get('PublicIp')
+            
+            ip_str = f": {public_ip}" if public_ip else ""
+            return f"{name} (nat{ip_str})" if name else f"(nat{ip_str})"
+        except Exception:
+            return f"{nat_gateway_id} (nat)"
+
+    if route.get('TransitGatewayId'):
+        tgw_id = route['TransitGatewayId']
+        try:
+            tgw = ec2_client.describe_transit_gateways(TransitGatewayIds=[tgw_id])['TransitGateways'][0]
+            name = get_name_tag(tgw.get('Tags', []))
+            return f"{name} (tgw)" if name else "(tgw)"
+        except Exception:
+            return f"{tgw_id} (tgw)"
+
+    if route.get('VpcPeeringConnectionId'):
+        pcx_id = route['VpcPeeringConnectionId']
+        try:
+            pcx = ec2_client.describe_vpc_peering_connections(VpcPeeringConnectionIds=[pcx_id])['VpcPeeringConnections'][0]
+            name = get_name_tag(pcx.get('Tags', []))
+            return f"{name} (pcx)" if name else "(pcx)"
+        except Exception:
+            return f"{pcx_id} (pcx)"
+
+    if route.get('InstanceId'):
+        instance_id = route['InstanceId']
+        try:
+            instance = ec2_client.describe_instances(InstanceIds=[instance_id])['Reservations'][0]['Instances'][0]
+            name = get_name_tag(instance.get('Tags', []))
+            public_ip = instance.get('PublicIpAddress')
+            private_ip = instance.get('PrivateIpAddress')
+            
+            display_name = name if name else instance_id
+            # public ip가 없으면 private ip라도 표시
+            if public_ip:
+                ip_str = f": {public_ip}"
+            elif private_ip:
+                ip_str = f": {private_ip}"
+            else:
+                ip_str = ""
+            return f"{display_name} (instance{ip_str})"
+        except Exception:
+            return f"{instance_id} (instance)"
+            
+    return "N/A"
+
+
 def fetch_vpc_one_account_region(account_id, profile_name, region_name, name_filter):
     log_info_non_console(f"VPC 정보 수집 시작: Account={account_id}, Region={region_name}")
     session = boto3.Session(profile_name=profile_name, region_name=region_name)
@@ -45,18 +121,29 @@ def fetch_vpc_one_account_region(account_id, profile_name, region_name, name_fil
 
         for subnet in subnets:
             subnet_name = get_name_tag(subnet.get('Tags', [])) or subnet['SubnetId']
-            route_tables = ec2_client.describe_route_tables(Filters=[{'Name': 'association.subnet-id', 'Values': [subnet['SubnetId']]}]).get('RouteTables', [])
             
+            explicit_route_tables = ec2_client.describe_route_tables(Filters=[{'Name': 'association.subnet-id', 'Values': [subnet['SubnetId']]}]).get('RouteTables', [])
+            
+            if not explicit_route_tables:
+                main_route_table_resp = ec2_client.describe_route_tables(Filters=[{'Name': 'vpc-id', 'Values': [vpc['VpcId']]}, {'Name': 'association.main', 'Values': ['true']}]).get('RouteTables', [])
+                route_tables = main_route_table_resp if main_route_table_resp else []
+            else:
+                route_tables = explicit_route_tables
+
             if not route_tables:
-                rows.append({"account": account_id, "region": region_name, "vpc_name": vpc_name, "vpc_cidr": vpc.get('CidrBlock', '-'), "subnet_name": subnet_name, "subnet_cidr": subnet.get('CidrBlock', '-'), "route_table": "Main (Implicit)", "route_rule": "-"})
+                rows.append({"account": account_id, "region": region_name, "vpc_name": vpc_name, "vpc_cidr": vpc.get('CidrBlock', '-'), "subnet_name": subnet_name, "subnet_cidr": subnet.get('CidrBlock', '-'), "route_table": "Not Found", "route_rule": "-"})
                 continue
 
             for rt in route_tables:
                 rt_name = get_name_tag(rt.get('Tags', [])) or rt['RouteTableId']
-                for route in rt.get('Routes', []):
-                    dest = route.get('DestinationCidrBlock', 'N/A')
-                    target = route.get('GatewayId', route.get('NatGatewayId', route.get('InstanceId', 'N/A')))
-                    rows.append({"account": account_id, "region": region_name, "vpc_name": vpc_name, "vpc_cidr": vpc.get('CidrBlock', '-'), "subnet_name": subnet_name, "subnet_cidr": subnet.get('CidrBlock', '-'), "route_table": rt_name, "route_rule": f"{dest} -> {target}"})
+                if not rt.get('Routes'):
+                    rows.append({"account": account_id, "region": region_name, "vpc_name": vpc_name, "vpc_cidr": vpc.get('CidrBlock', '-'), "subnet_name": subnet_name, "subnet_cidr": subnet.get('CidrBlock', '-'), "route_table": rt_name, "route_rule": "No explicit routes"})
+                else:
+                    for route in rt.get('Routes', []):
+                        dest = route.get('DestinationCidrBlock') or route.get('DestinationPrefixListId', 'N/A')
+                        target = resolve_route_target(ec2_client, route)
+                        dest_padded = dest.ljust(18)
+                        rows.append({"account": account_id, "region": region_name, "vpc_name": vpc_name, "vpc_cidr": vpc.get('CidrBlock', '-'), "subnet_name": subnet_name, "subnet_cidr": subnet.get('CidrBlock', '-'), "route_table": rt_name, "route_rule": f"{dest_padded} -> {target}"})
 
     return rows
 
@@ -66,26 +153,31 @@ def print_vpc_table(all_rows):
         console.print("[yellow]표시할 VPC 정보가 없습니다.[/yellow]")
         return
         
-    all_rows.sort(key=lambda x: (x["account"], x["region"], x["vpc_name"], x["subnet_name"]))
+    all_rows.sort(key=lambda x: (x["account"], x["region"], x["vpc_name"], x["subnet_name"], x["route_table"]))
 
     table = Table(box=box.HORIZONTALS, expand=False, show_header=True, header_style="bold")
-    table.show_edge = False
+    # table.show_edge = False
     
     headers = ["Account", "Region", "VPC Name", "VPC CIDR", "Subnet Name", "Subnet CIDR", "Route Table", "Route Rule"]
     keys = ["account", "region", "vpc_name", "vpc_cidr", "subnet_name", "subnet_cidr", "route_table", "route_rule"]
     
-    for h in headers:
-        style = {}
-        if h == "Account": style = {"style": "dim magenta"}
-        elif h == "Region": style = {"style": "bold cyan"}
-        table.add_column(h, **style)
+    table.add_column("Account", style="bold magenta")
+    table.add_column("Region", style="bold cyan")
+    table.add_column("VPC Name", max_width=20, overflow="ellipsis",style="bold green")
+    table.add_column("VPC CIDR",style="green")
+    table.add_column("Subnet Name", max_width=15, overflow="ellipsis",style="cyan")
+    table.add_column("Subnet CIDR",style="cyan")
+    table.add_column("Route Table", max_width=15, overflow="ellipsis",style="white")
+    table.add_column("Route Rule")
 
-    last_account, last_region, last_vpc, last_subnet = None, None, None, None
+
+    last_account, last_region, last_vpc, last_subnet, last_route_table = None, None, None, None, None
     for i, row in enumerate(all_rows):
         account_changed = row["account"] != last_account
         region_changed = row["region"] != last_region
         vpc_changed = row["vpc_name"] != last_vpc
         subnet_changed = row["subnet_name"] != last_subnet
+        route_table_changed = row["route_table"] != last_route_table
 
         if i > 0:
             if account_changed:
@@ -96,6 +188,8 @@ def print_vpc_table(all_rows):
                 table.add_row("", "", *[Rule(style="dim") for _ in headers[2:]])
             elif subnet_changed:
                 table.add_row("", "", "", "", *[Rule(style="dim") for _ in headers[4:]])
+            elif route_table_changed:
+                table.add_row("", "", "", "", "", "", *[Rule(style="dim") for _ in headers[6:]])
 
         display_values = []
         display_values.append(row["account"] if account_changed else "")
@@ -104,13 +198,14 @@ def print_vpc_table(all_rows):
         display_values.append(row["vpc_cidr"] if account_changed or region_changed or vpc_changed else "")
         display_values.append(row["subnet_name"] if account_changed or region_changed or vpc_changed or subnet_changed else "")
         display_values.append(row["subnet_cidr"] if account_changed or region_changed or vpc_changed or subnet_changed else "")
+        display_values.append(row["route_table"] if account_changed or region_changed or vpc_changed or subnet_changed or route_table_changed else "")
 
-        for k in keys[6:]:
+        for k in keys[7:]:
             display_values.append(str(row.get(k, "-")))
 
         table.add_row(*display_values)
         
-        last_account, last_region, last_vpc, last_subnet = row["account"], row["region"], row["vpc_name"], row["subnet_name"]
+        last_account, last_region, last_vpc, last_subnet, last_route_table = row["account"], row["region"], row["vpc_name"], row["subnet_name"], row["route_table"]
 
     console.print(table)
 

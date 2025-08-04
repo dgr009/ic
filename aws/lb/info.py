@@ -123,7 +123,7 @@ def print_lb_table(all_rows):
     
     for h in headers:
         style = {}
-        if h == "Account": style = {"style": "dim magenta"}
+        if h == "Account": style = {"style": "bold magenta"}
         elif h == "Region": style = {"style": "bold cyan"}
         elif h == "Health": style = {"justify": "center"}
         table.add_column(h, **style)
