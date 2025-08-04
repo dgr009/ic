@@ -55,17 +55,21 @@ def main():
     platform_subparsers = parser.add_subparsers(
         dest="platform",
         required=True,
-        help="클라우드 플랫폼 (aws, oci, cf, ssh, utill 등)"
+        help="클라우드 플랫폼 (aws, oci, cf, ssh, azure, gcp 등)"
     )
     
     aws_parser = platform_subparsers.add_parser("aws", help="AWS 관련 명령어")
-    cf_parser = platform_subparsers.add_parser("cf", help="CloudFlare 관련 명령어")
     oci_parser = platform_subparsers.add_parser("oci", help="OCI 관련 명령어")
+    azure_parser = platform_subparsers.add_parser("azure", help="Azure 관련 명령어")
+    gcp_parser = platform_subparsers.add_parser("gcp", help="GCP 관련 명령어")
+    cf_parser = platform_subparsers.add_parser("cf", help="CloudFlare 관련 명령어")
     ssh_parser = platform_subparsers.add_parser("ssh", help="SSH 관련 명령어")
 
     aws_subparsers = aws_parser.add_subparsers(dest="service",required=True,help="AWS 리소스 관리 서비스")
-    cf_subparsers = cf_parser.add_subparsers(dest="service",required=True,help="CloudFlare 리소스 관리 서비스")
     oci_subparsers = oci_parser.add_subparsers(dest="service",required=True,help="OCI 리소스 관리 서비스")
+    azure_subparsers = azure_parser.add_subparsers(dest="service", required=True, help="Azure 리소스 관리 서비스")
+    gcp_subparsers = gcp_parser.add_subparsers(dest="service", required=True, help="GCP 리소스 관리 서비스")
+    cf_subparsers = cf_parser.add_subparsers(dest="service",required=True,help="CloudFlare 리소스 관리 서비스")
     ssh_subparsers = ssh_parser.add_subparsers(dest="service",required=True,help="SSH 관리 서비스")
 
     # ---------------- AWS ----------------
@@ -145,73 +149,93 @@ def main():
     s3_info.add_arguments(s3_info_parser)
     s3_info_parser.set_defaults(func=s3_info.main)
 
+    # ---------------- Azure ----------------
+    azure_vm_parser = azure_subparsers.add_parser("vm", help="Azure VM 관련 명령어")
+    azure_vm_subparsers = azure_vm_parser.add_subparsers(dest="command", required=True)
+    azure_vm_info_parser = azure_vm_subparsers.add_parser("info", help="Azure VM 정보 조회 (Mock)")
+    from azure.vm import info as azure_vm_info
+    azure_vm_info.add_arguments(azure_vm_info_parser)
+    azure_vm_info_parser.set_defaults(func=azure_vm_info.main)
+
+    azure_vnet_parser = azure_subparsers.add_parser("vnet", help="Azure VNet 관련 명령어")
+    azure_vnet_subparsers = azure_vnet_parser.add_subparsers(dest="command", required=True)
+    azure_vnet_info_parser = azure_vnet_subparsers.add_parser("info", help="Azure VNet 정보 조회 (Mock)")
+    from azure.vnet import info as azure_vnet_info
+    azure_vnet_info.add_arguments(azure_vnet_info_parser)
+    azure_vnet_info_parser.set_defaults(func=azure_vnet_info.main)
+
+    # ---------------- GCP ----------------
+    gcp_compute_parser = gcp_subparsers.add_parser("compute", help="GCP Compute Engine 관련 명령어")
+    gcp_compute_subparsers = gcp_compute_parser.add_subparsers(dest="command", required=True)
+    gcp_compute_info_parser = gcp_compute_subparsers.add_parser("info", help="GCP Compute Engine 정보 조회 (Mock)")
+    from gcp.compute import info as gcp_compute_info
+    gcp_compute_info.add_arguments(gcp_compute_info_parser)
+    gcp_compute_info_parser.set_defaults(func=gcp_compute_info.main)
+
+    gcp_vpc_parser = gcp_subparsers.add_parser("vpc", help="GCP VPC 관련 명령어")
+    gcp_vpc_subparsers = gcp_vpc_parser.add_subparsers(dest="command", required=True)
+    gcp_vpc_info_parser = gcp_vpc_subparsers.add_parser("info", help="GCP VPC 정보 조회 (Mock)")
+    from gcp.vpc import info as gcp_vpc_info
+    gcp_vpc_info.add_arguments(gcp_vpc_info_parser)
+    gcp_vpc_info_parser.set_defaults(func=gcp_vpc_info.main)
+
     # ---------------- CloudFlare ----------------
-    cf_parser = cf_subparsers.add_parser("dns", help="DNS Record 관련 명령어")
-    dns_subparsers = cf_parser.add_subparsers(dest="command", required=True)
+    cf_dns_parser = cf_subparsers.add_parser("dns", help="DNS Record 관련 명령어")
+    dns_subparsers = cf_dns_parser.add_subparsers(dest="command", required=True)
     dns_list_cmd = dns_subparsers.add_parser("list_info", help="DNS Record 목록 조회")
     dns_list_info.add_arguments(dns_list_cmd)
     dns_list_cmd.set_defaults(func=dns_list_info.main)
 
     # ---------------- SSH ----------------
-    # 'ic ssh info' - 서버 정보 상세 조회
     ssh_info_parser = ssh_subparsers.add_parser("info", help="등록된 SSH 서버의 상세 정보(CPU/Mem/Disk)를 스캔합니다.")
     ssh_info_parser.add_argument("--host", help="특정 호스트 문자열을 포함하는 서버만 필터링합니다.")
     ssh_info_parser.add_argument("--key", help="사용할 특정 프라이빗 키 파일을 지정합니다. (config 파일 우선)")
     ssh_info_parser.set_defaults(func=server_info.main)
 
-    # 'ic ssh reg' - 신규 서버 스캔 및 등록
     ssh_reg_parser = ssh_subparsers.add_parser("reg", help="네트워크를 스캔하여 새로운 SSH 서버를 찾아 .ssh/config에 등록합니다.")
     ssh_reg_parser.set_defaults(func=lambda args: auto_ssh.main())
 
     # ---------------- OCI ----------------
     oci_info_parser = oci_subparsers.add_parser("info", help="[DEPRECATED] OCI 리소스 통합 조회. 각 서비스별 명령어를 사용하세요.")
-    
     oci_info_parser.set_defaults(func=oci_info_deprecated)
     
     # ---- new structured services ----
-    # VM
     vm_parser = oci_subparsers.add_parser("vm", help="OCI VM(Instance) 관련")
     vm_sub = vm_parser.add_subparsers(dest="command", required=True)
     vm_info_p = vm_sub.add_parser("info", help="VM 정보 조회")
     vm_add_args(vm_info_p)
     vm_info_p.set_defaults(func=vm_main)
 
-    # LB
     lb_parser = oci_subparsers.add_parser("lb", help="OCI LoadBalancer 관련")
     lb_sub = lb_parser.add_subparsers(dest="command", required=True)
     lb_info_p = lb_sub.add_parser("info", help="LB 정보 조회")
     lb_add_args(lb_info_p)
     lb_info_p.set_defaults(func=lb_main)
 
-    # NSG
     nsg_parser = oci_subparsers.add_parser("nsg", help="OCI NSG 관련")
     nsg_sub = nsg_parser.add_subparsers(dest="command", required=True)
     nsg_info_p = nsg_sub.add_parser("info", help="NSG 정보 조회")
     nsg_add_args(nsg_info_p)
     nsg_info_p.set_defaults(func=nsg_main)
 
-    # VCN
     vcn_parser = oci_subparsers.add_parser("vcn", help="OCI VCN 관련")
     vcn_sub = vcn_parser.add_subparsers(dest="command", required=True)
     vcn_info_p = vcn_sub.add_parser("info", help="VCN, Subnet, Route Table 정보 조회")
     vcn_info.add_arguments(vcn_info_p)
     vcn_info_p.set_defaults(func=vcn_info.main)
 
-    # Volume
     vol_parser = oci_subparsers.add_parser("volume", help="OCI Block/Boot Volume 관련")
     vol_sub = vol_parser.add_subparsers(dest="command", required=True)
     vol_info_p = vol_sub.add_parser("info", help="Volume 정보 조회")
     volume_add_args(vol_info_p)
     vol_info_p.set_defaults(func=volume_main)
 
-    # Object Storage
     obj_parser = oci_subparsers.add_parser("obj", help="OCI Object Storage 관련")
     obj_sub = obj_parser.add_subparsers(dest="command", required=True)
     obj_info_p = obj_sub.add_parser("info", help="Bucket 정보 조회")
     obj_add_args(obj_info_p)
     obj_info_p.set_defaults(func=obj_main)
 
-    # Policy
     pol_parser = oci_subparsers.add_parser("policy", help="OCI Policy 관련")
     pol_sub = pol_parser.add_subparsers(dest="command", required=True)
     pol_info_p = pol_sub.add_parser("info", help="Policy 목록/구문 조회")
@@ -221,7 +245,6 @@ def main():
     oci_policy_search.add_arguments(pol_search_p)
     pol_search_p.set_defaults(func=oci_policy_search.main)
 
-    # Cost
     cost_parser = oci_subparsers.add_parser("cost", help="OCI 비용/크레딧 관련")
     cost_sub = cost_parser.add_subparsers(dest="command", required=True)
     cost_usage_p = cost_sub.add_parser("usage", help="비용 조회")
@@ -236,12 +259,10 @@ def main():
 
 def process_and_execute_commands(parser):
     """명령행 인수를 파싱하고 각 서비스에 대해 명령을 실행합니다."""
-    # 'ic oci info'는 다른 인수와 상관없이 항상 deprecated 메시지를 출력합니다.
     if len(sys.argv) > 2 and sys.argv[1] == 'oci' and sys.argv[2] == 'info':
         oci_info_deprecated(None)
         sys.exit(0)
         
-    # 서비스 인수에 콤마가 있는지 확인
     if len(sys.argv) > 2 and ',' in sys.argv[2]:
         platform = sys.argv[1]
         services = [s.strip() for s in sys.argv[2].split(',')]
@@ -255,7 +276,6 @@ def process_and_execute_commands(parser):
                 args = parser.parse_args(current_argv)
                 execute_single_command(args)
             except SystemExit:
-                # argparse는 오류 발생 시 SystemExit을 호출하므로, 이를 잡아서 계속 진행합니다.
                 print(f"--- Skipping service '{service}' due to an error or invalid arguments ---")
                 has_error = True
             except Exception as e:
@@ -266,13 +286,10 @@ def process_and_execute_commands(parser):
             sys.exit(1)
             
     else:
-        # 단일 서비스 실행 (기존 로직)
         try:
             args = parser.parse_args()
             execute_single_command(args)
         except SystemExit:
-            # 사용자가 도움말을 요청했거나 잘못된 인수를 입력한 경우, argparse가 종료됩니다.
-            # 정상적인 동작이므로 추가 처리가 필요 없습니다.
             sys.exit(0)
         except Exception as e:
             log_error(f"명령어 실행 중 오류 발생: {e}")
@@ -281,11 +298,8 @@ def process_and_execute_commands(parser):
 def execute_single_command(args):
     """파싱된 인수를 기반으로 실제 단일 명령을 실행합니다."""
     if not hasattr(args, 'service') or not args.service:
-        # 'ic' 또는 'ic oci'와 같이 service나 command가 없는 경우
-        # argparse가 자동으로 도움말을 출력하고 종료하므로 이 부분은 거의 호출되지 않습니다.
         return
 
-    # 기존의 예외처리 로직을 여기에 포함
     if args.platform == "ssh" and args.service == "info":
         args.command = "none"
     elif args.platform == "oci" and args.service == "info":
@@ -303,4 +317,4 @@ def execute_single_command(args):
         raise ValueError("No function to execute")
 
 if __name__ == "__main__":
-    main() 
+    main()
