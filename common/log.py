@@ -35,6 +35,10 @@ logger = logging.getLogger("ic")
 if len(logger.handlers) > 1:
     logger.handlers = [logger.handlers[-1]]
 
+def log_info_non_console(message: str):
+    """INFO 레벨 로그 출력 + 콘솔 미표시"""
+    logger.info(message)
+
 def log_info(message: str):
     """INFO 레벨 로그 출력 + 콘솔 표시"""
     logger.info(message)
@@ -113,14 +117,14 @@ def log_env_short(env_used: dict):
     console.print(f"[bold white]Env 나열:[/bold white] {joined}")
 
 def log_args_short(args):
-    args_dict = vars(args).copy()  # {'platform': 'aws', ...}
-    # 만약 'func' (함수 포인터) 등 필요없는 항목 제거
-    args_dict.pop("func", None)
+    """인자를 짧게 요약해서 로깅"""
+    args_dict = {k: v for k, v in vars(args).items() if not k.startswith('_') and k != 'func'}
     
-    # key=value 리스트 만들기
-    items_str = []
-    for k, v in sorted(args_dict.items()):
-        items_str.append(f"[cyan]{k}[/cyan]=[green]{v}[/green]")
-    joined = ", ".join(items_str)
+    # None 값을 "None(*)" 으로 변경
+    pretty_args = {k: (v if v is not None else "default") for k, v in args_dict.items()}
+    
+    args_str = ", ".join(f"{k}={v}" for k, v in pretty_args.items())
+    log_info(f"Args 나열: {args_str}")
 
-    console.print(f"[bold white]Args 나열:[/bold white] {joined}")
+# 로그아웃은 사용하지 않으므로 제거
+# def log_logout(message):

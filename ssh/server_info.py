@@ -5,6 +5,8 @@ import re
 import getpass
 import concurrent.futures
 import paramiko
+# Paramiko 내부 디버그 로그를 별도 파일로 남겨 문제 파악을 쉽게 함
+# paramiko.util.log_to_file("ssh_paramiko_debug.log")
 
 from dotenv import load_dotenv
 from rich.table import Table
@@ -17,6 +19,8 @@ load_dotenv()
 SSH_CONFIG_FILE = os.getenv("SSH_CONFIG_FILE", "~/.ssh/config")
 SSH_TIMEOUT = int(os.getenv("SSH_TIMEOUT", "5"))
 MAX_WORKER = int(os.getenv("MAX_WORKER", "20"))
+# 쉼표(,)로 구분된 접두사를 가진 호스트는 제외 (default: 'git')
+SSH_SKIP_PREFIXES = [p.strip().lower() for p in os.getenv("SSH_SKIP_PREFIXES", "git").split(",") if p.strip()]
 
 # -----------------------------------------------------------------------------
 # 유틸 함수
@@ -63,9 +67,18 @@ class ServerInfoRetriever:
         self.port = port
         self.ssh = self._establish_ssh_connection()
 
-    def _establish_ssh_connection(self): # -> paramiko.SSHClient:
+    def _establish_ssh_connection(self):  # -> paramiko.SSHClient | None
+        """SSH 연결을 시도하고 실패 시 상세 로그를 남깁니다."""
         try:
             private_key = paramiko.RSAKey(filename=self.private_key_path)
+        except Exception:
+            # log_exception(key_exc)
+            log_error(
+                f"[KEY-ERROR] {self.hostname}:{self.port} - 키 로드 실패 ({self.private_key_path})"
+            )
+            return None
+
+        try:
             ssh = paramiko.SSHClient()
             ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
             ssh.connect(
@@ -73,7 +86,7 @@ class ServerInfoRetriever:
                 username=self.username,
                 pkey=private_key,
                 port=self.port,
-                timeout=SSH_TIMEOUT
+                timeout=SSH_TIMEOUT,
             )
             # log_info(f"SSH 연결 성공: {self.hostname}")
             return ssh
@@ -107,7 +120,11 @@ class ServerInfoRetriever:
             # log_error(f"[{self.hostname}] Command: {command}\nFiltered output:\n{filtered_output}")
             return filtered_output
         except Exception as e:
-            # log_error(f"Failed to execute command '{command}' on {self.hostname}: {e}")
+            # 상세 로그 남김 (호스트, 커맨드, 예외)
+            # log_exception(e)
+            log_error(
+                f"[CMD-FAIL] {self.hostname}:{self.port} - '{command}' 실행 실패: {e}"
+            )
             return None
         
 
@@ -179,6 +196,13 @@ def parse_ssh_config() -> list:
     for host_info in ssh_config.get_hostnames():
         if '*' in host_info:
             continue
+
+        # 호스트 접두사 필터링
+        lower_host = host_info.lower()
+        if any(lower_host.startswith(pref) for pref in SSH_SKIP_PREFIXES):
+            # log_info(f"[SKIP] 접두사 제외 규칙에 의해 무시: {host_info}")
+            continue
+
         config = ssh_config.lookup(host_info)
 
         identity_files = config.get("identityfile", [])
@@ -195,7 +219,7 @@ def parse_ssh_config() -> list:
             "private_key_path": private_key
         })
 
-    log_info(f"ssh_config 파싱 완료 (총 {len(servers)}개 호스트)")
+    log_info(f"ssh_config 파싱 완료 (총 {len(servers)}개 호스트, 제외 {len(list(ssh_config.get_hostnames()))-len(servers)-1})")
     return servers
 
 # -----------------------------------------------------------------------------
@@ -211,15 +235,25 @@ def fetch_server_info(cfg: dict):
         cfg["private_key_path"],
         cfg["port"]
     )
+    # log_info(f"[{cfg['servername']}] 장치 정보 수집 시작")
     device_info = retriever.get_device_info()
+    # log_info(f"[{cfg['servername']}] 장치 정보 수집 완료")
     retriever.close_connection()
 
     if device_info is None:
+        # log_error(
+        #     f"[FETCH-FAIL] {cfg['servername']} ({cfg['hostname']}) - 장치 정보 수집 실패"
+        # )
         return (
-            cfg['servername'],
-            cfg['hostname'],
+            cfg["servername"],
+            cfg["hostname"],
             "Connection Fail",
-            "N/A","N/A","N/A","N/A","N/A","N/A"
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A",
+            "N/A",
         )
     else:
         df_root, df_app, df_data, cpu_num, cpu_out, mem_out, ip_out = device_info

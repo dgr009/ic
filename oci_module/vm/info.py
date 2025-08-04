@@ -1,0 +1,224 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import sys
+import datetime
+import concurrent.futures
+import time
+
+import oci
+from rich.console import Console
+from rich.table import Table
+from rich import box
+from common.log import log_info_non_console
+from oci_module.common.utils import get_all_subscribed_regions, get_compartments
+
+# ###############################################################################
+# # CLI 인자 정의
+# ###############################################################################
+def add_arguments(parser):
+    """VM Info 에 필요한 인자만 추가"""
+    parser.add_argument("--verb", action="store_true", help="인스턴스 상세 출력 (전체 컬럼 표시)")
+    parser.add_argument("--name", "-n", default=None, help="이름 필터 (부분 일치)")
+    parser.add_argument("--compartment", "-c", default=None, help="컴파트먼트 이름 필터 (부분 일치)")
+    parser.add_argument("--regions","-r", default=None, help="조회할 리전(,) 예: ap-seoul-1,us-ashburn-1")
+
+
+###############################################################################
+# 인스턴스 정보 수집
+###############################################################################
+def fetch_instances_one_comp(config, region, comp, name_filter):
+    console = Console()
+    results = []
+    state_color_map = {
+        "RUNNING": "green",
+        "STOPPED": "yellow",
+        "STOPPING": "yellow",
+        "STARTING": "cyan",
+        "PROVISIONING": "cyan",
+        "TERMINATED": "red",
+        "AVAILABLE": "green"
+    }
+
+    try:
+        # Initial client setup to list instances
+        compute_client = oci.core.ComputeClient(config)
+        compute_client.base_client.set_region(region)
+        insts = compute_client.list_instances(compartment_id=comp.id).data
+    except Exception as e:
+        console.print(f"[red][ERROR] 인스턴스 목록 조회 실패:[/red] region={region}, comp={comp.name}: {e}")
+        return results
+
+    valid_insts = [i for i in insts if i.lifecycle_state != "TERMINATED" and (not name_filter or name_filter in i.display_name.lower())]
+
+    def process_instance(inst):
+        start_ts = time.time()
+        log_info_non_console(f"inst data collection : {comp.name} - {region} : {inst.display_name}")
+        
+        try:
+            # Thread-safe clients
+            cmp_cli = oci.core.ComputeClient(config)
+            cmp_cli.base_client.set_region(region)
+            vnet_cli = oci.core.VirtualNetworkClient(config)
+            vnet_cli.base_client.set_region(region)
+            blk_cli = oci.core.BlockstorageClient(config)
+            blk_cli.base_client.set_region(region)
+
+            # Shape, vCPU, Memory
+            vcpus, memory_gbs, ad_val, fault_domain = "-", "-", inst.availability_domain or "-", "-"
+            try:
+                details = cmp_cli.get_instance(inst.id).data
+                sc = details.shape_config
+                if sc and sc.ocpus is not None:
+                    vcpus = str(int(sc.ocpus * 2))
+                    memory_gbs = str(int(sc.memory_in_gbs))
+                fault_domain = details.fault_domain or "-"
+            except Exception: pass
+
+            # VNIC, IP, Subnet, NSG
+            private_ip, public_ip, subnet_str, nsg_str = "-", "-", "-", "-"
+            try:
+                va = cmp_cli.list_vnic_attachments(compartment_id=comp.id, instance_id=inst.id).data
+                if va:
+                    vnic = vnet_cli.get_vnic(va[0].vnic_id).data
+                    private_ip, public_ip = vnic.private_ip or "-", vnic.public_ip or "-"
+                    try:
+                        subnet_str = vnet_cli.get_subnet(vnic.subnet_id).data.display_name
+                    except Exception: pass
+                    if vnic.nsg_ids:
+                        nsg_names = [vnet_cli.get_network_security_group(nsg_id).data.display_name for nsg_id in vnic.nsg_ids]
+                        nsg_str = ",".join(nsg_names)
+            except Exception: pass
+
+            # Boot Volume
+            boot_str = "-"
+            try:
+                bvas = cmp_cli.list_boot_volume_attachments(availability_domain=inst.availability_domain, compartment_id=comp.id, instance_id=inst.id).data
+                if bvas:
+                    bv = blk_cli.get_boot_volume(bvas[0].boot_volume_id).data
+                    boot_str = f"{bv.size_in_gbs}GB"
+            except Exception: pass
+
+            # Block Volumes
+            block_str = "-"
+            try:
+                vol_atts = cmp_cli.list_volume_attachments(availability_domain=inst.availability_domain, compartment_id=comp.id, instance_id=inst.id).data
+                block_list = [f"{blk_cli.get_volume(va2.volume_id).data.size_in_gbs}GB" for va2 in vol_atts if not isinstance(va2, oci.core.models.BootVolumeAttachment)]
+                if block_list:
+                    block_str = ", ".join(block_list)
+            except Exception: pass
+
+            state_colored = f"[{state_color_map.get(inst.lifecycle_state, 'white')}]{inst.lifecycle_state}[/{state_color_map.get(inst.lifecycle_state, 'white')}]"
+
+            row_data = {
+                "compartment_name": comp.name, "region": region, "ad": ad_val, "fault_domain": fault_domain,
+                "instance_name": inst.display_name, "state_colored": state_colored, "subnet": subnet_str, "nsg": nsg_str,
+                "private_ip": private_ip, "public_ip": public_ip, "shape": inst.shape, "vcpus": vcpus,
+                "memory": memory_gbs, "boot": boot_str, "block": block_str
+            }
+            elapsed = time.time() - start_ts
+            log_info_non_console(f"inst data collection complete : {inst.display_name} ({elapsed:.2f}s)")
+            return row_data
+        except Exception as e:
+            console.print(f"[red]Instance processing failed[/red]: {inst.display_name} : {e}")
+            return None
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as inst_executor:
+        futs = [inst_executor.submit(process_instance, inst) for inst in valid_insts]
+        for fut in concurrent.futures.as_completed(futs):
+            if data := fut.result():
+                results.append(data)
+    return results
+
+def collect_instances_parallel_fast(config, compartments, region_list, name_filter, console, max_workers=20):
+    start_ts = time.time()
+    log_info_non_console("collect_instances_parallel_fast start")
+    all_rows = []
+    jobs = [(reg, comp) for reg in region_list for comp in compartments]
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        fut_map = {executor.submit(fetch_instances_one_comp, config, r, c, name_filter): (r, c) for r, c in jobs}
+        for fut in concurrent.futures.as_completed(fut_map):
+            try:
+                all_rows.extend(fut.result())
+            except Exception as e:
+                console.print(f"[red]Job failed[/red] {fut_map[fut]} : {e}")
+    
+    elapsed = time.time() - start_ts
+    log_info_non_console(f"collect_instances_parallel_fast complete ({elapsed:.2f}s)")
+    return all_rows
+
+###############################################################################
+# 테이블 출력
+###############################################################################
+def print_instance_table(console, inst_rows, verbose):
+    if not inst_rows:
+        console.print("(No Instances)")
+        return
+        
+    inst_rows.sort(key=lambda x: (x["compartment_name"].lower(), x["region"].lower(), x["instance_name"].lower()))
+    console.print("[bold underline]Instance Info[/bold underline]")
+    t = Table(show_lines=False, box=box.HORIZONTALS)
+
+    if verbose:
+        headers = ["Compartment", "Region", "AD", "Fault Domain", "Instance Name", "State", "Subnet", "NSG", "Private IP", "Public IP", "Shape", "vCPU", "Mem(GB)", "Boot", "Block"]
+        keys = ["compartment_name", "region", "ad", "fault_domain", "instance_name", "state_colored", "subnet", "nsg", "private_ip", "public_ip", "shape", "vcpus", "memory", "boot", "block"]
+    else:
+        headers = ["Comp", "Region", "Name", "State", "PrivateIP", "PublicIP", "Shape", "vCPU", "Mem", "Boot", "Block"]
+        keys = ["compartment_name", "region", "instance_name", "state_colored", "private_ip", "public_ip", "shape", "vcpus", "memory", "boot", "block"]
+
+    # 공통 스타일링 및 컬럼 추가
+    for h in headers:
+        style_opts = {}
+        if h in ["Compartment", "Comp"]: style_opts = {"style": "bold magenta"}
+        if h in ["Region", "AD", "Fault Domain"]: style_opts = {"style": "bold cyan"}
+        if h == "State": style_opts = {"justify": "center"}
+        if h in ["vCPU", "Mem(GB)", "Mem"]: style_opts = {"justify": "right"}
+        if h in ["Instance Name", "Name"]: style_opts = {"overflow": "fold"}
+        t.add_column(h, **style_opts)
+
+    curr_key = None
+    for row in inst_rows:
+        key = (row["region"], row["compartment_name"])
+        if key != curr_key:
+            if curr_key is not None:
+                t.add_section()
+            curr_key = key
+        t.add_row(*(str(row.get(k, "-")) for k in keys))
+    
+    console.print(t)
+
+###############################################################################
+# main
+###############################################################################
+def main(args):
+    console = Console()
+    name_filter = args.name.lower() if args.name else None
+    compartment_filter = args.compartment.lower() if args.compartment else None
+
+    try:
+        config = oci.config.from_file("~/.oci/config", "DEFAULT")
+        identity_client = oci.identity.IdentityClient(config)
+    except Exception as e:
+        console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]")
+        sys.exit(1)
+
+    if args.regions:
+        subscribed = get_all_subscribed_regions(identity_client, config["tenancy"])
+        region_list = [r.strip() for r in args.regions.split(',') if r.strip() and r in subscribed]
+        if not region_list:
+            console.print("[red]유효한 리전이 없어 종료합니다[/red]")
+            sys.exit(0)
+    else:
+        region_list = get_all_subscribed_regions(identity_client, config["tenancy"])
+
+    compartments = get_compartments(identity_client, config["tenancy"], compartment_filter, console)
+    inst_rows = collect_instances_parallel_fast(config, compartments, region_list, name_filter, console)
+    print_instance_table(console, inst_rows, args.verb)
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description="OCI Instance Info Collector")
+    add_arguments(parser)
+    args = parser.parse_args()
+    main(args) 

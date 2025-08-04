@@ -1,105 +1,46 @@
-# OCI Info Extended
+# OCI Module for `ic` CLI
 
-OCI 인프라 내 인스턴스, 로드 밸런서, NSG, 볼륨, 오브젝트 스토리지 버킷의 정보를 손쉽게 조회할 수 있는 통합 Python CLI 스크립트입니다.
-
----
-
-## 📁 주요 기능
-
-- **🚀 인스턴스 정보 (`--instance`, `-i`)**
-  - 컴파트먼트 별 구분 출력
-  - 상태(RUNNING, STOPPED 등)를 컬러로 구분
-  - Subnet, NSG, Private/Public IP, vCPU, Memory, 부팅/블록 볼륨 포함
-
-- **🛠️ 로드 밸런서 정보 (`--lb`, `-l`)**
-  - IP 주소, Shape, Public/Private 여부
-  - Backend Set 및 Backend Instance 정보 포함
-
-- **🔒 NSG 인바운드 룰 (`--nsg`, `-s`)**
-  - Protocol, Port Range, Source, Description 등 상세 출력
-
-- **📀 볼륨 정보 (`--volume`, `-v`)**
-  - 부팅 볼륨 / 블록 볼륨 구분
-  - 각 볼륨의 상태, 용량, 붙어있는 인스턴스 표시
-
-- **📦 오브젝트 스토리지 버킷 정보 (`--object`, `-o`)**
-  - 공개 접근 여부 (색상으로 표현)
-  - 스토리지 계층
-  - 총 오브젝트 수, 총 용량(GB) 계산
-
-- **Usage API 기반의 비용 분석 기능 제공(`--cost`, `--cost-start`, `--cost-end`)**
-  - cost-end , cost-start는 디폴트로 현재 달의 1일부터 오늘까지로 지정
-  - 날짜는 YYYY-MM-DD 로 입력
+이 디렉토리는 `ic` CLI의 `oci` 플랫폼 관련 명령어들의 소스 코드를 포함합니다. 각 하위 디렉토리는 OCI의 특정 서비스를 담당하며, 모듈화된 구조를 가집니다.
 
 ---
 
-## ⚙️ 설치 및 의존성
+## 📂 모듈 구조
 
-Python 3.7+ 환경이 필요하며, OCI Python SDK 및 rich 라이브러리를 요구합니다.
+- `vm/`: `ic oci vm` (인스턴스) 관련 명령어 로직
+- `lb/`: `ic oci lb` (로드 밸런서) 관련 명령어 로직
+- `nsg/`: `ic oci nsg` (네트워크 보안 그룹) 관련 명령어 로직
+- `volume/`: `ic oci volume` (블록/부트 볼륨) 관련 명령어 로직
+- `obj/`: `ic oci obj` (오브젝트 스토리지) 관련 명령어 로직
+- `policy/`: `ic oci policy` (IAM 정책) 관련 명령어 로직
+- `cost/`: `ic oci cost` (비용 및 크레딧) 관련 명령어 로직
+- `common/`: OCI 모듈 내에서 공통으로 사용되는 유틸리티 (리전, 컴파트먼트 조회 등)
+- `info/`: [Deprecated] 과거의 통합 `ic oci info` 명령어. 현재는 경고 메시지만 출력합니다.
 
-```bash
-pip install oci rich
-```
+---
+
+## 🛠️ 주요 명령어
+
+모든 명령어는 `ic oci <service> <command>` 형태로 실행됩니다.
+
+| 서비스   | 명령어 | 설명 | 예시 |
+|----------|--------|------|------|
+| `vm`     | `info` | VM 인스턴스 정보를 병렬로 수집하여 출력 | `ic oci vm info --name "my-vm"` |
+| `lb`     | `info` | 로드 밸런서 정보를 수집. 정보량이 많은 테이블이 기본. | `ic oci lb info --output tree` |
+| `nsg`    | `info` | NSG Ingress 규칙을 수집. 가독성이 좋은 트리가 기본. | `ic oci nsg info --output table` |
+| `volume` | `info` | 부팅 볼륨과 블록 볼륨 정보를 수집 | `ic oci volume info -c "dev-comp"` |
+| `obj`    | `info` | Object Storage 버킷 정보를 수집 | `ic oci obj info -c "prod-comp"` |
+| `policy` | `info` | IAM 정책 목록과 상세 구문을 분석하여 출력 | `ic oci policy info --name "AdminPolicy"` |
+| `policy` | `search` | 사용자/그룹을 기준으로 연관된 IAM 정책을 검색 | `ic oci policy search`|
+| `cost`   | `usage`| Usage API를 통해 지정된 기간의 비용 사용량 분석 | `ic oci cost usage --group-by COMPARTMENT_PATH`|
+| `cost`   | `credit`| 현재 사용 가능한 크레딧 잔액 및 소진 내역 조회 | `ic oci cost credit` |
 
 > ✅ `~/.oci/config` 에 유효한 프로파일 정보(`tenancy`, `user`, `region`, `key_file` 등)가 필요합니다.
 
 ---
 
-## 인자 설명
-
-| 옵션 | 설명 |
-|------|------|
-| `--instance`, `-i` | 인스턴스 정보만 출력 |
-| `--lb`, `-l` | 로드 밸런서 정보만 출력 |
-| `--nsg`, `-s` | NSG 인바운드 룰만 출력 |
-| `--volume`, `-v` | 볼륨 정보만 출력 |
-| `--object`, `-o` | 오브젝트 스토리지(버킷) 정보 출력 |
-| `--cost` | 비용 정보 출력 (Usage API 기반) |
-| `--cost-start YYYY-MM-DD` | 비용 조회 대상 시작일 |
-| `--cost-end YYYY-MM-DD` | 비용 조회 대상 종료일 |
-| `--name` | 이름 필터 (부분 일치) |
-| `--compartment` | 컴파트먼트 이름 필터 |
-
----
-
-## 🔎 사용 예시
-
-```bash
-# 모든 리소스 조회 (디폴트)
-python3 oci_info.py
-
-# 인스턴스만
-python3 oci_info.py --instance
-
-# NSG 와 LB 정보
-python3 oci_info.py --nsg --lb
-
-# 오브젝트 스토리지만
-python3 oci_info.py --object
-
-# 볼륨 + 오브젝트
-python3 oci_info.py -v -o
-
-# 이름 필터링 (myapp 포함된 이름만)
-python3 oci_info.py -i --name myapp
-
-# 특정 컴파트먼트 이름 포함 필터링
-python3 oci_info.py -c dev
-
-
-# 비용 정보
-python3 oci_info.py --cost
-
-
-# 특정 날짜의 비용 정보
-python3 oci_info.py --cost --cost-start 0000-00-00 --cost-end 0000-00-00
-```
-
----
-
 ## 🔐 IAM 권한 정책 예시
 
-다음과 같은 권한이 필요할 수 있습니다:
+모든 기능을 원활히 사용하려면 다음과 유사한 IAM 정책이 필요할 수 있습니다.
 
 ```text
 Allow group YourGroup to inspect instances in tenancy
@@ -109,23 +50,9 @@ Allow group YourGroup to read volumes in tenancy
 Allow group YourGroup to read boot-volumes in tenancy
 Allow group YourGroup to read virtual-network-family in tenancy
 Allow group YourGroup to read buckets in tenancy
-Allow group YourGroup to manage objects in tenancy where any { request.permission='OBJECT_INSPECT', request.permission='OBJECT_READ' }
+Allow group YourGroup to read usage-reports in tenancy
+Allow group YourGroup to inspect compartments in tenancy
 ```
-
----
-
-## ✨ 추가 정보
-
-- 모든 테이블은 컴파트먼트 기준으로 그룹핑되어 출력됩니다.
-- NSG/볼륨/버킷 등은 별도 섹션으로 나뉘며, 색상으로 상태 표시됩니다.
-- 오브젝트 스토리지의 공개 접근 여부(`NoPublicAccess`, `ObjectRead`, `ObjectReadWrite`)는 색상 강조로 표현됩니다.
-- Object Storage의 총 사이즈는 `list_objects` API와 `fields="size"`를 이용해 직접 계산합니다.
-
----
-
-## 라이선스
-
-MIT License
 
 ---
 

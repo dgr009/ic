@@ -11,26 +11,22 @@ setup(
     description="A CLI tool for managing infra resources and services.",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://https://github.com/dgr009/ic",  # 프로젝트 URL이 있다면 수정하세요.
-    packages=find_packages(include=["ic", "ic.*"]),
+    url="https://github.com/dgr009/ic",  # 프로젝트 URL이 있다면 수정하세요.
+    packages=find_packages(),
     install_requires=[
         "boto3",
-        "colorama",
-        "prettytable",
-        "pandas",
-        "openpyxl",
-        "argparse",
-        "configparser",
-        "pytest",
-        "black",
-        "flake8",
-        "python-dotenv",
+        "oci",
+        "requests",
+        "paramiko",
         "rich",
-        "requests"
+        "InquirerPy",
+        "tqdm",
+        "python-dotenv",
+        "python-dateutil",
     ],
     entry_points={
         "console_scripts": [
-            "ic=ic.cli:main",  # CLI 진입점을 지정합니다.
+            "ic=ic.cli:main"
         ],
     },
     classifiers=[

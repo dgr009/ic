@@ -20,6 +20,11 @@ from rich.prompt import Prompt, IntPrompt
 from pathlib import Path
 import logging
 
+def get_env_var(key, default=""):
+    """환경 변수를 가져오고 값에 포함된 주석을 제거합니다."""
+    value = os.getenv(key, default)
+    return str(value).split('#')[0].strip()
+
 # 환경 변수 로딩
 load_dotenv()
 
@@ -39,11 +44,11 @@ logger = logging.getLogger("auto-ssh")
 logging.getLogger('paramiko').setLevel(logging.ERROR)
 
 # 환경 변수 설정
-DEFAULT_KEY_DIR = os.getenv("SSH_KEY_DIR", os.path.expanduser("~/aws-key"))
-SSH_CONFIG_FILE = os.getenv("SSH_CONFIG_FILE", os.path.expanduser("~/.ssh/config"))
-SSH_MAX_WORKER = int(os.getenv("SSH_MAX_WORKER", 70))
-PORT_OPEN_TIMEOUT = float(os.getenv("PORT_OPEN_TIMEOUT", 0.5))
-SSH_TIMEOUT = float(os.getenv("SSH_TIMEOUT", 3))
+DEFAULT_KEY_DIR = get_env_var("SSH_KEY_DIR", os.path.expanduser("~/aws-key"))
+SSH_CONFIG_FILE = get_env_var("SSH_CONFIG_FILE", os.path.expanduser("~/.ssh/config"))
+SSH_MAX_WORKER = int(get_env_var("SSH_MAX_WORKER", "70"))
+PORT_OPEN_TIMEOUT = float(get_env_var("PORT_OPEN_TIMEOUT", "0.5"))
+SSH_TIMEOUT = float(get_env_var("SSH_TIMEOUT", "3"))
 
 
 from rich.prompt import Prompt, Confirm

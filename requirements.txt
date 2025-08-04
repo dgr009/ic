@@ -1,16 +1,16 @@
+# Cloud SDKs
 boto3
-colorama
-prettytable
-pandas
-openpyxl
-argparse
-configparser
-pytest
-black
-flake8
-rich
-dotenv
-requests
-paramiko
 oci
+requests
+
+# SSH
+paramiko
+
+# CLI User Interface
+rich
 InquirerPy
+tqdm
+
+# Utilities
+python-dotenv
+python-dateutil

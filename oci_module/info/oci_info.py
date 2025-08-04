@@ -4,9 +4,11 @@
 import sys
 import datetime
 import concurrent.futures
+import time
 
 import re
 import oci
+from common.log import log_info_non_console
 import oci.usage_api
 from rich.console import Console
 from rich.table import Table
@@ -31,6 +33,7 @@ def add_arguments(parser):
     # 크레딧 조회
     parser.add_argument("--credit", action="store_true", help="크레딧 사용 내역 표시")
     parser.add_argument("--credit-year", type=int, default=None, help="크레딧 연도 (예: 2025)")
+    parser.add_argument("--credit-date", type=int, default=None, help="크레딧 시작일자 (예: 2025-05-22)")
     parser.add_argument("--credit-initial", type=float, default=0.0, help="처음 받은 크레딧 금액")
 
     # 필터
@@ -38,8 +41,10 @@ def add_arguments(parser):
     parser.add_argument("--compartment", "-c", default=None, help="컴파트먼트 이름 필터 (부분 일치)")
 
     # 리전
-    parser.add_argument("--regions", default=None,
+    parser.add_argument("--regions", "-r", default=None,
                         help="조회할 리전(,) 예: ap-seoul-1,us-ashburn-1")
+    # 인스턴스 출력 상세 모드
+    parser.add_argument("--verb", action="store_true", help="인스턴스 상세 출력 (전체 컬럼 표시)")
 
 
 ###############################################################################
@@ -101,114 +106,141 @@ def fetch_instances_one_comp(config, region, comp, name_filter):
         console.print(f"[red][ERROR] 인스턴스 조회 실패:[/red] region={region}, comp={comp.name}: {e}")
         return results
 
-    for inst in insts:
-        if inst.lifecycle_state == "TERMINATED":
-            continue
-        if name_filter and (name_filter not in inst.display_name.lower()):
-            continue
+    # --------------- 인스턴스 단위 병렬 처리 ---------------
+    valid_insts = [i for i in insts if i.lifecycle_state != "TERMINATED" and ((name_filter is None) or (name_filter in i.display_name.lower()))]
 
-        # shape
-        vcpus = "-"
-        memory_gbs = "-"
-        ad_val = inst.availability_domain or "-"
-        fault_domain = "-"
+    def process_instance(inst):
+        """단일 인스턴스 정보를 수집하여 dict 로 반환"""
+        start_ts = time.time()
+        log_info_non_console(f"inst data collection start : {comp.name} - {region} : {inst.display_name}")
+
         try:
-            details = compute_client.get_instance(inst.id).data
-            sc = details.shape_config
-            if sc and sc.ocpus is not None:
-                vcpus = str(int(sc.ocpus * 2))
-                memory_gbs = str(sc.memory_in_gbs)
-            fault_domain = details.fault_domain or "-"
-        except:
-            pass
+            # 각 스레드마다 자체 클라이언트 사용 (스레드 세이프)
+            cmp_cli = oci.core.ComputeClient(config)
+            cmp_cli.base_client.set_region(region)
+            vnet_cli = oci.core.VirtualNetworkClient(config)
+            vnet_cli.base_client.set_region(region)
+            blk_cli = oci.core.BlockstorageClient(config)
+            blk_cli.base_client.set_region(region)
 
-        # VNIC
-        private_ip, public_ip, subnet_str, nsg_str = "-", "-", "-", "-"
-        try:
-            va = compute_client.list_vnic_attachments(
-                compartment_id=comp.id,
-                instance_id=inst.id
-            ).data
-            if va:
-                vnic_id = va[0].vnic_id
-                vnic = vnet_client.get_vnic(vnic_id).data
-                private_ip = vnic.private_ip or "-"
-                public_ip = vnic.public_ip or "-"
-                try:
-                    sb = vnet_client.get_subnet(vnic.subnet_id).data
-                    subnet_str = sb.display_name
-                except:
-                    pass
-                if vnic.nsg_ids:
-                    nsg_names = []
-                    for nsg_id in vnic.nsg_ids:
-                        try:
-                            nsg_obj = vnet_client.get_network_security_group(nsg_id).data
-                            nsg_names.append(nsg_obj.display_name)
-                        except:
-                            nsg_names.append("Unknown-NSG")
-                    nsg_str = ",".join(nsg_names)
-        except:
-            pass
+            # shape
+            vcpus = "-"
+            memory_gbs = "-"
+            ad_val = inst.availability_domain or "-"
+            fault_domain = "-"
+            try:
+                details = cmp_cli.get_instance(inst.id).data
+                sc = details.shape_config
+                if sc and sc.ocpus is not None:
+                    vcpus = str(int(sc.ocpus * 2))
+                    memory_gbs = str(sc.memory_in_gbs)
+                fault_domain = details.fault_domain or "-"
+            except Exception:
+                pass
 
-        # Boot Volume
-        boot_str = "-"
-        try:
-            bvas = compute_client.list_boot_volume_attachments(
-                availability_domain=inst.availability_domain,
-                compartment_id=comp.id,
-                instance_id=inst.id
-            ).data
-            if bvas:
-                bv_id = bvas[0].boot_volume_id
-                bv = blk_client.get_boot_volume(bv_id).data
-                boot_str = f"{bv.size_in_gbs}GB"
-        except:
-            pass
+            # VNIC
+            private_ip, public_ip, subnet_str, nsg_str = "-", "-", "-", "-"
+            try:
+                va = cmp_cli.list_vnic_attachments(
+                    compartment_id=comp.id,
+                    instance_id=inst.id
+                ).data
+                if va:
+                    vnic_id = va[0].vnic_id
+                    vnic = vnet_cli.get_vnic(vnic_id).data
+                    private_ip = vnic.private_ip or "-"
+                    public_ip = vnic.public_ip or "-"
+                    try:
+                        sb = vnet_cli.get_subnet(vnic.subnet_id).data
+                        subnet_str = sb.display_name
+                    except Exception:
+                        pass
+                    if vnic.nsg_ids:
+                        nsg_names = []
+                        for nsg_id in vnic.nsg_ids:
+                            try:
+                                nsg_obj = vnet_cli.get_network_security_group(nsg_id).data
+                                nsg_names.append(nsg_obj.display_name)
+                            except Exception:
+                                nsg_names.append("Unknown-NSG")
+                        nsg_str = ",".join(nsg_names)
+            except Exception:
+                pass
 
-        # Block Volume (용량 합계 문자열)
-        block_str = "-"
-        try:
-            vol_atts = compute_client.list_volume_attachments(
-                availability_domain=inst.availability_domain,
-                compartment_id=comp.id,
-                instance_id=inst.id
-            ).data
-            block_list = []
-            for va2 in vol_atts:
-                if not isinstance(va2, oci.core.models.BootVolumeAttachment):
-                    vol_id = va2.volume_id
-                    vol_data = blk_client.get_volume(vol_id).data
-                    block_list.append(f"{vol_data.size_in_gbs}GB")
-            if block_list:
-                block_str = ", ".join(block_list)
-        except Exception:
-            pass
+            # Boot Volume
+            boot_str = "-"
+            try:
+                bvas = cmp_cli.list_boot_volume_attachments(
+                    availability_domain=inst.availability_domain,
+                    compartment_id=comp.id,
+                    instance_id=inst.id
+                ).data
+                if bvas:
+                    bv_id = bvas[0].boot_volume_id
+                    bv = blk_cli.get_boot_volume(bv_id).data
+                    boot_str = f"{bv.size_in_gbs}GB"
+            except Exception:
+                pass
 
-        color = state_color_map.get(inst.lifecycle_state, "white")
-        state_colored = f"[{color}]{inst.lifecycle_state}[/{color}]"
+            # Block Volumes
+            block_str = "-"
+            try:
+                vol_atts = cmp_cli.list_volume_attachments(
+                    availability_domain=inst.availability_domain,
+                    compartment_id=comp.id,
+                    instance_id=inst.id
+                ).data
+                block_list = []
+                for va2 in vol_atts:
+                    if not isinstance(va2, oci.core.models.BootVolumeAttachment):
+                        vol_id = va2.volume_id
+                        vol_data = blk_cli.get_volume(vol_id).data
+                        block_list.append(f"{vol_data.size_in_gbs}GB")
+                if block_list:
+                    block_str = ", ".join(block_list)
+            except Exception:
+                pass
 
-        results.append({
-            "compartment_name": comp.name,
-            "region": region,
-            "ad": ad_val,
-            "fault_domain": fault_domain,
-            "instance_name": inst.display_name,
-            "state_colored": state_colored,
-            "subnet": subnet_str,
-            "nsg": nsg_str,
-            "private_ip": private_ip,
-            "public_ip": public_ip,
-            "shape": inst.shape,
-            "vcpus": vcpus,
-            "memory": memory_gbs,
-            "boot": boot_str,
-            "block": block_str
-        })
+            color = state_color_map.get(inst.lifecycle_state, "white")
+            state_colored = f"[{color}]{inst.lifecycle_state}[/{color}]"
+
+            row_data = {
+                "compartment_name": comp.name,
+                "region": region,
+                "ad": ad_val,
+                "fault_domain": fault_domain,
+                "instance_name": inst.display_name,
+                "state_colored": state_colored,
+                "subnet": subnet_str,
+                "nsg": nsg_str,
+                "private_ip": private_ip,
+                "public_ip": public_ip,
+                "shape": inst.shape,
+                "vcpus": vcpus,
+                "memory": memory_gbs,
+                "boot": boot_str,
+                "block": block_str
+            }
+            elapsed = time.time() - start_ts
+            log_info_non_console(f"inst data collection complete : {inst.display_name} ({elapsed:.2f}s)")
+            return row_data
+        except Exception as e:
+            console.print(f"[red]Instance processing failed[/red]: {inst.display_name} : {e}")
+            return None
+
+    # ThreadPool for instances in same comp/region
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as inst_executor:
+        futs = [inst_executor.submit(process_instance, inst) for inst in valid_insts]
+        for fut in concurrent.futures.as_completed(futs):
+            data = fut.result()
+            if data:
+                results.append(data)
     return results
 
 def collect_instances_parallel_fast(config, compartments, region_list, name_filter, console, max_workers=10):
     """(region×comp) 병렬로 인스턴스 정보"""
+    start_ts = time.time()
+    log_info_non_console("collect_instances_parallel_fast start")
     all_rows = []
     jobs = []
     for reg in region_list:
@@ -228,6 +260,8 @@ def collect_instances_parallel_fast(config, compartments, region_list, name_filt
             except Exception as e:
                 console.print(f"[red]Job failed[/red] {rcomp} : {e}")
 
+    elapsed = time.time() - start_ts
+    log_info_non_console(f"collect_instances_parallel_fast complete ({elapsed:.2f}s)")
     return all_rows
 
 
@@ -238,32 +272,35 @@ def fetch_lb_one_comp(config, region, comp, name_filter):
     console = Console()
     results = []
 
-    lb_client = oci.load_balancer.LoadBalancerClient(config)
+    lb_client_main = oci.load_balancer.LoadBalancerClient(config)
     try:
-        lb_client.base_client.set_region(region)
-    except:
+        lb_client_main.base_client.set_region(region)
+    except Exception:
         pass
 
     try:
-        lb_list = lb_client.list_load_balancers(compartment_id=comp.id).data
+        lb_list = [lb for lb in lb_client_main.list_load_balancers(compartment_id=comp.id).data if not name_filter or name_filter in lb.display_name.lower()]
     except Exception as e:
         console.print(f"[red][ERROR] LB 조회 실패:[/red] region={region}, comp={comp.name}: {e}")
         return results
 
-    for lb in lb_list:
-        if name_filter and (name_filter not in lb.display_name.lower()):
-            continue
-        lb_state = lb.lifecycle_state
-        shape_name = lb.shape_name or "-"
-        ip_list = []
-        if lb.ip_addresses:
-            ip_list = [ip.ip_address or "-" for ip in lb.ip_addresses]
-        ip_addr_str = ", ".join(ip_list) if ip_list else "-"
-        lb_type = "PRIVATE" if (getattr(lb, 'is_private', False)) else "PUBLIC"
+    def process_lb(lb_obj):
+        start_ts = time.time()
+        log_info_non_console(f"lb data collection : {comp.name} - {region} : {lb_obj.display_name}")
 
-        # Flexible LB 의 대역폭 범위 (Mbps)
+        lb_client = oci.load_balancer.LoadBalancerClient(config)
+        try:
+            lb_client.base_client.set_region(region)
+        except Exception:
+            pass
+
+        lb_state = lb_obj.lifecycle_state
+        shape_name = lb_obj.shape_name or "-"
+        ip_addr_str = ", ".join([ip.ip_address or "-" for ip in lb_obj.ip_addresses]) if lb_obj.ip_addresses else "-"
+        lb_type = "PRIVATE" if (getattr(lb_obj, 'is_private', False)) else "PUBLIC"
+
         min_bw = max_bw = "-"
-        sd = getattr(lb, "shape_details", None)
+        sd = getattr(lb_obj, "shape_details", None)
         if sd:
             mbw = getattr(sd, "minimum_bandwidth_in_mbps", None)
             xbw = getattr(sd, "maximum_bandwidth_in_mbps", None)
@@ -272,17 +309,17 @@ def fetch_lb_one_comp(config, region, comp, name_filter):
             if xbw is not None:
                 max_bw = str(xbw)
 
-        # backend sets
-        bsets = []
+        rows = []
         try:
-            bsets = lb_client.list_backend_sets(load_balancer_id=lb.id).data
-        except:
-            pass
+            bsets = lb_client.list_backend_sets(load_balancer_id=lb_obj.id).data
+        except Exception:
+            bsets = []
+
         if not bsets:
-            results.append({
+            rows.append({
                 "region": region,
                 "compartment_name": comp.name,
-                "lb_name": lb.display_name,
+                "lb_name": lb_obj.display_name,
                 "lb_state": lb_state,
                 "ip_addrs": ip_addr_str,
                 "shape": shape_name,
@@ -294,17 +331,15 @@ def fetch_lb_one_comp(config, region, comp, name_filter):
             })
         else:
             for bset in bsets:
-                # list backends
                 try:
-                    backend_list = lb_client.list_backends(load_balancer_id=lb.id, backend_set_name=bset.name).data
-                except:
+                    backend_list = lb_client.list_backends(load_balancer_id=lb_obj.id, backend_set_name=bset.name).data
+                except Exception:
                     backend_list = []
-
                 if not backend_list:
-                    results.append({
+                    rows.append({
                         "region": region,
                         "compartment_name": comp.name,
-                        "lb_name": lb.display_name,
+                        "lb_name": lb_obj.display_name,
                         "lb_state": lb_state,
                         "ip_addrs": ip_addr_str,
                         "shape": shape_name,
@@ -316,11 +351,10 @@ def fetch_lb_one_comp(config, region, comp, name_filter):
                     })
                 else:
                     for backend in backend_list:
-                        tgt = backend.name
-                        results.append({
+                        rows.append({
                             "region": region,
                             "compartment_name": comp.name,
-                            "lb_name": lb.display_name,
+                            "lb_name": lb_obj.display_name,
                             "lb_state": lb_state,
                             "ip_addrs": ip_addr_str,
                             "shape": shape_name,
@@ -328,12 +362,27 @@ def fetch_lb_one_comp(config, region, comp, name_filter):
                             "max_bw": max_bw,
                             "lb_type": lb_type,
                             "backend_set": bset.name,
-                            "backend_target": tgt
+                            "backend_target": backend.name
                         })
+
+        elapsed = time.time() - start_ts
+        log_info_non_console(f"lb data collection complete : {lb_obj.display_name} ({elapsed:.2f}s)")
+        return rows
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as lb_pool:
+        all_futs = [lb_pool.submit(process_lb, lb) for lb in lb_list]
+        for fut in concurrent.futures.as_completed(all_futs):
+            try:
+                rows_chunk = fut.result()
+                results.extend(rows_chunk)
+            except Exception as e:
+                console.print(f"[red]LB processing failed[/red] : {e}")
 
     return results
 
 def collect_lb_parallel_fast(config, compartments, region_list, name_filter, console, max_workers=10):
+    start_ts = time.time()
+    log_info_non_console("collect_lb_parallel_fast start")
     all_rows = []
     jobs = []
     for reg in region_list:
@@ -351,6 +400,8 @@ def collect_lb_parallel_fast(config, compartments, region_list, name_filter, con
                 all_rows.extend(chunk)
             except Exception as e:
                 console.print(f"[red]LB job failed[/red] : {e}")
+    elapsed = time.time() - start_ts
+    log_info_non_console(f"collect_lb_parallel_fast complete ({elapsed:.2f}s)")
     return all_rows
 
 
@@ -358,6 +409,8 @@ def collect_lb_parallel_fast(config, compartments, region_list, name_filter, con
 # NSG (region×comp) 병렬
 ###############################################################################
 def fetch_nsg_one_comp(config, region, comp, name_filter):
+    start_ts = time.time()
+    log_info_non_console(f"nsg data collection start : {comp.name} - {region}")
     console = Console()
     results = []
     vcn_client = oci.core.VirtualNetworkClient(config)
@@ -424,9 +477,13 @@ def fetch_nsg_one_comp(config, region, comp, name_filter):
                     "port_range": port_range,
                     "source": source_str
                 })
+    elapsed = time.time() - start_ts
+    log_info_non_console(f"nsg data collection complete : {comp.name} - {region} ({elapsed:.2f}s)")
     return results
 
 def collect_nsg_parallel_fast(config, compartments, region_list, name_filter, console, max_workers=10):
+    start_ts = time.time()
+    log_info_non_console("collect_nsg_parallel_fast start")
     all_rows = []
     jobs = []
     for reg in region_list:
@@ -442,6 +499,8 @@ def collect_nsg_parallel_fast(config, compartments, region_list, name_filter, co
                 all_rows.extend(chunk)
             except Exception as e:
                 console.print(f"[red]NSG job failed[/red]: {e}")
+    elapsed = time.time() - start_ts
+    log_info_non_console(f"collect_nsg_parallel_fast complete ({elapsed:.2f}s)")
     return all_rows
 
 
@@ -449,6 +508,8 @@ def collect_nsg_parallel_fast(config, compartments, region_list, name_filter, co
 # Volumes (region×comp) 병렬
 ###############################################################################
 def fetch_volume_one_comp(config, region, comp, name_filter):
+    start_ts = time.time()
+    log_info_non_console(f"volume data collection start : {comp.name} - {region}")
     console = Console()
     boot_rows = []
     block_rows = []
@@ -568,9 +629,13 @@ def fetch_volume_one_comp(config, region, comp, name_filter):
             "attached"        : inst_name
         })
 
+    elapsed = time.time() - start_ts
+    log_info_non_console(f"volume data collection complete : {comp.name} - {region} ({elapsed:.2f}s)")
     return (boot_rows, block_rows)
 
 def collect_volumes_parallel_fast(config, compartments, region_list, name_filter, console, max_workers=10):
+    start_ts = time.time()
+    log_info_non_console("collect_volumes_parallel_fast start")
     all_boot = []
     all_block = []
     jobs = []
@@ -590,6 +655,8 @@ def collect_volumes_parallel_fast(config, compartments, region_list, name_filter
                 all_block.extend(blk_rows)
             except Exception as e:
                 console.print(f"[red]Volume job failed[/red]: {e}")
+    elapsed = time.time() - start_ts
+    log_info_non_console(f"collect_volumes_parallel_fast complete ({elapsed:.2f}s)")
     return all_boot, all_block
 
 
@@ -803,50 +870,58 @@ def print_cost_table(cost_rows, console, start_time, end_time, currency_cd):
     tbl.add_section()
     console.print(tbl)
 
-def get_credit_usage(usage_client, tenancy_ocid, year, month, initial_credit, console):
+def get_credit_usage(usage_client, tenancy_ocid, start_date, end_date, initial_credit, console):
     from oci.usage_api.models import RequestSummarizedUsagesDetails
-    start_time = datetime.datetime(year,1,1)
-    if month:
-        end_time = datetime.datetime(year, month,1)+datetime.timedelta(days=31)
-    else:
-        end_time = datetime.datetime(year+1,1,1)
-        month=12
+    # Usage API 의 종료 시각은 exclusive 이므로, 다음 날 00:00 으로 맞춰줌
+    adj_end_time = end_date + datetime.timedelta(days=1)
+
     details = RequestSummarizedUsagesDetails(
         tenant_id=tenancy_ocid,
-        time_usage_started=start_time,
-        time_usage_ended=end_time,
+        time_usage_started=start_date,
+        time_usage_ended=adj_end_time,
         granularity="MONTHLY",
         query_type="COST",
         group_by=[],
-        compartment_depth=6
+        compartment_depth=6,
     )
-    monthly_cost={}
-    currency_cd = "USD"
+
+    monthly_cost: dict[str, float] = {}
+    currency_cd = "KRW"
 
     try:
         resp = usage_client.request_summarized_usages(details)
         items = resp.data.items or []
         if items:
-            currency_cd = items[0].currency or currency_cd
-
-        for it in resp.data.items or []:
-            cost_val= float(it.computed_amount or 0.0)
-            st = it.time_usage_started
-            mk= st.strftime("%Y-%m")
-            monthly_cost.setdefault(mk,0.0)
-            monthly_cost[mk]+=cost_val
+            currency_cd = items[0].currency if items[0].currency!=" " else items[1].currency
+        for it in items:
+            cost_val = float(it.computed_amount or 0.0)
+            mk = it.time_usage_started.strftime("%Y-%m")
+            monthly_cost.setdefault(mk, 0.0)
+            monthly_cost[mk] += cost_val
     except Exception as e:
         console.print(f"[yellow][WARN][/yellow] 크레딧조회 실패: {e}")
-        return {}
+        return {}, currency_cd
 
-    credit_data={}
+    # ----- 월별 잔액 계산 -----
+    credit_data: dict[str, tuple[float, float]] = {}
     remain = initial_credit
-    for m in range(1, month+1):
-        mk= f"{year}-{m:02d}"
-        cst= monthly_cost.get(mk, 0.0)
-        remain-= cst
-        if remain<0: remain=0
-        credit_data[mk]= (cst, remain)
+
+    curr = datetime.datetime(start_date.year, start_date.month, 1)
+    end_month = datetime.datetime(end_date.year, end_date.month, 1)
+    while curr <= end_month:
+        mk = curr.strftime("%Y-%m")
+        used = monthly_cost.get(mk, 0.0)
+        remain -= used
+        if remain < 0:
+            remain = 0
+        credit_data[mk] = (used, remain)
+
+        # 다음 달로 이동
+        if curr.month == 12:
+            curr = datetime.datetime(curr.year + 1, 1, 1)
+        else:
+            curr = datetime.datetime(curr.year, curr.month + 1, 1)
+
     return credit_data, currency_cd
 
 def print_credit_table(credit_data, console, year, initial_credit, currency_cd):
@@ -977,7 +1052,8 @@ def parse_stmt(stmt: str):
 ###############################################################################
 def main(args):
     console = Console()
-
+    start_ts = time.time()
+    
     # 리소스 표시 여부 결정
     # 아무것도 안주면 인스턴스/LB/NSG/Volume/Object 다 표시
     if not (args.instance or args.lb or args.nsg or args.volume or args.object or args.cost or args.credit or args.policy):
@@ -1038,7 +1114,7 @@ def main(args):
     futures=[]
     with concurrent.futures.ThreadPoolExecutor() as executor:
         if show_instance:
-            fut_inst= executor.submit(collect_instances_parallel_fast, config, compartments, region_list, name_filter, console, 30)
+            fut_inst= executor.submit(collect_instances_parallel_fast, config, compartments, region_list, name_filter, console, 10)
             futures.append(("instance", fut_inst))
 
         if show_lb:
@@ -1046,11 +1122,11 @@ def main(args):
             futures.append(("lb", fut_lb))
 
         if show_nsg:
-            fut_nsg= executor.submit(collect_nsg_parallel_fast, config, compartments, region_list, name_filter, console, 30)
+            fut_nsg= executor.submit(collect_nsg_parallel_fast, config, compartments, region_list, name_filter, console, 10)
             futures.append(("nsg", fut_nsg))
 
         if show_volume:
-            fut_vol= executor.submit(collect_volumes_parallel_fast, config, compartments, region_list, name_filter, console, 30)
+            fut_vol= executor.submit(collect_volumes_parallel_fast, config, compartments, region_list, name_filter, console, 10)
             futures.append(("volume", fut_vol))
 
         if show_object:
@@ -1089,22 +1165,38 @@ def main(args):
             inst_rows.sort(key=lambda x: (x["compartment_name"].lower(), x["region"].lower(), x["instance_name"].lower()))
             if inst_rows:
                 console.print("[bold underline]Instance Info[/bold underline]")
-                t= Table(show_lines=False, box=box.SIMPLE_HEAVY)
-                t.add_column("Compartment", style="bold magenta")
-                t.add_column("Region", style="bold cyan")
-                t.add_column("AD", style="bold cyan")
-                t.add_column("Fault Domain", style="bold cyan")
-                t.add_column("Instance Name")
-                t.add_column("State", justify="center")
-                t.add_column("Subnet")
-                t.add_column("NSG")
-                t.add_column("Private IP")
-                t.add_column("Public IP")
-                t.add_column("Shape")
-                t.add_column("vCPUs", justify="right")
-                t.add_column("Memory(GB)", justify="right")
-                t.add_column("Boot Volume")
-                t.add_column("Block Volumes")
+                verbose_inst = args.verb
+                t = Table(show_lines=False, box=box.SIMPLE_HEAVY)
+                if verbose_inst:
+                    # ───────── 상세(Verbose) 모드 ─────────
+                    t.add_column("Comp", style="bold magenta")
+                    t.add_column("Region", style="bold cyan")
+                    t.add_column("AD", style="bold cyan")
+                    t.add_column("Fault Domain", style="bold cyan")
+                    t.add_column("Name", overflow="fold")
+                    t.add_column("State", justify="center")
+                    t.add_column("Subnet")
+                    t.add_column("NSG")
+                    t.add_column("PrivateIP")
+                    t.add_column("PublicIP")
+                    t.add_column("Shape")
+                    t.add_column("vCPU", justify="right")
+                    t.add_column("Mem", justify="right")
+                    t.add_column("Boot")
+                    t.add_column("Block")
+                else:
+                    # ───────── 요약(Default) 모드 ─────────
+                    t.add_column("Comp", style="bold magenta")
+                    t.add_column("Region", style="bold cyan")
+                    t.add_column("Name", overflow="fold")
+                    t.add_column("State", justify="center")
+                    t.add_column("PrivateIP")
+                    t.add_column("PublicIP")
+                    t.add_column("Shape")
+                    t.add_column("vCPU", justify="right")
+                    t.add_column("Mem", justify="right")
+                    t.add_column("Boot")
+                    t.add_column("Block")
                 # group by region, comp?
                 curr_key=None
                 for row in inst_rows:
@@ -1113,23 +1205,38 @@ def main(args):
                         if curr_key!=None:
                             t.add_section()
                         curr_key=key
-                    t.add_row(
-                        row["compartment_name"],
-                        row["region"],
-                        row["ad"],
-                        row["fault_domain"],
-                        row["instance_name"],
-                        row["state_colored"],
-                        row["subnet"],
-                        row["nsg"],
-                        row["private_ip"],
-                        row["public_ip"],
-                        row["shape"],
-                        row["vcpus"],
-                        row["memory"],
-                        row["boot"],
-                        row["block"]
-                    )
+                    if verbose_inst:
+                        t.add_row(
+                            row["compartment_name"],
+                            row["region"],
+                            row["ad"],
+                            row["fault_domain"],
+                            row["instance_name"],
+                            row["state_colored"],
+                            row["subnet"],
+                            row["nsg"],
+                            row["private_ip"],
+                            row["public_ip"],
+                            row["shape"],
+                            row["vcpus"],
+                            row["memory"],
+                            row["boot"],
+                            row["block"]
+                        )
+                    else:
+                        t.add_row(
+                            row["compartment_name"],
+                            row["region"],
+                            row["instance_name"],
+                            row["state_colored"],
+                            row["private_ip"],
+                            row["public_ip"],
+                            row["shape"],
+                            row["vcpus"],
+                            row["memory"],
+                            row["boot"],
+                            row["block"]
+                        )
                 console.print(t)
         else:
             console.print("(No Instances)")
@@ -1137,7 +1244,12 @@ def main(args):
     # 2) LB
     if show_lb:
         if lb_rows:
-            lb_rows.sort(key=lambda x: (x["compartment_name"].lower()))
+            # Compartment → Region → LoadBalancer Name 순으로 정렬
+            lb_rows.sort(key=lambda x: (
+                x["compartment_name"].lower(),
+                x["region"].lower(),
+                x["lb_name"].lower()
+            ))
             console.print("\n[bold underline]LoadBalancer Info[/bold underline]")
             table= Table(show_lines=False, box=box.SIMPLE_HEAVY)
             table.add_column("Compartment", style="bold magenta")
@@ -1188,6 +1300,12 @@ def main(args):
     # 3) NSG
     if show_nsg:
         if nsg_rows:
+            # Compartment → Region → NSG Name 순으로 정렬
+            nsg_rows.sort(key=lambda x: (
+                x["compartment_name"].lower(),
+                x["region"].lower(),
+                x["nsg_name"].lower()
+            ))
             console.print("\n[bold underline]NSG Inbound Rules[/bold underline]")
             t= Table(show_lines=False, box=box.SIMPLE_HEAVY)
             t.add_column("Compartment", style="bold magenta")
@@ -1220,6 +1338,12 @@ def main(args):
     if show_volume:
         # boot
         if boot_rows:
+            # Compartment → Region → Volume Name 순으로 정렬
+            boot_rows.sort(key=lambda x: (
+                x["compartment_name"].lower(),
+                x["region"].lower(),
+                x["volume_name"].lower()
+            ))
             console.print("\n[bold underline]Boot Volumes[/bold underline]")
             bt= Table(show_lines=False, box=box.SIMPLE_HEAVY)
             bt.add_column("Compartment", style="bold magenta")
@@ -1251,6 +1375,12 @@ def main(args):
 
         # block
         if block_rows:
+            # Compartment → Region → Volume Name 순으로 정렬
+            block_rows.sort(key=lambda x: (
+                x["compartment_name"].lower(),
+                x["region"].lower(),
+                x["volume_name"].lower()
+            ))
             console.print("\n[bold underline]Block Volumes[/bold underline]")
             bt2= Table(show_lines=False, box=box.SIMPLE_HEAVY)
             bt2.add_column("Compartment", style="bold magenta")
@@ -1283,6 +1413,12 @@ def main(args):
     # 5) object
     if show_object:
         if obj_rows:
+            # Compartment → Region → Bucket Name 순으로 정렬
+            obj_rows.sort(key=lambda x: (
+                x["compartment_name"].lower(),
+                x["region"].lower(),
+                x["bucket_name"].lower()
+            ))
             console.print("\n[bold underline]Object Storage Buckets[/bold underline]")
             ot= Table(show_lines=False, box=box.SIMPLE_HEAVY)
             ot.add_column("Compartment", style="bold magenta")
@@ -1390,20 +1526,37 @@ def main(args):
 
     # 크레딧
     if show_credit:
-        start_date, end_date = get_date_range(args.cost_start, args.cost_end)
-        if args.credit_year and args.credit_year != end_date.year:
-            year = args.credit_year
-            month=12
-        else: 
-            year = end_date.year
-            month = end_date.month
+        # ----- 날짜 범위 결정 -----
+        if args.cost_start or args.cost_end:
+            start_date, end_date = get_date_range(args.cost_start, args.cost_end)
+        else:
+            # 기본값: 2025-05-22 ~ 금일 00시
+            start_date = datetime.datetime(2025, 5, 22)
+            now = datetime.datetime.utcnow()
+            end_date = datetime.datetime(now.year, now.month, now.day)
 
-        year= args.credit_year if args.credit_year else end_date.year
-        cd, currency_cd= get_credit_usage(usage_client, config["tenancy"], year, month, args.credit_initial, console)
+        if args.credit_initial is None or args.credit_initial == 0:
+            args.credit_initial = 208698600.0
+
+        cd, currency_cd = get_credit_usage(
+            usage_client,
+            config["tenancy"],
+            start_date,
+            end_date,
+            args.credit_initial,
+            console,
+        )
+        console.print(f"start_date: {start_date}, end_date: {end_date + datetime.timedelta(days=1)}")
+
+        year_to_print = args.credit_year if args.credit_year else start_date.year
         if cd:
-            print_credit_table(cd, console, year, args.credit_initial, currency_cd)
+            print_credit_table(cd, console, year_to_print, args.credit_initial, currency_cd)
         else:
             console.print("(No Credit Data)")
+
+
+    elapsed = time.time() - start_ts
+    log_info_non_console(f"All OCI Info Collection Complete ({elapsed:.2f}s)")
 
 
 if __name__=="__main__":
@@ -1412,3 +1565,4 @@ if __name__=="__main__":
     add_arguments(parser)
     args= parser.parse_args()
     main(args)
+    

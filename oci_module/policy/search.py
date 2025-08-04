@@ -23,8 +23,8 @@ load_dotenv()
 
 def add_arguments(parser):
     """CLI 인자 정의"""
-    parser.add_argument("-p", "--policy", action="store_true", 
-                       help="사용자/그룹의 IAM 정책 검색")
+    # parser.add_argument("-p", "--policy", action="store_true", 
+    #                    help="사용자/그룹의 IAM 정책 검색")
     parser.add_argument("--config-path", default=None,
                        help="OCI config 파일 경로 (기본: ~/.oci/config)")
     parser.add_argument("--profile", default="DEFAULT",
@@ -184,10 +184,10 @@ def list_related_policies(selected_name, config, show_empty_compartments=False):
 def main(args):
     """OCI 정책 검색 메인 함수"""
     try:
-        if not args.policy:
-            console.print("[yellow]⚠️  -p 또는 --policy 옵션을 사용하여 정책 검색을 활성화하세요.[/yellow]")
-            console.print("[cyan]사용법:[/cyan] ic oci search -p")
-            return
+        # if not args.policy:
+        #     console.print("[yellow]⚠️  -p 또는 --policy 옵션을 사용하여 정책 검색을 활성화하세요.[/yellow]")
+        #     console.print("[cyan]사용법:[/cyan] ic oci search -p")
+        #     return
             
         # log_info("OCI 정책 검색 시작")
         
