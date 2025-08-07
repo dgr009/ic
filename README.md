@@ -1,11 +1,14 @@
 # IC (Infra Resource Management CLI)
 
-`IC`는 AWS, OCI, Cloudflare, SSH 기반 인프라 리소스를 대상으로 **리소스 수집, 태그 관리, 유효성 검사, 자동화**를 수행할 수 있는 Python 기반 CLI 툴입니다.
+`IC`는 멀티 클라우드 환경의 인프라 리소스를 통합 관리할 수 있는 Python 기반 CLI 툴입니다. **리소스 수집, 태그 관리, 유효성 검사, 자동화**를 지원하며, 병렬 처리를 통해 빠른 성능을 제공합니다.
 
-- AWS 리소스 정보·태그 조회 및 검사 (EC2, LB, RDS, S3, VPC, VPN 등)
-- OCI 자원 및 비용 병렬 수집 및 IAM 정책 검색
-- Cloudflare DNS 레코드 수집
-- SSH 서버 상태 점검 및 자동 등록 지원
+**지원 플랫폼:**
+- **AWS**: EC2, LB, RDS, S3, VPC, VPN, Security Groups 등
+- **OCI**: VM, LB, NSG, VCN, Volume, Object Storage, Policy, Cost 등  
+- **Azure**: VM, VNet (Mock 구현)
+- **GCP**: Compute Engine, VPC (Mock 구현)
+- **Cloudflare**: DNS 레코드 관리
+- **SSH**: 서버 상태 점검 및 자동 등록
 
 ---
 
@@ -13,10 +16,12 @@
 
 | 플랫폼 | 서비스 | 기능 요약 |
 |---|---|---|
-| **AWS** | EC2, LB, RDS, S3, VPC, VPN | `info`로 리소스 상세 정보 조회, `list_tags`로 태그 조회, `tag_check`로 정규식 기반 태그 규칙 검사 |
-| **OCI** | vm, lb, nsg, vcn, volume, policy, cost | `info`로 각 서비스의 자원 병렬 수집. `policy search`로 IAM 정책 검색. `cost usage/credit`로 비용 분석 |
+| **AWS** | EC2, LB, RDS, S3, VPC, VPN, SG, NAT | `info`로 리소스 상세 정보 조회, `list_tags`로 태그 조회, `tag_check`로 정규식 기반 태그 규칙 검사 |
+| **OCI** | VM, LB, NSG, VCN, Volume, Object, Policy, Cost | `info`로 각 서비스의 자원 병렬 수집. `policy search`로 IAM 정책 검색. `cost usage/credit`로 비용 분석 |
+| **Azure** | VM, VNet | `info`로 리소스 정보 조회 (Mock 데이터 기반) |
+| **GCP** | Compute, VPC | `info`로 리소스 정보 조회 (Mock 데이터 기반) |
 | **Cloudflare** | DNS | `list_info`로 DNS 레코드 정보 수집 |
-| **SSH** | SSH config | `info`로 병렬 접속 상태 검사 및 서버 정보 수집, `reg`으로 신규 서버 등록 |
+| **SSH** | Server Management | `info`로 병렬 접속 상태 검사 및 서버 정보 수집, `reg`으로 신규 서버 등록 |
 
 ---
 
@@ -26,25 +31,42 @@
 ic/
 ├── ic/cli.py                         # CLI 진입점
 ├── common/                           # 공통 유틸, 로깅, Slack 연동
+│   ├── utils.py                      # AWS 공통 유틸리티
+│   ├── log.py                        # 로깅 시스템
+│   ├── slack.py                      # Slack 연동
+│   └── gather_env.py                 # 환경변수 수집
 ├── aws/                              # AWS 모듈
-│   ├── ec2/ info.py, list_tags.py, tag_check.py
-│   ├── lb/  info.py, list_tags.py, tag_check.py
-│   ├── rds/ info.py, list_tags.py, tag_check.py
-│   ├── s3/  info.py, list_tags.py, tag_check.py
-│   ├── vpc/ info.py, list_tags.py, tag_check.py
-│   └── vpn/ info.py
+│   ├── ec2/   info.py, list_tags.py, tag_check.py
+│   ├── lb/    info.py, list_tags.py, tag_check.py
+│   ├── rds/   info.py, list_tags.py, tag_check.py
+│   ├── s3/    info.py, list_tags.py, tag_check.py
+│   ├── vpc/   info.py, list_tags.py, tag_check.py
+│   ├── vpn/   info.py
+│   ├── sg/    info.py                # Security Groups
+│   └── nat/   list_tags.py, tag_check.py
 ├── oci_module/                       # OCI 모듈
-│   ├── vm/info.py
-│   ├── lb/info.py
-│   ├── nsg/info.py
-│   ├── vcn/info.py
-│   └── ... (기타 서비스)
+│   ├── common/utils.py               # OCI 공통 유틸리티
+│   ├── vm/info.py                    # VM 인스턴스
+│   ├── lb/info.py                    # Load Balancer
+│   ├── nsg/info.py                   # Network Security Groups
+│   ├── vcn/info.py                   # Virtual Cloud Network
+│   ├── volume/info.py                # Block/Boot Volume
+│   ├── obj/info.py                   # Object Storage
+│   ├── policy/info.py, search.py    # IAM Policy
+│   └── cost/usage.py, credit.py     # 비용 분석
+├── azure/                            # Azure 모듈 (Mock)
+│   ├── vm/info.py, mock_data.json
+│   └── vnet/info.py, mock_data.json
+├── gcp/                              # GCP 모듈 (Mock)
+│   ├── compute/info.py, mock_data.json
+│   └── vpc/info.py, mock_data.json
 ├── cf/                               # Cloudflare 모듈
-│   └── dns/ list_info.py
+│   └── dns/list_info.py
 ├── ssh/                              # SSH 모듈
-│   ├── server_info.py
-│   └── auto_ssh.py
-└── .env.example                      # 환경변수 설정 예시
+│   ├── server_info.py                # 서버 상태 점검
+│   └── auto_ssh.py                   # 자동 서버 등록
+├── scripts/                          # 유틸리티 스크립트
+└── logs/                             # 로그 파일 저장소
 ```
 
 ---
@@ -130,27 +152,46 @@ pip install -e .
    | `s3` | `info` | `--name` | S3 버킷 상세 정보 조회 |
    | `vpc` | `info` | `--name` | VPC, 서브넷, 라우팅 테이블 정보 조회 |
    | `vpn` | `info` | | TGW, VGW, VPN 연결, 엔드포인트 정보 조회 |
+   | `sg` | `info` | `--name`, `-a`, `--account`, `-r`, `--region`, `--output` | Security Group 인바운드 규칙 조회 (테이블/트리) |
+   | `nat` | `list_tags`, `tag_check` | | NAT Gateway 태그 관리 |
    | `*` | `list_tags`| | 각 서비스의 태그 정보 조회 |
    | `*` | `tag_check`| | 각 서비스의 태그 규칙 준수 여부 검사 |
 
 ### 2) OCI
 | Service | Subcommand | 주요 옵션 | 설명 |
 |---|---|---|---|
-| `vm` | `info` | `-v`, `--name`, `--compartment` | VM 인스턴스 정보 조회 (상세 옵션 제공) |
-| `lb` | `info` | `--name`, `--output` | 로드 밸런서 정보 조회 (테이블/트리) |
-| `nsg`| `info` | `--name`, `--output` | NSG 정보 조회 (테이블/트리) |
-| `vcn`| `info` | `--name` | VCN, 서브넷, 라우팅 정보 조회 |
-| `policy`| `search` | | 사용자/그룹 기준 IAM 정책 검색 |
-| `cost`| `usage`, `credit` | | 비용 및 크레딧 사용량 조회 |
-| `*` | `info` | | 기타 서비스(volume, obj 등) 정보 조회 |
+| `vm` | `info` | `-v`, `--name`, `--compartment`, `--regions`, `--output` | VM 인스턴스 정보 조회 (상세 옵션 제공) |
+| `lb` | `info` | `--name`, `--compartment`, `--regions`, `--output` | 로드 밸런서 정보 조회 (테이블/트리) |
+| `nsg`| `info` | `--name`, `--compartment`, `--regions`, `--output` | NSG 인바운드 규칙 조회 (테이블/트리) |
+| `vcn`| `info` | `--name`, `--compartment`, `--regions` | VCN, 서브넷, 라우팅 정보 조회 |
+| `volume`| `info` | `--name`, `--compartment`, `--regions`, `--output` | Block/Boot Volume 정보 조회 |
+| `obj`| `info` | `--name`, `--compartment`, `--regions`, `--output` | Object Storage 버킷 정보 조회 |
+| `policy`| `info` | `--name`, `--compartment` | IAM 정책 목록 조회 |
+| `policy`| `search` | `--user`, `--group` | 사용자/그룹 기준 IAM 정책 검색 |
+| `cost`| `usage` | `--start-date`, `--end-date` | 비용 사용량 조회 |
+| `cost`| `credit` | `--start-date`, `--end-date` | 크레딧 사용량 조회 |
 
-### 3) Cloudflare
+### 3) Azure (Mock 구현)
+
+| Service | Subcommand | 주요 옵션 | 설명 | 예시 |
+|---------|------------|-----------|------|------|
+| `vm` | `info` | `--name`, `--resource-group` | Azure VM 정보 조회 (Mock) | `ic azure vm info --name "my-vm"` |
+| `vnet` | `info` | `--name`, `--resource-group` | Azure VNet 정보 조회 (Mock) | `ic azure vnet info --name "my-vnet"` |
+
+### 4) GCP (Mock 구현)
+
+| Service | Subcommand | 주요 옵션 | 설명 | 예시 |
+|---------|------------|-----------|------|------|
+| `compute` | `info` | `--name`, `--project`, `--zone` | GCP Compute Engine 정보 조회 (Mock) | `ic gcp compute info --name "my-instance"` |
+| `vpc` | `info` | `--name`, `--project` | GCP VPC 정보 조회 (Mock) | `ic gcp vpc info --name "my-vpc"` |
+
+### 5) Cloudflare
 
 | Service | Subcommand | 주요 옵션 | 설명 | 예시 |
 |---------|------------|-----------|------|------|
 | `dns` | `list_info`| `--name`, `--content` | DNS 레코드 조회 | `ic cf dns list_info --name "example.com"` |
 
-### 4) SSH
+### 6) SSH
 
 | Service | Subcommand | 주요 옵션 | 설명 | 예시 |
 |---------|------------|-----------|------|------|
@@ -162,9 +203,14 @@ pip install -e .
 ## 📊 주요 동작 방식
 
 - **병렬 처리**: `ThreadPoolExecutor`를 사용하여 여러 계정과 리전에 걸쳐 리소스 정보를 병렬로 수집하여 빠른 속도를 보장합니다.
-- **출력 형식**: `rich` 라이브러리를 활용하여 가독성 높은 테이블 형식으로 결과를 출력합니다.
-- **자격 증명**: `~/.aws/config`, `~/.oci/config` 등 각 플랫폼의 표준 자격 증명 방식을 사용합니다.
+- **출력 형식**: `rich` 라이브러리를 활용하여 가독성 높은 테이블/트리 형식으로 결과를 출력합니다.
+- **자격 증명**: 각 플랫폼의 표준 자격 증명 방식을 사용합니다:
+  - AWS: `~/.aws/config`, `~/.aws/credentials`
+  - OCI: `~/.oci/config`
+  - Cloudflare: API Token 환경변수
 - **환경 변수**: `.env` 파일을 통해 계정 정보, 기본 리전, 태그 규칙 등 설정을 중앙에서 관리합니다.
+- **멀티 서비스**: 쉼표(`,`)로 구분하여 여러 서비스를 동시에 실행할 수 있습니다. (예: `ic oci vm,lb,nsg info`)
+- **필터링**: 이름, 계정, 리전, 컴파트먼트 등 다양한 필터 옵션을 제공합니다.
 
 ---
 
@@ -181,19 +227,71 @@ pip install -e .
 
 ## ⚠️ 유의 사항
 
-- S3는 리전 간 API 제한 이슈 있음 → `IllegalLocationConstraintException` 처리 필요
-- Slack 413 Payload Too Large → 전송 건수 제한 필요
-- `RULE_XXX` 정규식은 `.env` 기반 + 코드 내부 정의와 병합되어 동작
-- SSH는 기본적으로 `~/.ssh/config` 기반으로 등록된 서버들 조회
-- AWS 는 기본적으로 AWS-Vault, .aws/config, .aws/credential 바탕으로 동작하며 관련 설정 필요
+- **AWS**: S3는 리전 간 API 제한 이슈 있음 → `IllegalLocationConstraintException` 처리 필요
+- **OCI**: 구독된 리전만 조회 가능하며, 컴파트먼트 권한 확인 필요
+- **Slack**: 413 Payload Too Large → 전송 건수 제한 필요
+- **태그 규칙**: `RULE_XXX` 정규식은 `.env` 기반 + 코드 내부 정의와 병합되어 동작
+- **SSH**: 기본적으로 `~/.ssh/config` 기반으로 등록된 서버들 조회
+- **자격 증명**: 각 플랫폼별 CLI 도구 및 설정 파일이 사전에 구성되어 있어야 함
+- **Mock 모듈**: Azure, GCP는 현재 Mock 데이터 기반으로 동작 (실제 API 연동 예정)
 
 ---
 
 ## 🚧 확장 가능성
 
-- `apply_tags`, `backup_tags`, `excel_to_json` 등의 기능 추가 예정
-- Terraform / CloudFormation 태그 통합도 가능
-- GitHub Actions / Jenkins 등과 통합하여 자동 검사 가능
+- **태그 관리**: `apply_tags`, `backup_tags`, `excel_to_json` 등의 기능 추가 예정
+- **IaC 통합**: Terraform / CloudFormation 태그 통합 지원
+- **CI/CD 통합**: GitHub Actions / Jenkins 등과 통합하여 자동 검사 가능
+- **실제 API 연동**: Azure, GCP Mock 모듈을 실제 API 연동으로 전환 예정
+- **추가 서비스**: 각 플랫폼별 더 많은 서비스 지원 (Lambda, Functions, Storage 등)
+- **리포팅**: Excel, CSV, JSON 등 다양한 형식의 리포트 생성 기능
+- **모니터링**: 리소스 변경 사항 추적 및 알림 기능
+
+---
+
+## � 사용 예시/
+
+### AWS 리소스 조회
+```bash
+# 모든 EC2 인스턴스 정보 조회
+ic aws ec2 info
+
+# 특정 계정의 Security Group 조회 (트리 형식)
+ic aws sg info --account 123456789012 --output tree
+
+# 여러 서비스 동시 조회
+ic aws ec2,lb,rds info --regions ap-northeast-2
+
+# 태그 규칙 검사
+ic aws ec2 tag_check --account prod
+```
+
+### OCI 리소스 조회
+```bash
+# VM 인스턴스 정보 조회 (상세 모드)
+ic oci vm info -v --compartment production
+
+# NSG 규칙 조회 (트리 형식)
+ic oci nsg info --output tree --regions ap-seoul-1
+
+# 여러 서비스 동시 조회
+ic oci vm,lb,nsg,volume info --compartment dev
+
+# 비용 분석
+ic oci cost usage --start-date 2024-01-01 --end-date 2024-01-31
+```
+
+### 기타 플랫폼
+```bash
+# SSH 서버 상태 점검
+ic ssh info --host production
+
+# Cloudflare DNS 레코드 조회
+ic cf dns list_info --name example.com
+
+# Azure VM 정보 조회 (Mock)
+ic azure vm info --name my-vm --resource-group rg-prod
+```
 
 ---
 

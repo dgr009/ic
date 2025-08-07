@@ -16,6 +16,7 @@ from aws.rds import list_tags as rds_list_tags
 from aws.rds import tag_check as rds_tag_check
 from aws.s3 import list_tags as s3_list_tags
 from aws.s3 import tag_check as s3_tag_check
+from aws.sg import info as sg_info
 from cf.dns import list_info as dns_list_info
 from oci_module.info import oci_info as oci_info # Deprecated. 통합 oci info
 from oci_module.vm import add_arguments as vm_add_args, main as vm_main
@@ -148,6 +149,12 @@ def main():
     from aws.s3 import info as s3_info
     s3_info.add_arguments(s3_info_parser)
     s3_info_parser.set_defaults(func=s3_info.main)
+
+    sg_parser = aws_subparsers.add_parser("sg", help="Security Group 관련 명령어")
+    sg_subparsers = sg_parser.add_subparsers(dest="command", required=True)
+    sg_info_parser = sg_subparsers.add_parser("info", help="Security Group 상세 정보 조회")
+    sg_info.add_arguments(sg_info_parser)
+    sg_info_parser.set_defaults(func=sg_info.main)
 
     # ---------------- Azure ----------------
     azure_vm_parser = azure_subparsers.add_parser("vm", help="Azure VM 관련 명령어")
