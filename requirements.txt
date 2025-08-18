@@ -14,3 +14,4 @@ tqdm
 # Utilities
 python-dotenv
 python-dateutil
+PyYAML

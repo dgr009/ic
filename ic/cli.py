@@ -17,6 +17,10 @@ from aws.rds import tag_check as rds_tag_check
 from aws.s3 import list_tags as s3_list_tags
 from aws.s3 import tag_check as s3_tag_check
 from aws.sg import info as sg_info
+from aws.eks import info as eks_info
+from aws.fargate import info as fargate_info
+from aws.codepipeline import build as codepipeline_build
+from aws.codepipeline import deploy as codepipeline_deploy
 from cf.dns import list_info as dns_list_info
 from oci_module.info import oci_info as oci_info # Deprecated. 통합 oci info
 from oci_module.vm import add_arguments as vm_add_args, main as vm_main
@@ -155,6 +159,32 @@ def main():
     sg_info_parser = sg_subparsers.add_parser("info", help="Security Group 상세 정보 조회")
     sg_info.add_arguments(sg_info_parser)
     sg_info_parser.set_defaults(func=sg_info.main)
+
+    # EKS 관련 명령어
+    eks_parser = aws_subparsers.add_parser("eks", help="EKS 관련 명령어")
+    eks_subparsers = eks_parser.add_subparsers(dest="command", required=True)
+    eks_info_parser = eks_subparsers.add_parser("info", help="EKS 클러스터 정보 조회")
+    eks_info.add_arguments(eks_info_parser)
+    eks_info_parser.set_defaults(func=eks_info.main)
+
+    # Fargate 관련 명령어
+    fargate_parser = aws_subparsers.add_parser("fargate", help="Fargate 관련 명령어")
+    fargate_subparsers = fargate_parser.add_subparsers(dest="command", required=True)
+    fargate_info_parser = fargate_subparsers.add_parser("info", help="Fargate 정보 조회")
+    fargate_info.add_arguments(fargate_info_parser)
+    fargate_info_parser.set_defaults(func=fargate_info.main)
+
+    # CodePipeline 관련 명령어 (code 서비스 하위)
+    code_parser = aws_subparsers.add_parser("code", help="CodePipeline 관련 명령어")
+    code_subparsers = code_parser.add_subparsers(dest="command", required=True)
+    
+    code_build_parser = code_subparsers.add_parser("build", help="CodePipeline 빌드 스테이지 상태 조회")
+    codepipeline_build.add_arguments(code_build_parser)
+    code_build_parser.set_defaults(func=codepipeline_build.main)
+    
+    code_deploy_parser = code_subparsers.add_parser("deploy", help="CodePipeline 배포 스테이지 상태 조회")
+    codepipeline_deploy.add_arguments(code_deploy_parser)
+    code_deploy_parser.set_defaults(func=codepipeline_deploy.main)
 
     # ---------------- Azure ----------------
     azure_vm_parser = azure_subparsers.add_parser("vm", help="Azure VM 관련 명령어")
