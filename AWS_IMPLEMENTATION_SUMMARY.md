@@ -6,7 +6,32 @@ PRD 문서 `aws_cli_prd.md`에 명시된 요구사항에 따라 ic CLI 도구에
 
 ## 구현된 기능
 
-### 1. EKS 클러스터 정보 조회 (`ic aws eks info`)
+### 1. ECS 정보 조회 (`ic aws ecs info/service/task`)
+
+**파일 위치**: 
+- `aws/ecs/info.py` - 클러스터 정보
+- `aws/ecs/service.py` - 서비스 정보  
+- `aws/ecs/task.py` - 태스크 정보
+
+**주요 기능**:
+- ECS 클러스터 종합 정보 (서비스 수, 태스크 상태별 개수, 컨테이너 인스턴스 수)
+- ECS 서비스 상세 정보 (태스크 정의, 로드 밸런서, 실행 상태)
+- ECS 태스크 상세 정보 (컨테이너 상태, 네트워크 정보, 리소스 할당)
+- 다중 계정/리전 병렬 처리
+- 클러스터/서비스/태스크 이름 필터링
+- 테이블/JSON/YAML 출력 형식 지원
+
+**API 호출 순서**:
+- **클러스터 정보**: `list_clusters()` → `describe_clusters()` → `list_services()` → `list_tasks()` → `describe_tasks()` → `list_container_instances()` → `describe_container_instances()`
+- **서비스 정보**: `list_clusters()` → `list_services()` → `describe_services()`
+- **태스크 정보**: `list_clusters()` → `list_tasks()` → `describe_tasks()`
+
+**출력 정보**:
+- **클러스터**: 계정, 리전, 클러스터명, 서비스개수, 태스크 상태별 개수, 컨테이너 인스턴스 개수
+- **서비스**: 서비스명, 상태, 원하는/실행중/대기중 태스크 수, 태스크 정의, 로드 밸런서
+- **태스크**: 태스크 ID, 서비스명, 상태, 헬스 상태, CPU/메모리, 네트워크 정보
+
+### 2. EKS 클러스터 정보 조회 (`ic aws eks info`)
 
 **파일 위치**: `aws/eks/info.py`
 
@@ -28,7 +53,7 @@ PRD 문서 `aws_cli_prd.md`에 명시된 요구사항에 따라 ic CLI 도구에
 - API Server Access (퍼블릭/프라이빗 접근 설정)
 - Managed Node Groups (노드 그룹 테이블)
 
-### 2. Fargate 정보 조회 (`ic aws fargate info`)
+### 3. Fargate 정보 조회 (`ic aws fargate info`)
 
 **파일 위치**: `aws/fargate/info.py`
 
@@ -46,7 +71,7 @@ PRD 문서 `aws_cli_prd.md`에 명시된 요구사항에 따라 ic CLI 도구에
 1. `list_tasks(launchType='FARGATE')` - Fargate 태스크 목록
 2. `describe_tasks()` - 태스크 상세 정보
 
-### 3. CodePipeline 상태 조회 (`ic aws code build/deploy`)
+### 4. CodePipeline 상태 조회 (`ic aws code build/deploy`)
 
 **파일 위치**: 
 - `aws/codepipeline/build.py`
@@ -168,6 +193,15 @@ PyYAML
 ## 사용 예시
 
 ```bash
+# ECS 클러스터 정보 조회
+ic aws ecs info
+
+# ECS 서비스 정보 조회
+ic aws ecs service --cluster my-cluster
+
+# ECS 태스크 정보 조회  
+ic aws ecs task --cluster my-cluster -n web-task
+
 # EKS 클러스터 정보 조회
 ic aws eks info -n production --output json
 

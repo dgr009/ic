@@ -21,6 +21,9 @@ from aws.eks import info as eks_info
 from aws.fargate import info as fargate_info
 from aws.codepipeline import build as codepipeline_build
 from aws.codepipeline import deploy as codepipeline_deploy
+from aws.ecs import info as ecs_info
+from aws.ecs import service as ecs_service
+from aws.ecs import task as ecs_task
 from cf.dns import list_info as dns_list_info
 from oci_module.info import oci_info as oci_info # Deprecated. 통합 oci info
 from oci_module.vm import add_arguments as vm_add_args, main as vm_main
@@ -185,6 +188,22 @@ def main():
     code_deploy_parser = code_subparsers.add_parser("deploy", help="CodePipeline 배포 스테이지 상태 조회")
     codepipeline_deploy.add_arguments(code_deploy_parser)
     code_deploy_parser.set_defaults(func=codepipeline_deploy.main)
+
+    # ECS 관련 명령어
+    ecs_parser = aws_subparsers.add_parser("ecs", help="ECS 관련 명령어")
+    ecs_subparsers = ecs_parser.add_subparsers(dest="command", required=True)
+    
+    ecs_info_parser = ecs_subparsers.add_parser("info", help="ECS 클러스터 정보 조회")
+    ecs_info.add_arguments(ecs_info_parser)
+    ecs_info_parser.set_defaults(func=ecs_info.main)
+    
+    ecs_service_parser = ecs_subparsers.add_parser("service", help="ECS 서비스 정보 조회")
+    ecs_service.add_arguments(ecs_service_parser)
+    ecs_service_parser.set_defaults(func=ecs_service.main)
+    
+    ecs_task_parser = ecs_subparsers.add_parser("task", help="ECS 태스크 정보 조회")
+    ecs_task.add_arguments(ecs_task_parser)
+    ecs_task_parser.set_defaults(func=ecs_task.main)
 
     # ---------------- Azure ----------------
     azure_vm_parser = azure_subparsers.add_parser("vm", help="Azure VM 관련 명령어")

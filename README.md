@@ -299,3 +299,4 @@ ic azure vm info --name my-vm --resource-group rg-prod
 
 - Maintainer: **SangYun Kim** (cruiser594@gmail.com)
 - License: MIT
+

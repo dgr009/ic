@@ -63,7 +63,58 @@ ic aws fargate info --cluster-name my-cluster --output json
 - 태스크 정의, 상태, CPU/메모리 정보
 - 생성 시간
 
-### 3. CodePipeline 상태 조회 (`ic aws code build/deploy`)
+### 3. ECS 정보 조회 (`ic aws ecs info/service/task`)
+
+Amazon ECS 클러스터, 서비스, 태스크에 대한 종합적인 정보를 조회합니다.
+
+#### 사용법
+```bash
+# ECS 클러스터 정보 조회
+ic aws ecs info
+
+# 특정 클러스터 필터링
+ic aws ecs info -n my-cluster
+
+# ECS 서비스 정보 조회 (모든 클러스터)
+ic aws ecs service
+
+# 특정 클러스터의 서비스 조회
+ic aws ecs service --cluster my-cluster
+
+# 서비스 이름 필터링
+ic aws ecs service -n web-service
+
+# ECS 태스크 정보 조회
+ic aws ecs task
+
+# 특정 클러스터의 태스크 조회
+ic aws ecs task --cluster my-cluster
+
+# JSON 형식으로 출력
+ic aws ecs info --output json
+```
+
+#### 출력 정보
+
+**ECS 클러스터 정보 (`ic aws ecs info`)**:
+- 계정, 리전, 클러스터 이름, 상태
+- 서비스 개수, 총 태스크 개수
+- 태스크 상태별 개수 (Running, Pending, Stopped)
+- 컨테이너 인스턴스 개수 (총/활성)
+
+**ECS 서비스 정보 (`ic aws ecs service`)**:
+- 서비스 이름, 상태, 원하는/실행중/대기중 태스크 수
+- 태스크 정의 정보 (패밀리:리비전)
+- 실행 타입 (EC2/Fargate), 로드 밸런서 정보
+- 마지막 업데이트 시간
+
+**ECS 태스크 정보 (`ic aws ecs task`)**:
+- 태스크 ID, 서비스 이름, 상태, 헬스 상태
+- 태스크 정의, CPU/메모리 할당
+- 컨테이너 개수, 프라이빗 IP, 가용 영역
+- 생성 시간, 실행 타입
+
+### 4. CodePipeline 상태 조회 (`ic aws code build/deploy`)
 
 CodePipeline의 빌드 또는 배포 스테이지 상태를 조회합니다.
 
@@ -137,7 +188,22 @@ ic aws eks info
 ic aws eks info -n production
 ```
 
-### 2. Fargate 리소스 모니터링
+### 2. ECS 인프라 모니터링
+```bash
+# 전체 ECS 클러스터 현황 파악
+ic aws ecs info
+
+# 특정 클러스터의 서비스 상태 확인
+ic aws ecs service --cluster production-cluster
+
+# 실행 중인 태스크 상세 정보 확인
+ic aws ecs task --cluster production-cluster
+
+# 문제가 있는 서비스 찾기
+ic aws ecs service -n problematic-service
+```
+
+### 3. Fargate 리소스 모니터링
 ```bash
 # EKS Fargate 프로파일 확인
 ic aws fargate info --cluster-name my-eks-cluster
@@ -146,7 +212,7 @@ ic aws fargate info --cluster-name my-eks-cluster
 ic aws fargate info --type ecs --cluster-name my-ecs-cluster
 ```
 
-### 3. CI/CD 파이프라인 상태 확인
+### 4. CI/CD 파이프라인 상태 확인
 ```bash
 # 빌드 상태 확인
 ic aws code build my-app-pipeline
@@ -188,6 +254,16 @@ ic aws code deploy my-app-pipeline
 - `eks:DescribeNodegroup`
 - `eks:ListFargateProfiles`
 - `eks:DescribeFargateProfile`
+
+**ECS 정보 조회**:
+- `ecs:ListClusters`
+- `ecs:DescribeClusters`
+- `ecs:ListServices`
+- `ecs:DescribeServices`
+- `ecs:ListTasks`
+- `ecs:DescribeTasks`
+- `ecs:ListContainerInstances`
+- `ecs:DescribeContainerInstances`
 
 **ECS Fargate 조회**:
 - `ecs:ListTasks`
