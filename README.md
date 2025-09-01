@@ -3,7 +3,7 @@
 `IC`는 멀티 클라우드 환경의 인프라 리소스를 통합 관리할 수 있는 Python 기반 CLI 툴입니다. **리소스 수집, 태그 관리, 유효성 검사, 자동화**를 지원하며, 병렬 처리를 통해 빠른 성능을 제공합니다.
 
 **지원 플랫폼:**
-- **AWS**: EC2, LB, RDS, S3, VPC, VPN, Security Groups 등
+- **AWS**: EC2, ECS, EKS, Fargate, CodePipeline, LB, RDS, S3, VPC, VPN, Security Groups 등
 - **OCI**: VM, LB, NSG, VCN, Volume, Object Storage, Policy, Cost 등  
 - **Azure**: VM, VNet (Mock 구현)
 - **GCP**: Compute Engine, VPC (Mock 구현)
@@ -16,7 +16,7 @@
 
 | 플랫폼 | 서비스 | 기능 요약 |
 |---|---|---|
-| **AWS** | EC2, LB, RDS, S3, VPC, VPN, SG, NAT | `info`로 리소스 상세 정보 조회, `list_tags`로 태그 조회, `tag_check`로 정규식 기반 태그 규칙 검사 |
+| **AWS** | EC2, ECS, EKS, Fargate, CodePipeline, LB, RDS, S3, VPC, VPN, SG, NAT | `info`로 리소스 상세 정보 조회, `list_tags`로 태그 조회, `tag_check`로 정규식 기반 태그 규칙 검사. ECS는 클러스터/서비스/태스크 정보, EKS는 클러스터/노드그룹 정보, Fargate는 프로파일/태스크 정보, CodePipeline은 빌드/배포 상태 조회 |
 | **OCI** | VM, LB, NSG, VCN, Volume, Object, Policy, Cost | `info`로 각 서비스의 자원 병렬 수집. `policy search`로 IAM 정책 검색. `cost usage/credit`로 비용 분석 |
 | **Azure** | VM, VNet | `info`로 리소스 정보 조회 (Mock 데이터 기반) |
 | **GCP** | Compute, VPC | `info`로 리소스 정보 조회 (Mock 데이터 기반) |
@@ -37,6 +37,10 @@ ic/
 │   └── gather_env.py                 # 환경변수 수집
 ├── aws/                              # AWS 모듈
 │   ├── ec2/   info.py, list_tags.py, tag_check.py
+│   ├── ecs/   info.py, service.py, task.py    # ECS 클러스터/서비스/태스크
+│   ├── eks/   info.py                          # EKS 클러스터 정보
+│   ├── fargate/ info.py                        # Fargate 프로파일/태스크
+│   ├── codepipeline/ build.py, deploy.py      # CodePipeline 상태
 │   ├── lb/    info.py, list_tags.py, tag_check.py
 │   ├── rds/   info.py, list_tags.py, tag_check.py
 │   ├── s3/    info.py, list_tags.py, tag_check.py
@@ -147,6 +151,13 @@ pip install -e .
    | Service | Subcommand | 주요 옵션 | 설명 |
    |---|---|---|---|
    | `ec2` | `info` | `-v`, `--name`, `-a`, `--account`, `-r`, `--region` | EC2 인스턴스 정보 조회 (상세 옵션 제공) |
+   | `ecs` | `info` | `--name`, `-a`, `--account`, `-r`, `--region`, `--output` | ECS 클러스터 종합 정보 (서비스 수, 태스크 상태별 개수, 컨테이너 인스턴스 수) |
+   | `ecs` | `service` | `--cluster`, `--name`, `-a`, `--account`, `-r`, `--region`, `--output` | ECS 서비스 상세 정보 (태스크 정의, 로드 밸런서, 실행 상태) |
+   | `ecs` | `task` | `--cluster`, `--name`, `-a`, `--account`, `-r`, `--region`, `--output` | ECS 태스크 상세 정보 (컨테이너 상태, 네트워크 정보, 리소스 할당) |
+   | `eks` | `info` | `--name`, `-a`, `--account`, `-r`, `--region`, `--output` | EKS 클러스터 정보 (컨트롤 플레인, 네트워킹, API 서버 접근, 관리형 노드 그룹) |
+   | `fargate` | `info` | `--cluster-name`, `--type`, `-a`, `--account`, `-r`, `--region`, `--output` | Fargate 정보 (EKS 프로파일 또는 ECS 태스크) |
+   | `code` | `build` | `pipeline_name`, `-a`, `--account`, `-r`, `--region`, `--output` | CodePipeline 빌드 스테이지 상태 조회 |
+   | `code` | `deploy` | `pipeline_name`, `-a`, `--account`, `-r`, `--region`, `--output` | CodePipeline 배포 스테이지 상태 조회 |
    | `lb` | `info` | `--name`, `-a`, `--account`, `-r`, `--region`| 로드 밸런서 상세 정보 조회 |
    | `rds` | `info` | `--name`, `-a`, `--account`, `-r`, `--region` | RDS 인스턴스 및 클러스터 정보 조회 |
    | `s3` | `info` | `--name` | S3 버킷 상세 정보 조회 |
@@ -200,6 +211,21 @@ pip install -e .
 
 ---
 
+## 🆕 새로 추가된 주요 기능
+
+### AWS 컨테이너 서비스 통합 관리
+- **ECS 종합 모니터링**: 클러스터별 서비스 수, 태스크 상태별 개수, 컨테이너 인스턴스 현황을 한눈에 파악
+- **EKS 클러스터 관리**: 컨트롤 플레인, 네트워킹, API 서버 접근 설정, 관리형 노드 그룹 정보 통합 조회
+- **Fargate 리소스 추적**: EKS Fargate 프로파일과 ECS Fargate 태스크를 구분하여 상세 정보 제공
+- **CI/CD 파이프라인 모니터링**: CodePipeline의 빌드/배포 스테이지별 상태를 색상 코딩과 심볼로 직관적 표시
+
+### 고급 필터링 및 출력 옵션
+- **다중 형식 출력**: 테이블(기본), JSON, YAML 형식 지원으로 스크립팅 및 자동화 친화적
+- **지능형 필터링**: 클러스터명, 서비스명, 태스크명 등 다양한 필터 옵션으로 원하는 정보만 선별 조회
+- **병렬 처리**: 다중 계정/리전에 걸친 대규모 인프라도 빠른 속도로 정보 수집
+
+---
+
 ## 📊 주요 동작 방식
 
 - **병렬 처리**: `ThreadPoolExecutor`를 사용하여 여러 계정과 리전에 걸쳐 리소스 정보를 병렬로 수집하여 빠른 속도를 보장합니다.
@@ -246,6 +272,8 @@ pip install -e .
 - **추가 서비스**: 각 플랫폼별 더 많은 서비스 지원 (Lambda, Functions, Storage 등)
 - **리포팅**: Excel, CSV, JSON 등 다양한 형식의 리포트 생성 기능
 - **모니터링**: 리소스 변경 사항 추적 및 알림 기능
+- **컨테이너 오케스트레이션**: ECS/EKS 클러스터 자동 스케일링 및 배포 관리
+- **CI/CD 통합**: CodePipeline, GitHub Actions, Jenkins 등과의 깊은 통합
 
 ---
 
@@ -253,8 +281,30 @@ pip install -e .
 
 ### AWS 리소스 조회
 ```bash
-# 모든 EC2 인스턴스 정보 조회
+# EC2 인스턴스 정보 조회
 ic aws ec2 info
+
+# ECS 클러스터 종합 현황
+ic aws ecs info
+
+# 특정 ECS 클러스터의 서비스 조회
+ic aws ecs service --cluster production-cluster
+
+# ECS 태스크 상세 정보 조회
+ic aws ecs task --cluster production-cluster --name web-service
+
+# EKS 클러스터 정보 조회
+ic aws eks info --name my-cluster --output json
+
+# Fargate 프로파일 조회 (EKS)
+ic aws fargate info --cluster-name my-eks-cluster
+
+# Fargate 태스크 조회 (ECS)
+ic aws fargate info --type ecs --cluster-name my-ecs-cluster
+
+# CodePipeline 빌드/배포 상태 확인
+ic aws code build my-app-pipeline
+ic aws code deploy my-app-pipeline
 
 # 특정 계정의 Security Group 조회 (트리 형식)
 ic aws sg info --account 123456789012 --output tree
