@@ -40,7 +40,7 @@ ic/
 │   ├── ecs/   info.py, service.py, task.py    # ECS 클러스터/서비스/태스크
 │   ├── eks/   info.py                          # EKS 클러스터 정보
 │   ├── fargate/ info.py                        # Fargate 프로파일/태스크
-│   ├── msk/   info.py                          # MSK 클러스터 정보
+│   ├── msk/   info.py, broker.py              # MSK 클러스터/브로커 정보
 │   ├── codepipeline/ build.py, deploy.py      # CodePipeline 상태
 │   ├── lb/    info.py, list_tags.py, tag_check.py
 │   ├── rds/   info.py, list_tags.py, tag_check.py
@@ -157,6 +157,7 @@ pip install -e .
    | `ecs` | `task` | `--cluster`, `--name`, `-a`, `--account`, `-r`, `--region`, `--output` | ECS 태스크 상세 정보 (컨테이너 상태, 네트워크 정보, 리소스 할당) |
    | `eks` | `info` | `--name`, `-a`, `--account`, `-r`, `--region`, `--output` | EKS 클러스터 정보 (컨트롤 플레인, 네트워킹, API 서버 접근, 관리형 노드 그룹) |
    | `msk` | `info` | `--name`, `-a`, `--account`, `-r`, `--region`, `--output` | MSK 클러스터 정보 (Kafka 버전, 브로커 수, 암호화 설정, 모니터링 상태) |
+   | `msk` | `broker` | `-c`, `--cluster`, `-a`, `--account`, `-r`, `--region`, `--output` | MSK 브로커 엔드포인트 정보 (연결 타입별 엔드포인트, 포트, 인증 방식) |
    | `fargate` | `info` | `--cluster-name`, `--type`, `-a`, `--account`, `-r`, `--region`, `--output` | Fargate 정보 (EKS 프로파일 또는 ECS 태스크) |
    | `code` | `build` | `pipeline_name`, `-a`, `--account`, `-r`, `--region`, `--output` | CodePipeline 빌드 스테이지 상태 조회 |
    | `code` | `deploy` | `pipeline_name`, `-a`, `--account`, `-r`, `--region`, `--output` | CodePipeline 배포 스테이지 상태 조회 |
@@ -220,6 +221,7 @@ pip install -e .
 - **EKS 클러스터 관리**: 컨트롤 플레인, 네트워킹, API 서버 접근 설정, 관리형 노드 그룹 정보 통합 조회
 - **Fargate 리소스 추적**: EKS Fargate 프로파일과 ECS Fargate 태스크를 구분하여 상세 정보 제공
 - **MSK 클러스터 모니터링**: Apache Kafka 클러스터 상태, 브로커 수, Kafka 버전, 암호화 설정, Prometheus 모니터링 상태 통합 조회
+- **MSK 브로커 엔드포인트 관리**: 연결 타입별 브로커 엔드포인트 조회 (PLAINTEXT, TLS, SASL/SCRAM, SASL/IAM, Public, VPC Connectivity)
 - **CI/CD 파이프라인 모니터링**: CodePipeline의 빌드/배포 스테이지별 상태를 색상 코딩과 심볼로 직관적 표시
 
 ### 고급 필터링 및 출력 옵션
@@ -301,6 +303,12 @@ ic aws msk info
 
 # 특정 MSK 클러스터 필터링
 ic aws msk info --name kafka-prod
+
+# MSK 브로커 엔드포인트 정보 조회
+ic aws msk broker
+
+# 특정 클러스터의 브로커 엔드포인트 조회
+ic aws msk broker --cluster kafka-prod
 
 # EKS 클러스터 정보 조회
 ic aws eks info --name my-cluster --output json

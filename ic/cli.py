@@ -25,6 +25,7 @@ from aws.ecs import info as ecs_info
 from aws.ecs import service as ecs_service
 from aws.ecs import task as ecs_task
 from aws.msk import info as msk_info
+from aws.msk import broker as msk_broker
 from cf.dns import list_info as dns_list_info
 from oci_module.info import oci_info as oci_info # Deprecated. 통합 oci info
 from oci_module.vm import add_arguments as vm_add_args, main as vm_main
@@ -213,6 +214,10 @@ def main():
     msk_info_parser = msk_subparsers.add_parser("info", help="MSK 클러스터 정보 조회")
     msk_info.add_arguments(msk_info_parser)
     msk_info_parser.set_defaults(func=msk_info.main)
+    
+    msk_broker_parser = msk_subparsers.add_parser("broker", help="MSK 브로커 엔드포인트 정보 조회")
+    msk_broker.add_arguments(msk_broker_parser)
+    msk_broker_parser.set_defaults(func=msk_broker.main)
 
     # ---------------- Azure ----------------
     azure_vm_parser = azure_subparsers.add_parser("vm", help="Azure VM 관련 명령어")
