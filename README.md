@@ -3,7 +3,7 @@
 `IC`는 멀티 클라우드 환경의 인프라 리소스를 통합 관리할 수 있는 Python 기반 CLI 툴입니다. **리소스 수집, 태그 관리, 유효성 검사, 자동화**를 지원하며, 병렬 처리를 통해 빠른 성능을 제공합니다.
 
 **지원 플랫폼:**
-- **AWS**: EC2, ECS, EKS, Fargate, CodePipeline, LB, RDS, S3, VPC, VPN, Security Groups 등
+- **AWS**: EC2, ECS, EKS, Fargate, MSK, CodePipeline, LB, RDS, S3, VPC, VPN, Security Groups 등
 - **OCI**: VM, LB, NSG, VCN, Volume, Object Storage, Policy, Cost 등  
 - **Azure**: VM, VNet (Mock 구현)
 - **GCP**: Compute Engine, VPC (Mock 구현)
@@ -16,7 +16,7 @@
 
 | 플랫폼 | 서비스 | 기능 요약 |
 |---|---|---|
-| **AWS** | EC2, ECS, EKS, Fargate, CodePipeline, LB, RDS, S3, VPC, VPN, SG, NAT | `info`로 리소스 상세 정보 조회, `list_tags`로 태그 조회, `tag_check`로 정규식 기반 태그 규칙 검사. ECS는 클러스터/서비스/태스크 정보, EKS는 클러스터/노드그룹 정보, Fargate는 프로파일/태스크 정보, CodePipeline은 빌드/배포 상태 조회 |
+| **AWS** | EC2, ECS, EKS, Fargate, MSK, CodePipeline, LB, RDS, S3, VPC, VPN, SG, NAT | `info`로 리소스 상세 정보 조회, `list_tags`로 태그 조회, `tag_check`로 정규식 기반 태그 규칙 검사. ECS는 클러스터/서비스/태스크 정보, EKS는 클러스터/노드그룹 정보, Fargate는 프로파일/태스크 정보, MSK는 Kafka 클러스터 정보, CodePipeline은 빌드/배포 상태 조회 |
 | **OCI** | VM, LB, NSG, VCN, Volume, Object, Policy, Cost | `info`로 각 서비스의 자원 병렬 수집. `policy search`로 IAM 정책 검색. `cost usage/credit`로 비용 분석 |
 | **Azure** | VM, VNet | `info`로 리소스 정보 조회 (Mock 데이터 기반) |
 | **GCP** | Compute, VPC | `info`로 리소스 정보 조회 (Mock 데이터 기반) |
@@ -40,6 +40,7 @@ ic/
 │   ├── ecs/   info.py, service.py, task.py    # ECS 클러스터/서비스/태스크
 │   ├── eks/   info.py                          # EKS 클러스터 정보
 │   ├── fargate/ info.py                        # Fargate 프로파일/태스크
+│   ├── msk/   info.py                          # MSK 클러스터 정보
 │   ├── codepipeline/ build.py, deploy.py      # CodePipeline 상태
 │   ├── lb/    info.py, list_tags.py, tag_check.py
 │   ├── rds/   info.py, list_tags.py, tag_check.py
@@ -155,6 +156,7 @@ pip install -e .
    | `ecs` | `service` | `--cluster`, `--name`, `-a`, `--account`, `-r`, `--region`, `--output` | ECS 서비스 상세 정보 (태스크 정의, 로드 밸런서, 실행 상태) |
    | `ecs` | `task` | `--cluster`, `--name`, `-a`, `--account`, `-r`, `--region`, `--output` | ECS 태스크 상세 정보 (컨테이너 상태, 네트워크 정보, 리소스 할당) |
    | `eks` | `info` | `--name`, `-a`, `--account`, `-r`, `--region`, `--output` | EKS 클러스터 정보 (컨트롤 플레인, 네트워킹, API 서버 접근, 관리형 노드 그룹) |
+   | `msk` | `info` | `--name`, `-a`, `--account`, `-r`, `--region`, `--output` | MSK 클러스터 정보 (Kafka 버전, 브로커 수, 암호화 설정, 모니터링 상태) |
    | `fargate` | `info` | `--cluster-name`, `--type`, `-a`, `--account`, `-r`, `--region`, `--output` | Fargate 정보 (EKS 프로파일 또는 ECS 태스크) |
    | `code` | `build` | `pipeline_name`, `-a`, `--account`, `-r`, `--region`, `--output` | CodePipeline 빌드 스테이지 상태 조회 |
    | `code` | `deploy` | `pipeline_name`, `-a`, `--account`, `-r`, `--region`, `--output` | CodePipeline 배포 스테이지 상태 조회 |
@@ -213,10 +215,11 @@ pip install -e .
 
 ## 🆕 새로 추가된 주요 기능
 
-### AWS 컨테이너 서비스 통합 관리
+### AWS 컨테이너 및 스트리밍 서비스 통합 관리
 - **ECS 종합 모니터링**: 클러스터별 서비스 수, 태스크 상태별 개수, 컨테이너 인스턴스 현황을 한눈에 파악
 - **EKS 클러스터 관리**: 컨트롤 플레인, 네트워킹, API 서버 접근 설정, 관리형 노드 그룹 정보 통합 조회
 - **Fargate 리소스 추적**: EKS Fargate 프로파일과 ECS Fargate 태스크를 구분하여 상세 정보 제공
+- **MSK 클러스터 모니터링**: Apache Kafka 클러스터 상태, 브로커 수, Kafka 버전, 암호화 설정, Prometheus 모니터링 상태 통합 조회
 - **CI/CD 파이프라인 모니터링**: CodePipeline의 빌드/배포 스테이지별 상태를 색상 코딩과 심볼로 직관적 표시
 
 ### 고급 필터링 및 출력 옵션
@@ -292,6 +295,12 @@ ic aws ecs service --cluster production-cluster
 
 # ECS 태스크 상세 정보 조회
 ic aws ecs task --cluster production-cluster --name web-service
+
+# MSK 클러스터 정보 조회
+ic aws msk info
+
+# 특정 MSK 클러스터 필터링
+ic aws msk info --name kafka-prod
 
 # EKS 클러스터 정보 조회
 ic aws eks info --name my-cluster --output json

@@ -24,6 +24,7 @@ from aws.codepipeline import deploy as codepipeline_deploy
 from aws.ecs import info as ecs_info
 from aws.ecs import service as ecs_service
 from aws.ecs import task as ecs_task
+from aws.msk import info as msk_info
 from cf.dns import list_info as dns_list_info
 from oci_module.info import oci_info as oci_info # Deprecated. 통합 oci info
 from oci_module.vm import add_arguments as vm_add_args, main as vm_main
@@ -204,6 +205,14 @@ def main():
     ecs_task_parser = ecs_subparsers.add_parser("task", help="ECS 태스크 정보 조회")
     ecs_task.add_arguments(ecs_task_parser)
     ecs_task_parser.set_defaults(func=ecs_task.main)
+
+    # MSK 관련 명령어
+    msk_parser = aws_subparsers.add_parser("msk", help="MSK (Managed Streaming for Apache Kafka) 관련 명령어")
+    msk_subparsers = msk_parser.add_subparsers(dest="command", required=True)
+    
+    msk_info_parser = msk_subparsers.add_parser("info", help="MSK 클러스터 정보 조회")
+    msk_info.add_arguments(msk_info_parser)
+    msk_info_parser.set_defaults(func=msk_info.main)
 
     # ---------------- Azure ----------------
     azure_vm_parser = azure_subparsers.add_parser("vm", help="Azure VM 관련 명령어")
