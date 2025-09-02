@@ -16,7 +16,7 @@
 
 | 플랫폼 | 서비스 | 기능 요약 |
 |---|---|---|
-| **AWS** | EC2, ECS, EKS, Fargate, MSK, CodePipeline, LB, RDS, S3, VPC, VPN, SG, NAT | `info`로 리소스 상세 정보 조회, `list_tags`로 태그 조회, `tag_check`로 정규식 기반 태그 규칙 검사. ECS는 클러스터/서비스/태스크 정보, EKS는 클러스터/노드그룹 정보, Fargate는 프로파일/태스크 정보, MSK는 Kafka 클러스터 정보, CodePipeline은 빌드/배포 상태 조회 |
+| **AWS** | EC2, ECS, EKS, Fargate, MSK, CodePipeline, LB, RDS, S3, VPC, VPN, SG, NAT | `info`로 리소스 상세 정보 조회, `list_tags`로 태그 조회, `tag_check`로 정규식 기반 태그 규칙 검사. ECS는 클러스터/서비스/태스크 정보, EKS는 클러스터/노드/파드/Fargate/애드온 정보, MSK는 Kafka 클러스터 정보, CodePipeline은 빌드/배포 상태 조회 |
 | **OCI** | VM, LB, NSG, VCN, Volume, Object, Policy, Cost | `info`로 각 서비스의 자원 병렬 수집. `policy search`로 IAM 정책 검색. `cost usage/credit`로 비용 분석 |
 | **Azure** | VM, VNet | `info`로 리소스 정보 조회 (Mock 데이터 기반) |
 | **GCP** | Compute, VPC | `info`로 리소스 정보 조회 (Mock 데이터 기반) |
@@ -38,8 +38,8 @@ ic/
 ├── aws/                              # AWS 모듈
 │   ├── ec2/   info.py, list_tags.py, tag_check.py
 │   ├── ecs/   info.py, service.py, task.py    # ECS 클러스터/서비스/태스크
-│   ├── eks/   info.py                          # EKS 클러스터 정보
-│   ├── fargate/ info.py                        # Fargate 프로파일/태스크
+│   ├── eks/   info.py, nodes.py, pods.py, fargate.py, addons.py  # EKS 클러스터/노드/파드/Fargate/애드온
+│   ├── fargate/ info.py                        # [DEPRECATED] Fargate 프로파일/태스크
 │   ├── msk/   info.py, broker.py              # MSK 클러스터/브로커 정보
 │   ├── codepipeline/ build.py, deploy.py      # CodePipeline 상태
 │   ├── lb/    info.py, list_tags.py, tag_check.py
@@ -155,10 +155,14 @@ pip install -e .
    | `ecs` | `info` | `--name`, `-a`, `--account`, `-r`, `--region`, `--output` | ECS 클러스터 종합 정보 (서비스 수, 태스크 상태별 개수, 컨테이너 인스턴스 수) |
    | `ecs` | `service` | `--cluster`, `--name`, `-a`, `--account`, `-r`, `--region`, `--output` | ECS 서비스 상세 정보 (태스크 정의, 로드 밸런서, 실행 상태) |
    | `ecs` | `task` | `--cluster`, `--name`, `-a`, `--account`, `-r`, `--region`, `--output` | ECS 태스크 상세 정보 (컨테이너 상태, 네트워크 정보, 리소스 할당) |
-   | `eks` | `info` | `--name`, `-a`, `--account`, `-r`, `--region`, `--output` | EKS 클러스터 정보 (컨트롤 플레인, 네트워킹, API 서버 접근, 관리형 노드 그룹) |
+   | `eks` | `info` | `-c`, `--cluster`, `-a`, `--account`, `-r`, `--region`, `--output` | EKS 클러스터 정보 (컨트롤 플레인, 네트워킹, API 서버 접근, 관리형 노드 그룹) |
+   | `eks` | `nodes` | `-c`, `--cluster`, `-a`, `--account`, `-r`, `--region`, `--output` | EKS 노드 정보 (노드그룹 상태, 인스턴스 타입, 스케일링 설정, EC2 인스턴스 상세) |
+   | `eks` | `pods` | `-c`, `--cluster`, `-n`, `--namespace`, `-a`, `--account`, `-r`, `--region`, `--output` | EKS 파드 정보 (파드 상태, 컨테이너 정보, 리소스 사용량, 네임스페이스별 통계) |
+   | `eks` | `fargate` | `-c`, `--cluster`, `-a`, `--account`, `-r`, `--region`, `--output` | EKS Fargate 프로파일 정보 (Pod 실행 역할, 서브넷, 셀렉터 규칙) |
+   | `eks` | `addons` | `-c`, `--cluster`, `-a`, `--account`, `-r`, `--region`, `--output` | EKS 애드온 정보 (VPC CNI, CoreDNS, kube-proxy 등 상태 및 버전) |
    | `msk` | `info` | `--name`, `-a`, `--account`, `-r`, `--region`, `--output` | MSK 클러스터 정보 (Kafka 버전, 브로커 수, 암호화 설정, 모니터링 상태) |
    | `msk` | `broker` | `-c`, `--cluster`, `-a`, `--account`, `-r`, `--region`, `--output` | MSK 브로커 엔드포인트 정보 (연결 타입별 엔드포인트, 포트, 인증 방식) |
-   | `fargate` | `info` | `--cluster-name`, `--type`, `-a`, `--account`, `-r`, `--region`, `--output` | Fargate 정보 (EKS 프로파일 또는 ECS 태스크) |
+   | `fargate` | `info` | `--cluster-name`, `--type`, `-a`, `--account`, `-r`, `--region`, `--output` | [DEPRECATED] Fargate 정보 - `ic aws eks fargate` 또는 `ic aws eks pods` 사용 권장 |
    | `code` | `build` | `pipeline_name`, `-a`, `--account`, `-r`, `--region`, `--output` | CodePipeline 빌드 스테이지 상태 조회 |
    | `code` | `deploy` | `pipeline_name`, `-a`, `--account`, `-r`, `--region`, `--output` | CodePipeline 배포 스테이지 상태 조회 |
    | `lb` | `info` | `--name`, `-a`, `--account`, `-r`, `--region`| 로드 밸런서 상세 정보 조회 |
@@ -311,13 +315,28 @@ ic aws msk broker
 ic aws msk broker --cluster kafka-prod
 
 # EKS 클러스터 정보 조회
-ic aws eks info --name my-cluster --output json
+ic aws eks info
 
-# Fargate 프로파일 조회 (EKS)
-ic aws fargate info --cluster-name my-eks-cluster
+# EKS 노드 정보 조회
+ic aws eks nodes
 
-# Fargate 태스크 조회 (ECS)
-ic aws fargate info --type ecs --cluster-name my-ecs-cluster
+# EKS 파드 정보 조회 (실시간 워크로드 상태)
+ic aws eks pods
+
+# 특정 클러스터의 파드 정보
+ic aws eks pods --cluster production
+
+# 특정 네임스페이스의 파드 정보
+ic aws eks pods --namespace kube-system
+
+# EKS Fargate 프로파일 조회
+ic aws eks fargate
+
+# EKS 애드온 정보 조회
+ic aws eks addons
+
+# [DEPRECATED] 기존 Fargate 명령어 (EKS로 이전됨)
+# ic aws fargate info --cluster-name my-eks-cluster
 
 # CodePipeline 빌드/배포 상태 확인
 ic aws code build my-app-pipeline

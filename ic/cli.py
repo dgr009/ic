@@ -18,6 +18,10 @@ from aws.s3 import list_tags as s3_list_tags
 from aws.s3 import tag_check as s3_tag_check
 from aws.sg import info as sg_info
 from aws.eks import info as eks_info
+from aws.eks import nodes as eks_nodes
+from aws.eks import pods as eks_pods
+from aws.eks import fargate as eks_fargate
+from aws.eks import addons as eks_addons
 from aws.fargate import info as fargate_info
 from aws.codepipeline import build as codepipeline_build
 from aws.codepipeline import deploy as codepipeline_deploy
@@ -168,16 +172,43 @@ def main():
     # EKS 관련 명령어
     eks_parser = aws_subparsers.add_parser("eks", help="EKS 관련 명령어")
     eks_subparsers = eks_parser.add_subparsers(dest="command", required=True)
+    
     eks_info_parser = eks_subparsers.add_parser("info", help="EKS 클러스터 정보 조회")
     eks_info.add_arguments(eks_info_parser)
     eks_info_parser.set_defaults(func=eks_info.main)
+    
+    eks_nodes_parser = eks_subparsers.add_parser("nodes", help="EKS 노드 정보 조회")
+    eks_nodes.add_arguments(eks_nodes_parser)
+    eks_nodes_parser.set_defaults(func=eks_nodes.main)
+    
+    eks_pods_parser = eks_subparsers.add_parser("pods", help="EKS 파드 정보 조회")
+    eks_pods.add_arguments(eks_pods_parser)
+    eks_pods_parser.set_defaults(func=eks_pods.main)
+    
+    eks_fargate_parser = eks_subparsers.add_parser("fargate", help="EKS Fargate 프로파일 정보 조회")
+    eks_fargate.add_arguments(eks_fargate_parser)
+    eks_fargate_parser.set_defaults(func=eks_fargate.main)
+    
+    eks_addons_parser = eks_subparsers.add_parser("addons", help="EKS 애드온 정보 조회")
+    eks_addons.add_arguments(eks_addons_parser)
+    eks_addons_parser.set_defaults(func=eks_addons.main)
 
-    # Fargate 관련 명령어
-    fargate_parser = aws_subparsers.add_parser("fargate", help="Fargate 관련 명령어")
-    fargate_subparsers = fargate_parser.add_subparsers(dest="command", required=True)
-    fargate_info_parser = fargate_subparsers.add_parser("info", help="Fargate 정보 조회")
-    fargate_info.add_arguments(fargate_info_parser)
-    fargate_info_parser.set_defaults(func=fargate_info.main)
+    # Fargate 관련 명령어 (DEPRECATED - EKS로 완전 통합됨)
+    def fargate_deprecated_handler(args):
+        from rich.console import Console
+        console = Console()
+        console.print("\n[bold red]⚠️ 'ic aws fargate' 명령어는 더 이상 사용되지 않습니다.[/bold red]")
+        console.print("EKS Fargate 기능이 EKS 서비스로 완전히 통합되었습니다.\n")
+        console.print("[bold yellow]새로운 명령어를 사용해주세요:[/bold yellow]")
+        console.print("  • EKS Fargate 프로파일: [bold cyan]ic aws eks fargate[/bold cyan]")
+        console.print("  • EKS 파드 정보: [bold cyan]ic aws eks pods[/bold cyan]")
+        console.print("  • EKS 전체 정보: [bold cyan]ic aws eks --help[/bold cyan]\n")
+        console.print("ECS Fargate는 [bold cyan]ic aws ecs task[/bold cyan] 명령어를 사용하세요.")
+        return
+    
+    fargate_parser = aws_subparsers.add_parser("fargate", help="[DEPRECATED] Fargate 관련 명령어 - 'ic aws eks' 사용 권장")
+    fargate_subparsers = fargate_parser.add_subparsers(dest="command", required=False)
+    fargate_parser.set_defaults(func=fargate_deprecated_handler)
 
     # CodePipeline 관련 명령어 (code 서비스 하위)
     code_parser = aws_subparsers.add_parser("code", help="CodePipeline 관련 명령어")
