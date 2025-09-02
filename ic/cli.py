@@ -256,19 +256,82 @@ def main():
     msk_broker_parser.set_defaults(func=msk_broker.main)
 
     # ---------------- Azure ----------------
-    azure_vm_parser = azure_subparsers.add_parser("vm", help="Azure VM 관련 명령어")
+    # Azure VM 관련 명령어
+    azure_vm_parser = azure_subparsers.add_parser("vm", help="Azure Virtual Machine 관련 명령어")
     azure_vm_subparsers = azure_vm_parser.add_subparsers(dest="command", required=True)
-    azure_vm_info_parser = azure_vm_subparsers.add_parser("info", help="Azure VM 정보 조회 (Mock)")
-    from azure.vm import info as azure_vm_info
-    azure_vm_info.add_arguments(azure_vm_info_parser)
-    azure_vm_info_parser.set_defaults(func=azure_vm_info.main)
+    azure_vm_info_parser = azure_vm_subparsers.add_parser("info", help="Azure VM 정보 조회")
+    try:
+        from azure.vm import info as azure_vm_info
+        azure_vm_info.add_arguments(azure_vm_info_parser)
+        azure_vm_info_parser.set_defaults(func=azure_vm_info.main)
+    except ImportError:
+        azure_vm_info_parser.set_defaults(func=lambda args: print("Azure 모듈이 설치되지 않았습니다. pip install azure-mgmt-compute를 실행하세요."))
 
-    azure_vnet_parser = azure_subparsers.add_parser("vnet", help="Azure VNet 관련 명령어")
+    # Azure VNet 관련 명령어
+    azure_vnet_parser = azure_subparsers.add_parser("vnet", help="Azure Virtual Network 관련 명령어")
     azure_vnet_subparsers = azure_vnet_parser.add_subparsers(dest="command", required=True)
-    azure_vnet_info_parser = azure_vnet_subparsers.add_parser("info", help="Azure VNet 정보 조회 (Mock)")
-    from azure.vnet import info as azure_vnet_info
-    azure_vnet_info.add_arguments(azure_vnet_info_parser)
-    azure_vnet_info_parser.set_defaults(func=azure_vnet_info.main)
+    azure_vnet_info_parser = azure_vnet_subparsers.add_parser("info", help="Azure VNet 정보 조회")
+    try:
+        from azure.vnet import info as azure_vnet_info
+        azure_vnet_info.add_arguments(azure_vnet_info_parser)
+        azure_vnet_info_parser.set_defaults(func=azure_vnet_info.main)
+    except ImportError:
+        azure_vnet_info_parser.set_defaults(func=lambda args: print("Azure 모듈이 설치되지 않았습니다."))
+
+    # Azure AKS 관련 명령어
+    azure_aks_parser = azure_subparsers.add_parser("aks", help="Azure Kubernetes Service 관련 명령어")
+    azure_aks_subparsers = azure_aks_parser.add_subparsers(dest="command", required=True)
+    azure_aks_info_parser = azure_aks_subparsers.add_parser("info", help="Azure AKS 클러스터 정보 조회")
+    try:
+        from azure.aks import info as azure_aks_info
+        azure_aks_info.add_arguments(azure_aks_info_parser)
+        azure_aks_info_parser.set_defaults(func=azure_aks_info.main)
+    except ImportError:
+        azure_aks_info_parser.set_defaults(func=lambda args: print("Azure 모듈이 설치되지 않았습니다."))
+
+    # Azure Storage 관련 명령어
+    azure_storage_parser = azure_subparsers.add_parser("storage", help="Azure Storage Account 관련 명령어")
+    azure_storage_subparsers = azure_storage_parser.add_subparsers(dest="command", required=True)
+    azure_storage_info_parser = azure_storage_subparsers.add_parser("info", help="Azure Storage Account 정보 조회")
+    try:
+        from azure.storage import info as azure_storage_info
+        azure_storage_info.add_arguments(azure_storage_info_parser)
+        azure_storage_info_parser.set_defaults(func=azure_storage_info.main)
+    except ImportError:
+        azure_storage_info_parser.set_defaults(func=lambda args: print("Azure 모듈이 설치되지 않았습니다."))
+
+    # Azure NSG 관련 명령어
+    azure_nsg_parser = azure_subparsers.add_parser("nsg", help="Azure Network Security Group 관련 명령어")
+    azure_nsg_subparsers = azure_nsg_parser.add_subparsers(dest="command", required=True)
+    azure_nsg_info_parser = azure_nsg_subparsers.add_parser("info", help="Azure NSG 정보 조회")
+    try:
+        from azure.nsg import info as azure_nsg_info
+        azure_nsg_info.add_arguments(azure_nsg_info_parser)
+        azure_nsg_info_parser.set_defaults(func=azure_nsg_info.main)
+    except ImportError:
+        azure_nsg_info_parser.set_defaults(func=lambda args: print("Azure 모듈이 설치되지 않았습니다."))
+
+    # Azure Load Balancer 관련 명령어
+    azure_lb_parser = azure_subparsers.add_parser("lb", help="Azure Load Balancer 관련 명령어")
+    azure_lb_subparsers = azure_lb_parser.add_subparsers(dest="command", required=True)
+    azure_lb_info_parser = azure_lb_subparsers.add_parser("info", help="Azure Load Balancer 정보 조회")
+    try:
+        from azure.lb import info as azure_lb_info
+        azure_lb_info.add_arguments(azure_lb_info_parser)
+        azure_lb_info_parser.set_defaults(func=azure_lb_info.main)
+    except ImportError:
+        azure_lb_info_parser.set_defaults(func=lambda args: print("Azure 모듈이 설치되지 않았습니다."))
+
+    # Azure Container Instances 관련 명령어
+    azure_aci_parser = azure_subparsers.add_parser("aci", help="Azure Container Instances 관련 명령어")
+    azure_aci_subparsers = azure_aci_parser.add_subparsers(dest="command", required=True)
+    azure_aci_info_parser = azure_aci_subparsers.add_parser("info", help="Azure Container Instances 정보 조회")
+    try:
+        from azure.aci import info as azure_aci_info
+        azure_aci_info.add_arguments(azure_aci_info_parser)
+        azure_aci_info_parser.set_defaults(func=azure_aci_info.main)
+    except ImportError:
+        azure_aci_info_parser.set_defaults(func=lambda args: print("Azure 모듈이 설치되지 않았습니다."))
 
     # ---------------- GCP ----------------
     gcp_compute_parser = gcp_subparsers.add_parser("compute", help="GCP Compute Engine 관련 명령어")
@@ -284,6 +347,48 @@ def main():
     from gcp.vpc import info as gcp_vpc_info
     gcp_vpc_info.add_arguments(gcp_vpc_info_parser)
     gcp_vpc_info_parser.set_defaults(func=gcp_vpc_info.main)
+
+    gcp_gke_parser = gcp_subparsers.add_parser("gke", help="GCP Google Kubernetes Engine 관련 명령어")
+    gcp_gke_subparsers = gcp_gke_parser.add_subparsers(dest="command", required=True)
+    gcp_gke_info_parser = gcp_gke_subparsers.add_parser("info", help="GCP GKE 클러스터 정보 조회")
+    from gcp.gke import info as gcp_gke_info
+    gcp_gke_info.add_arguments(gcp_gke_info_parser)
+    gcp_gke_info_parser.set_defaults(func=gcp_gke_info.main)
+
+    gcp_storage_parser = gcp_subparsers.add_parser("storage", help="GCP Cloud Storage 관련 명령어")
+    gcp_storage_subparsers = gcp_storage_parser.add_subparsers(dest="command", required=True)
+    gcp_storage_info_parser = gcp_storage_subparsers.add_parser("info", help="GCP Cloud Storage 버킷 정보 조회")
+    from gcp.storage import info as gcp_storage_info
+    gcp_storage_info.add_arguments(gcp_storage_info_parser)
+    gcp_storage_info_parser.set_defaults(func=gcp_storage_info.main)
+
+    gcp_sql_parser = gcp_subparsers.add_parser("sql", help="GCP Cloud SQL 관련 명령어")
+    gcp_sql_subparsers = gcp_sql_parser.add_subparsers(dest="command", required=True)
+    gcp_sql_info_parser = gcp_sql_subparsers.add_parser("info", help="GCP Cloud SQL 인스턴스 정보 조회")
+    from gcp.sql import info as gcp_sql_info
+    gcp_sql_info.add_arguments(gcp_sql_info_parser)
+    gcp_sql_info_parser.set_defaults(func=gcp_sql_info.main)
+
+    gcp_functions_parser = gcp_subparsers.add_parser("functions", help="GCP Cloud Functions 관련 명령어")
+    gcp_functions_subparsers = gcp_functions_parser.add_subparsers(dest="command", required=True)
+    gcp_functions_info_parser = gcp_functions_subparsers.add_parser("info", help="GCP Cloud Functions 정보 조회")
+    from gcp.functions import info as gcp_functions_info
+    gcp_functions_info.add_arguments(gcp_functions_info_parser)
+    gcp_functions_info_parser.set_defaults(func=gcp_functions_info.main)
+
+    gcp_run_parser = gcp_subparsers.add_parser("run", help="GCP Cloud Run 관련 명령어")
+    gcp_run_subparsers = gcp_run_parser.add_subparsers(dest="command", required=True)
+    gcp_run_info_parser = gcp_run_subparsers.add_parser("info", help="GCP Cloud Run 서비스 정보 조회")
+    from gcp.run import info as gcp_run_info
+    gcp_run_info.add_arguments(gcp_run_info_parser)
+    gcp_run_info_parser.set_defaults(func=gcp_run_info.main)
+
+    gcp_lb_parser = gcp_subparsers.add_parser("lb", help="GCP Load Balancing 관련 명령어")
+    gcp_lb_subparsers = gcp_lb_parser.add_subparsers(dest="command", required=True)
+    gcp_lb_info_parser = gcp_lb_subparsers.add_parser("info", help="GCP Load Balancer 정보 조회")
+    from gcp.lb import info as gcp_lb_info
+    gcp_lb_info.add_arguments(gcp_lb_info_parser)
+    gcp_lb_info_parser.set_defaults(func=gcp_lb_info.main)
 
     # ---------------- CloudFlare ----------------
     cf_dns_parser = cf_subparsers.add_parser("dns", help="DNS Record 관련 명령어")

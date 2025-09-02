@@ -5,7 +5,7 @@
 **지원 플랫폼:**
 - **AWS**: EC2, ECS, EKS, Fargate, MSK, CodePipeline, LB, RDS, S3, VPC, VPN, Security Groups 등
 - **OCI**: VM, LB, NSG, VCN, Volume, Object Storage, Policy, Cost 등  
-- **Azure**: VM, VNet (Mock 구현)
+- **Azure**: VM, VNet, AKS, Storage Account, NSG, Load Balancer, Container Instances
 - **GCP**: Compute Engine, VPC (Mock 구현)
 - **Cloudflare**: DNS 레코드 관리
 - **SSH**: 서버 상태 점검 및 자동 등록
@@ -18,7 +18,7 @@
 |---|---|---|
 | **AWS** | EC2, ECS, EKS, Fargate, MSK, CodePipeline, LB, RDS, S3, VPC, VPN, SG, NAT | `info`로 리소스 상세 정보 조회, `list_tags`로 태그 조회, `tag_check`로 정규식 기반 태그 규칙 검사. ECS는 클러스터/서비스/태스크 정보, EKS는 클러스터/노드/파드/Fargate/애드온 정보, MSK는 Kafka 클러스터 정보, CodePipeline은 빌드/배포 상태 조회 |
 | **OCI** | VM, LB, NSG, VCN, Volume, Object, Policy, Cost | `info`로 각 서비스의 자원 병렬 수집. `policy search`로 IAM 정책 검색. `cost usage/credit`로 비용 분석 |
-| **Azure** | VM, VNet | `info`로 리소스 정보 조회 (Mock 데이터 기반) |
+| **Azure** | VM, VNet, AKS, Storage, NSG, LB, ACI | `info`로 리소스 정보 조회. JSON, YAML, Table, Tree 출력 형식 지원. 구독별 병렬 처리 |
 | **GCP** | Compute, VPC | `info`로 리소스 정보 조회 (Mock 데이터 기반) |
 | **Cloudflare** | DNS | `list_info`로 DNS 레코드 정보 수집 |
 | **SSH** | Server Management | `info`로 병렬 접속 상태 검사 및 서버 정보 수집, `reg`으로 신규 서버 등록 |
@@ -59,9 +59,14 @@ ic/
 │   ├── obj/info.py                   # Object Storage
 │   ├── policy/info.py, search.py    # IAM Policy
 │   └── cost/usage.py, credit.py     # 비용 분석
-├── azure/                            # Azure 모듈 (Mock)
-│   ├── vm/info.py, mock_data.json
-│   └── vnet/info.py, mock_data.json
+├── azure/                            # Azure 모듈
+│   ├── vm/info.py                    # Virtual Machines
+│   ├── vnet/info.py                  # Virtual Networks
+│   ├── aks/info.py                   # Azure Kubernetes Service
+│   ├── storage/info.py               # Storage Accounts
+│   ├── nsg/info.py                   # Network Security Groups
+│   ├── lb/info.py                    # Load Balancers
+│   └── aci/info.py                   # Container Instances
 ├── gcp/                              # GCP 모듈 (Mock)
 │   ├── compute/info.py, mock_data.json
 │   └── vpc/info.py, mock_data.json
@@ -102,8 +107,8 @@ pip install -e .
 
 ### 1) AWS
 
-1. **AWS CLI 설치**  
-   macOS(hombrew): `brew install awscli`
+1. **AWS CLI, IAM-Auth 설치**  
+   macOS(hombrew): `brew install awscli` , `brew install aws-iam-authenticator`
 
 2. **자격 증명 파일 구성**  
    - `~/.aws/credentials`
@@ -190,12 +195,17 @@ pip install -e .
 | `cost`| `usage` | `--start-date`, `--end-date` | 비용 사용량 조회 |
 | `cost`| `credit` | `--start-date`, `--end-date` | 크레딧 사용량 조회 |
 
-### 3) Azure (Mock 구현)
+### 3) Azure
 
 | Service | Subcommand | 주요 옵션 | 설명 | 예시 |
 |---------|------------|-----------|------|------|
-| `vm` | `info` | `--name`, `--resource-group` | Azure VM 정보 조회 (Mock) | `ic azure vm info --name "my-vm"` |
-| `vnet` | `info` | `--name`, `--resource-group` | Azure VNet 정보 조회 (Mock) | `ic azure vnet info --name "my-vnet"` |
+| `vm` | `info` | `--subscription`, `--location`, `--resource-group`, `--name`, `--output` | Azure VM 정보 조회 | `ic azure vm info --name "my-vm" --output json` |
+| `vnet` | `info` | `--subscription`, `--location`, `--resource-group`, `--name`, `--output` | Azure VNet 정보 조회 | `ic azure vnet info --resource-group "my-rg" --output tree` |
+| `aks` | `info` | `--subscription`, `--location`, `--resource-group`, `--name`, `--output` | Azure AKS 클러스터 정보 조회 | `ic azure aks info --location "Korea Central"` |
+| `storage` | `info` | `--subscription`, `--location`, `--resource-group`, `--name`, `--output` | Azure Storage Account 정보 조회 | `ic azure storage info --output yaml` |
+| `nsg` | `info` | `--subscription`, `--location`, `--resource-group`, `--name`, `--output` | Azure NSG 정보 조회 | `ic azure nsg info --name "my-nsg"` |
+| `lb` | `info` | `--subscription`, `--location`, `--resource-group`, `--name`, `--output` | Azure Load Balancer 정보 조회 | `ic azure lb info --resource-group "my-rg"` |
+| `aci` | `info` | `--subscription`, `--location`, `--resource-group`, `--name`, `--output` | Azure Container Instances 정보 조회 | `ic azure aci info --output tree` |
 
 ### 4) GCP (Mock 구현)
 
@@ -382,8 +392,17 @@ ic ssh info --host production
 # Cloudflare DNS 레코드 조회
 ic cf dns list_info --name example.com
 
-# Azure VM 정보 조회 (Mock)
-ic azure vm info --name my-vm --resource-group rg-prod
+# Azure 리소스 조회
+ic azure vm info --name my-vm --resource-group rg-prod --output table
+ic azure vnet info --location "Korea Central" --output tree
+ic azure aks info --subscription my-subscription --output json
+ic azure storage info --resource-group rg-storage --output yaml
+ic azure nsg info --name my-nsg --output tree
+ic azure lb info --location "East US" --output table
+ic azure aci info --resource-group rg-containers --output tree
+
+# 여러 Azure 서비스 동시 조회
+ic azure vm,vnet,aks,storage info --resource-group rg-prod
 ```
 
 ---

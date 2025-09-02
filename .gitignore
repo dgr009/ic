@@ -5,6 +5,7 @@ __pycache__/
 .cursor/
 .cursor
 .cursor/*
+.kiro/*
 # C extensions
 *.so
 

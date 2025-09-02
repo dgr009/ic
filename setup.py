@@ -23,6 +23,32 @@ setup(
         "tqdm",
         "python-dotenv",
         "python-dateutil",
+        "kubernetes",
+        "PyYAML",
+        # Azure SDKs
+        "azure-identity",
+        "azure-mgmt-compute",
+        "azure-mgmt-network",
+        "azure-mgmt-containerinstance",
+        "azure-mgmt-containerservice",
+        "azure-mgmt-storage",
+        "azure-mgmt-sql",
+        "azure-mgmt-rdbms",
+        "azure-mgmt-eventhub",
+        "azure-mgmt-resource",
+        "azure-mgmt-subscription",
+        "azure-devops",
+        # Google Cloud SDKs
+        "google-cloud-compute",
+        "google-cloud-container",
+        "google-cloud-storage",
+        "google-cloud-sql",
+        "google-cloud-functions",
+        "google-cloud-run",
+        "google-cloud-billing",
+        "google-auth",
+        "google-auth-oauthlib",
+        "google-auth-httplib2"
     ],
     entry_points={
         "console_scripts": [
