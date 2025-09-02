@@ -42,7 +42,7 @@ setup(
         "google-cloud-compute",
         "google-cloud-container",
         "google-cloud-storage",
-        "google-cloud-sql",
+        # "google-cloud-sql",
         "google-cloud-functions",
         "google-cloud-run",
         "google-cloud-billing",
