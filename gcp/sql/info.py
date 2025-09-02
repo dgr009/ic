@@ -21,13 +21,6 @@ from common.gcp_utils import (
 )
 from common.log import log_info, log_error, log_exception
 
-# Import MCP integration
-try:
-    from mcp.gcp_connector import MCPGCPService
-    MCP_AVAILABLE = True
-except ImportError:
-    MCP_AVAILABLE = False
-
 console = Console()
 
 

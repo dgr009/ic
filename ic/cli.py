@@ -261,7 +261,7 @@ def main():
     azure_vm_subparsers = azure_vm_parser.add_subparsers(dest="command", required=True)
     azure_vm_info_parser = azure_vm_subparsers.add_parser("info", help="Azure VM 정보 조회")
     try:
-        from azure.vm import info as azure_vm_info
+        from azure_module.vm import info as azure_vm_info
         azure_vm_info.add_arguments(azure_vm_info_parser)
         azure_vm_info_parser.set_defaults(func=azure_vm_info.main)
     except ImportError:
@@ -272,7 +272,7 @@ def main():
     azure_vnet_subparsers = azure_vnet_parser.add_subparsers(dest="command", required=True)
     azure_vnet_info_parser = azure_vnet_subparsers.add_parser("info", help="Azure VNet 정보 조회")
     try:
-        from azure.vnet import info as azure_vnet_info
+        from azure_module.vnet import info as azure_vnet_info
         azure_vnet_info.add_arguments(azure_vnet_info_parser)
         azure_vnet_info_parser.set_defaults(func=azure_vnet_info.main)
     except ImportError:
@@ -283,7 +283,7 @@ def main():
     azure_aks_subparsers = azure_aks_parser.add_subparsers(dest="command", required=True)
     azure_aks_info_parser = azure_aks_subparsers.add_parser("info", help="Azure AKS 클러스터 정보 조회")
     try:
-        from azure.aks import info as azure_aks_info
+        from azure_module.aks import info as azure_aks_info
         azure_aks_info.add_arguments(azure_aks_info_parser)
         azure_aks_info_parser.set_defaults(func=azure_aks_info.main)
     except ImportError:
@@ -294,7 +294,7 @@ def main():
     azure_storage_subparsers = azure_storage_parser.add_subparsers(dest="command", required=True)
     azure_storage_info_parser = azure_storage_subparsers.add_parser("info", help="Azure Storage Account 정보 조회")
     try:
-        from azure.storage import info as azure_storage_info
+        from azure_module.storage import info as azure_storage_info
         azure_storage_info.add_arguments(azure_storage_info_parser)
         azure_storage_info_parser.set_defaults(func=azure_storage_info.main)
     except ImportError:
@@ -305,7 +305,7 @@ def main():
     azure_nsg_subparsers = azure_nsg_parser.add_subparsers(dest="command", required=True)
     azure_nsg_info_parser = azure_nsg_subparsers.add_parser("info", help="Azure NSG 정보 조회")
     try:
-        from azure.nsg import info as azure_nsg_info
+        from azure_module.nsg import info as azure_nsg_info
         azure_nsg_info.add_arguments(azure_nsg_info_parser)
         azure_nsg_info_parser.set_defaults(func=azure_nsg_info.main)
     except ImportError:
@@ -316,7 +316,7 @@ def main():
     azure_lb_subparsers = azure_lb_parser.add_subparsers(dest="command", required=True)
     azure_lb_info_parser = azure_lb_subparsers.add_parser("info", help="Azure Load Balancer 정보 조회")
     try:
-        from azure.lb import info as azure_lb_info
+        from azure_module.lb import info as azure_lb_info
         azure_lb_info.add_arguments(azure_lb_info_parser)
         azure_lb_info_parser.set_defaults(func=azure_lb_info.main)
     except ImportError:
@@ -327,7 +327,7 @@ def main():
     azure_aci_subparsers = azure_aci_parser.add_subparsers(dest="command", required=True)
     azure_aci_info_parser = azure_aci_subparsers.add_parser("info", help="Azure Container Instances 정보 조회")
     try:
-        from azure.aci import info as azure_aci_info
+        from azure_module.aci import info as azure_aci_info
         azure_aci_info.add_arguments(azure_aci_info_parser)
         azure_aci_info_parser.set_defaults(func=azure_aci_info.main)
     except ImportError:
@@ -362,12 +362,12 @@ def main():
     gcp_storage_info.add_arguments(gcp_storage_info_parser)
     gcp_storage_info_parser.set_defaults(func=gcp_storage_info.main)
 
-    gcp_sql_parser = gcp_subparsers.add_parser("sql", help="GCP Cloud SQL 관련 명령어")
-    gcp_sql_subparsers = gcp_sql_parser.add_subparsers(dest="command", required=True)
-    gcp_sql_info_parser = gcp_sql_subparsers.add_parser("info", help="GCP Cloud SQL 인스턴스 정보 조회")
-    from gcp.sql import info as gcp_sql_info
-    gcp_sql_info.add_arguments(gcp_sql_info_parser)
-    gcp_sql_info_parser.set_defaults(func=gcp_sql_info.main)
+    # gcp_sql_parser = gcp_subparsers.add_parser("sql", help="GCP Cloud SQL 관련 명령어")
+    # gcp_sql_subparsers = gcp_sql_parser.add_subparsers(dest="command", required=True)
+    # gcp_sql_info_parser = gcp_sql_subparsers.add_parser("info", help="GCP Cloud SQL 인스턴스 정보 조회")
+    # from gcp.sql import info as gcp_sql_info
+    # gcp_sql_info.add_arguments(gcp_sql_info_parser)
+    # gcp_sql_info_parser.set_defaults(func=gcp_sql_info.main)
 
     gcp_functions_parser = gcp_subparsers.add_parser("functions", help="GCP Cloud Functions 관련 명령어")
     gcp_functions_subparsers = gcp_functions_parser.add_subparsers(dest="command", required=True)
