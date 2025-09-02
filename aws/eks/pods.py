@@ -95,14 +95,17 @@ def fetch_pods_info(account_id, profile_name, region_name, cluster_name_filter=N
     
     session = create_session(profile_name, region_name)
     if not session:
+        log_error(f"AWS 세션 생성 실패: Account={account_id}, Region={region_name}")
         return []
     
     try:
         # kubernetes 클라이언트 import (선택적)
         try:
             from kubernetes import client, config
-        except ImportError:
-            log_error("kubernetes 패키지가 설치되지 않았습니다. 'pip install kubernetes' 실행 후 다시 시도하세요.")
+            log_info_non_console("✅ kubernetes 패키지 로드 성공")
+        except ImportError as e:
+            log_error(f"❌ kubernetes 패키지가 설치되지 않았습니다: {e}")
+            log_error("해결 방법: 'pip install kubernetes' 실행 후 다시 시도하세요.")
             return []
         
         eks_client = session.client("eks", region_name=region_name)
@@ -121,26 +124,40 @@ def fetch_pods_info(account_id, profile_name, region_name, cluster_name_filter=N
         
         for cluster_name in cluster_names:
             try:
+                log_info_non_console(f"🔍 클러스터 처리 중: {cluster_name}")
+                
                 # 클러스터 정보 조회
                 cluster_info = get_eks_cluster_info(session, region_name, cluster_name)
                 if not cluster_info:
+                    log_error(f"❌ 클러스터 정보 조회 실패: {cluster_name}")
                     continue
+                
+                log_info_non_console(f"✅ 클러스터 정보 조회 성공: {cluster_name}")
                 
                 # kubeconfig 생성
                 kubeconfig_path = create_kubeconfig(cluster_info, session, region_name)
                 if not kubeconfig_path:
+                    log_error(f"❌ kubeconfig 생성 실패: {cluster_name}")
                     continue
+                
+                log_info_non_console(f"✅ kubeconfig 생성 성공: {cluster_name}")
                 
                 try:
                     # Kubernetes 클라이언트 설정
+                    log_info_non_console(f"🔗 Kubernetes API 연결 시도: {cluster_name}")
                     config.load_kube_config(config_file=kubeconfig_path)
                     v1 = client.CoreV1Api()
+                    log_info_non_console(f"✅ Kubernetes API 연결 성공: {cluster_name}")
                     
                     # 파드 목록 조회
                     if namespace_filter:
+                        log_info_non_console(f"🔍 네임스페이스 '{namespace_filter}' 파드 조회 중...")
                         pods = v1.list_namespaced_pod(namespace=namespace_filter)
                     else:
+                        log_info_non_console(f"🔍 모든 네임스페이스 파드 조회 중...")
                         pods = v1.list_pod_for_all_namespaces()
+                    
+                    log_info_non_console(f"📊 발견된 파드 수: {len(pods.items)}")
                     
                     for pod in pods.items:
                         pod_data = {
@@ -199,7 +216,11 @@ def fetch_pods_info(account_id, profile_name, region_name, cluster_name_filter=N
                         pass
                 
             except Exception as e:
-                log_info_non_console(f"클러스터 {cluster_name} 파드 정보 조회 실패: {e}")
+                log_error(f"❌ 클러스터 {cluster_name} 파드 정보 조회 실패: {e}")
+                log_error(f"오류 타입: {type(e).__name__}")
+                if "Unauthorized" in str(e) or "Forbidden" in str(e):
+                    log_error("🔐 Kubernetes RBAC 권한이 필요합니다!")
+                    log_error("해결 방법: kubectl create clusterrolebinding eks-cli-view-binding --clusterrole=view --user=$(aws sts get-caller-identity --query Arn --output text)")
                 continue
         
         return pods_info_list

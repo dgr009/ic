@@ -22,6 +22,7 @@ from aws.eks import nodes as eks_nodes
 from aws.eks import pods as eks_pods
 from aws.eks import fargate as eks_fargate
 from aws.eks import addons as eks_addons
+from aws.eks import update_config as eks_update_config
 from aws.fargate import info as fargate_info
 from aws.codepipeline import build as codepipeline_build
 from aws.codepipeline import deploy as codepipeline_deploy
@@ -192,6 +193,10 @@ def main():
     eks_addons_parser = eks_subparsers.add_parser("addons", help="EKS 애드온 정보 조회")
     eks_addons.add_arguments(eks_addons_parser)
     eks_addons_parser.set_defaults(func=eks_addons.main)
+    
+    eks_update_config_parser = eks_subparsers.add_parser("update-config", help="EKS kubeconfig 업데이트")
+    eks_update_config.add_arguments(eks_update_config_parser)
+    eks_update_config_parser.set_defaults(func=eks_update_config.main)
 
     # Fargate 관련 명령어 (DEPRECATED - EKS로 완전 통합됨)
     def fargate_deprecated_handler(args):

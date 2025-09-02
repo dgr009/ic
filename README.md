@@ -38,7 +38,7 @@ ic/
 ├── aws/                              # AWS 모듈
 │   ├── ec2/   info.py, list_tags.py, tag_check.py
 │   ├── ecs/   info.py, service.py, task.py    # ECS 클러스터/서비스/태스크
-│   ├── eks/   info.py, nodes.py, pods.py, fargate.py, addons.py  # EKS 클러스터/노드/파드/Fargate/애드온
+│   ├── eks/   info.py, nodes.py, pods.py, fargate.py, addons.py, update_config.py  # EKS 클러스터/노드/파드/Fargate/애드온/kubeconfig
 │   ├── fargate/ info.py                        # [DEPRECATED] Fargate 프로파일/태스크
 │   ├── msk/   info.py, broker.py              # MSK 클러스터/브로커 정보
 │   ├── codepipeline/ build.py, deploy.py      # CodePipeline 상태
@@ -160,6 +160,7 @@ pip install -e .
    | `eks` | `pods` | `-c`, `--cluster`, `-n`, `--namespace`, `-a`, `--account`, `-r`, `--region`, `--output` | EKS 파드 정보 (파드 상태, 컨테이너 정보, 리소스 사용량, 네임스페이스별 통계) |
    | `eks` | `fargate` | `-c`, `--cluster`, `-a`, `--account`, `-r`, `--region`, `--output` | EKS Fargate 프로파일 정보 (Pod 실행 역할, 서브넷, 셀렉터 규칙) |
    | `eks` | `addons` | `-c`, `--cluster`, `-a`, `--account`, `-r`, `--region`, `--output` | EKS 애드온 정보 (VPC CNI, CoreDNS, kube-proxy 등 상태 및 버전) |
+   | `eks` | `update-config` | `-n`, `--name`, `-a`, `--account`, `--region` | EKS kubeconfig 업데이트 (클러스터 검색 및 선택, 로컬 kubectl 설정) |
    | `msk` | `info` | `--name`, `-a`, `--account`, `-r`, `--region`, `--output` | MSK 클러스터 정보 (Kafka 버전, 브로커 수, 암호화 설정, 모니터링 상태) |
    | `msk` | `broker` | `-c`, `--cluster`, `-a`, `--account`, `-r`, `--region`, `--output` | MSK 브로커 엔드포인트 정보 (연결 타입별 엔드포인트, 포트, 인증 방식) |
    | `fargate` | `info` | `--cluster-name`, `--type`, `-a`, `--account`, `-r`, `--region`, `--output` | [DEPRECATED] Fargate 정보 - `ic aws eks fargate` 또는 `ic aws eks pods` 사용 권장 |
@@ -334,6 +335,12 @@ ic aws eks fargate
 
 # EKS 애드온 정보 조회
 ic aws eks addons
+
+# EKS kubeconfig 업데이트 (클러스터 검색 및 선택)
+ic aws eks update-config --name production
+
+# 다른 리전의 클러스터 검색
+ic aws eks update-config --name dev --region us-west-2
 
 # [DEPRECATED] 기존 Fargate 명령어 (EKS로 이전됨)
 # ic aws fargate info --cluster-name my-eks-cluster
