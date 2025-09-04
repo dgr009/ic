@@ -109,6 +109,75 @@ def gather_env_for_command(platform, service, command):
                 env_dict[k] = val
 
     # -----------------------------------
+    # GCP
+    # -----------------------------------
+    elif platform == "gcp":
+        # GCP 서비스들에서 공통으로 사용하는 환경변수
+        relevant_keys = [
+            # MCP Server Configuration (Primary)
+            "MCP_GCP_ENABLED",
+            "MCP_GCP_ENDPOINT", 
+            "MCP_GCP_AUTH_METHOD",
+            "GCP_PREFER_MCP",
+            
+            # Authentication (Fallback)
+            "GCP_SERVICE_ACCOUNT_KEY_PATH",
+            "GCP_SERVICE_ACCOUNT_KEY",
+            "GOOGLE_APPLICATION_CREDENTIALS",
+            
+            # Project Configuration
+            "GCP_PROJECTS",
+            "GCP_DEFAULT_PROJECT",
+            
+            # Regional Configuration
+            "GCP_REGIONS",
+            "GCP_ZONES",
+            
+            # Performance Tuning
+            "GCP_MAX_WORKERS",
+            "GCP_REQUEST_TIMEOUT",
+            "GCP_RETRY_ATTEMPTS",
+            
+            # Service-Specific Configuration
+            "GCP_ENABLE_BILLING_API",
+            "GCP_ENABLE_COMPUTE_API",
+            "GCP_ENABLE_CONTAINER_API",
+            "GCP_ENABLE_STORAGE_API",
+            "GCP_ENABLE_SQLADMIN_API",
+            "GCP_ENABLE_CLOUDFUNCTIONS_API",
+            "GCP_ENABLE_RUN_API",
+            
+            # Common
+            "LOG_LEVEL",
+            "SLACK_WEBHOOK_URL",
+        ]
+        
+        for k in relevant_keys:
+            val = os.getenv(k)
+            if val:
+                env_dict[k] = val
+
+    # -----------------------------------
+    # Azure
+    # -----------------------------------
+    elif platform == "azure":
+        # Azure 서비스들에서 공통으로 사용하는 환경변수
+        relevant_keys = [
+            "AZURE_TENANT_ID",
+            "AZURE_CLIENT_ID",
+            "AZURE_CLIENT_SECRET",
+            "AZURE_SUBSCRIPTIONS",
+            "AZURE_LOCATIONS",
+            "LOG_LEVEL",
+            "SLACK_WEBHOOK_URL",
+        ]
+        
+        for k in relevant_keys:
+            val = os.getenv(k)
+            if val:
+                env_dict[k] = val
+
+    # -----------------------------------
     # 기타 플랫폼이면 pass
     # -----------------------------------
     

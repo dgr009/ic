@@ -6,7 +6,7 @@
 - **AWS**: EC2, ECS, EKS, Fargate, MSK, CodePipeline, LB, RDS, S3, VPC, VPN, Security Groups 등
 - **OCI**: VM, LB, NSG, VCN, Volume, Object Storage, Policy, Cost 등  
 - **Azure**: VM, VNet, AKS, Storage Account, NSG, Load Balancer, Container Instances
-- **GCP**: Compute Engine, VPC (Mock 구현)
+- **GCP**: Compute Engine, VPC Networks, GKE, Cloud Storage, Cloud SQL, Cloud Functions, Cloud Run, Load Balancing, Firewall Rules, Billing & Cost
 - **Cloudflare**: DNS 레코드 관리
 - **SSH**: 서버 상태 점검 및 자동 등록
 
@@ -19,7 +19,7 @@
 | **AWS** | EC2, ECS, EKS, Fargate, MSK, CodePipeline, LB, RDS, S3, VPC, VPN, SG, NAT | `info`로 리소스 상세 정보 조회, `list_tags`로 태그 조회, `tag_check`로 정규식 기반 태그 규칙 검사. ECS는 클러스터/서비스/태스크 정보, EKS는 클러스터/노드/파드/Fargate/애드온 정보, MSK는 Kafka 클러스터 정보, CodePipeline은 빌드/배포 상태 조회 |
 | **OCI** | VM, LB, NSG, VCN, Volume, Object, Policy, Cost | `info`로 각 서비스의 자원 병렬 수집. `policy search`로 IAM 정책 검색. `cost usage/credit`로 비용 분석 |
 | **Azure** | VM, VNet, AKS, Storage, NSG, LB, ACI | `info`로 리소스 정보 조회. JSON, YAML, Table, Tree 출력 형식 지원. 구독별 병렬 처리 |
-| **GCP** | Compute, VPC | `info`로 리소스 정보 조회 (Mock 데이터 기반) |
+| **GCP** | Compute Engine, VPC Networks, GKE, Cloud Storage, Cloud SQL, Cloud Functions, Cloud Run, Load Balancing, Firewall Rules, Billing | `info`로 리소스 정보 조회. MCP 서버 통합 지원으로 중앙화된 인증 및 데이터 처리. JSON, YAML, Table, Tree 출력 형식 지원. 프로젝트별 병렬 처리 |
 | **Cloudflare** | DNS | `list_info`로 DNS 레코드 정보 수집 |
 | **SSH** | Server Management | `info`로 병렬 접속 상태 검사 및 서버 정보 수집, `reg`으로 신규 서버 등록 |
 
@@ -67,9 +67,17 @@ ic/
 │   ├── nsg/info.py                   # Network Security Groups
 │   ├── lb/info.py                    # Load Balancers
 │   └── aci/info.py                   # Container Instances
-├── gcp/                              # GCP 모듈 (Mock)
-│   ├── compute/info.py, mock_data.json
-│   └── vpc/info.py, mock_data.json
+├── gcp/                              # GCP 모듈
+│   ├── compute/info.py               # Compute Engine 인스턴스
+│   ├── vpc/info.py                   # VPC Networks 및 서브넷
+│   ├── gke/info.py                   # Google Kubernetes Engine 클러스터
+│   ├── storage/info.py               # Cloud Storage 버킷
+│   ├── sql/info.py                   # Cloud SQL 인스턴스
+│   ├── functions/info.py             # Cloud Functions
+│   ├── run/info.py                   # Cloud Run 서비스
+│   ├── lb/info.py                    # Load Balancing
+│   ├── firewall/info.py              # Firewall Rules
+│   └── billing/info.py               # Billing & Cost 정보
 ├── cf/                               # Cloudflare 모듈
 │   └── dns/list_info.py
 ├── ssh/                              # SSH 모듈
@@ -83,20 +91,128 @@ ic/
 
 ## 🚀 설치 및 실행
 
-### 1. 의존성 설치
+### 1. PyPI에서 설치 (권장)
 ```bash
-pip install -r requirements.txt
+# 기본 설치
+pip install ic
+
+# 개발 도구 포함 설치
+pip install ic[dev]
+
+# 보안 도구 포함 설치
+pip install ic[security]
+
+# 모든 옵션 포함 설치
+pip install ic[dev,security,test]
 ```
 
-### 2. CLI 설치
+### 2. 소스에서 설치 (개발용)
 ```bash
-pip install .
-# 또는 개발용
-pip install -e .
+git clone https://github.com/dgr009/ic.git
+cd ic
+pip install -e .[dev]
 ```
 
-### 3. .env 설정
-`.env.example` 파일을 복사하여 `.env` 파일을 생성하고, 각 플랫폼에 맞는 환경변수를 설정합니다.
+### 3. 🔒 보안 설정 (중요!)
+
+#### 초기 설정
+```bash
+# 보안 설정 초기화
+ic config init
+
+# 설정 검증
+ic config validate
+```
+
+#### 환경변수 설정 (민감한 정보는 환경변수로만!)
+```bash
+# AWS 설정
+export AWS_ACCESS_KEY_ID="your-access-key"
+export AWS_SECRET_ACCESS_KEY="your-secret-key"
+
+# Azure 설정
+export AZURE_TENANT_ID="your-tenant-id"
+export AZURE_CLIENT_ID="your-client-id"
+export AZURE_CLIENT_SECRET="your-client-secret"
+
+# GCP 설정
+export GCP_SERVICE_ACCOUNT_KEY_PATH="/path/to/service-account.json"
+
+# OCI 설정 (기본적으로 ~/.oci/config 사용)
+export OCI_CONFIG_FILE="~/.oci/config"
+
+# CloudFlare 설정
+export CLOUDFLARE_EMAIL="your-email@example.com"
+export CLOUDFLARE_API_TOKEN="your-api-token"
+```
+
+#### 설정 파일 (config.yaml) - 민감한 정보 제외
+```yaml
+# config.yaml - 민감한 정보는 포함하지 않음!
+version: "1.0"
+aws:
+  accounts: ["123456789012", "987654321098"]
+  regions: ["ap-northeast-2", "us-east-1"]
+azure:
+  subscriptions: ["your-subscription-id"]
+  locations: ["Korea Central"]
+gcp:
+  projects: ["your-project-id"]
+  regions: ["asia-northeast3"]
+```
+
+### 4. 🔐 보안 기능
+
+#### 자동 보안 기능
+- **민감한 데이터 마스킹**: 로그와 콘솔 출력에서 자동으로 민감한 정보 숨김
+- **설정 파일 검증**: 민감한 정보가 설정 파일에 포함된 경우 경고
+- **Git 보안 검사**: pre-commit 훅으로 민감한 정보 커밋 방지
+- **환경변수 기반 인증**: 모든 민감한 정보는 환경변수로만 관리
+
+#### 보안 명령어
+```bash
+# 설정 보안 검사
+ic config security-check
+
+# 민감한 데이터 마스킹된 설정 보기
+ic config show --mask-sensitive
+
+# .env에서 YAML로 안전하게 마이그레이션
+ic config migrate
+```
+
+### 5. MCP 서버 설정 (GCP 권장)
+GCP 서비스의 경우 MCP (Model Context Protocol) 서버를 통한 중앙화된 관리를 권장합니다:
+
+```bash
+# MCP 서버 활성화
+MCP_GCP_ENABLED=true
+MCP_GCP_ENDPOINT=http://localhost:8080/gcp
+
+# MCP 서버 인증 방식
+MCP_GCP_AUTH_METHOD=service_account  # 또는 adc, gcloud
+```
+
+**MCP 서버 장점:**
+- 중앙화된 인증 및 자격 증명 관리
+- 표준화된 데이터 변환 및 캐싱
+- 향상된 보안성과 접근 제어
+- 통합된 오류 처리 및 재시도 로직
+- 크로스 플랫폼 일관성
+
+### ⚠️ 보안 주의사항
+
+#### 절대 하지 말아야 할 것들:
+- ❌ 설정 파일에 API 키, 패스워드, 토큰 저장
+- ❌ Git에 실제 설정 파일 (config.yaml) 커밋
+- ❌ 로그 파일을 공개 저장소에 업로드
+- ❌ 민감한 정보를 명령행 인수로 전달
+
+#### 반드시 해야 할 것들:
+- ✅ 모든 민감한 정보는 환경변수로 관리
+- ✅ 설정 파일 권한을 600으로 설정 (`chmod 600 config.yaml`)
+- ✅ .gitignore에 민감한 파일 패턴 추가
+- ✅ 정기적으로 보안 업데이트 적용
 
 ---
 
@@ -207,12 +323,41 @@ pip install -e .
 | `lb` | `info` | `--subscription`, `--location`, `--resource-group`, `--name`, `--output` | Azure Load Balancer 정보 조회 | `ic azure lb info --resource-group "my-rg"` |
 | `aci` | `info` | `--subscription`, `--location`, `--resource-group`, `--name`, `--output` | Azure Container Instances 정보 조회 | `ic azure aci info --output tree` |
 
-### 4) GCP (Mock 구현)
+### 4) GCP
+
+**인증 설정:**
+1. **Service Account Key**: `GCP_SERVICE_ACCOUNT_KEY` 또는 `GCP_SERVICE_ACCOUNT_KEY_PATH` 환경변수 설정
+2. **Application Default Credentials**: `gcloud auth application-default login` 실행
+3. **gcloud CLI**: `gcloud auth login` 실행 (개발용)
+4. **MCP 서버**: 중앙화된 인증 관리 (권장)
+
+**환경변수 설정:**
+```bash
+# 프로젝트 설정
+GCP_PROJECTS=project-1,project-2,project-3
+GCP_DEFAULT_PROJECT=my-default-project
+
+# 지역 설정
+GCP_REGIONS=us-central1,us-east1,asia-northeast1
+GCP_ZONES=us-central1-a,us-central1-b
+
+# MCP 서버 설정 (권장)
+MCP_GCP_ENABLED=true
+MCP_GCP_ENDPOINT=http://localhost:8080/gcp
+```
 
 | Service | Subcommand | 주요 옵션 | 설명 | 예시 |
 |---------|------------|-----------|------|------|
-| `compute` | `info` | `--name`, `--project`, `--zone` | GCP Compute Engine 정보 조회 (Mock) | `ic gcp compute info --name "my-instance"` |
-| `vpc` | `info` | `--name`, `--project` | GCP VPC 정보 조회 (Mock) | `ic gcp vpc info --name "my-vpc"` |
+| `compute` | `info` | `--name`, `--project`, `--zone`, `--output` | Compute Engine 인스턴스 정보 조회 | `ic gcp compute info --name "my-instance" --zone us-central1-a` |
+| `vpc` | `info` | `--name`, `--project`, `--region`, `--output` | VPC Networks 및 서브넷 정보 조회 | `ic gcp vpc info --name "my-vpc" --region us-central1` |
+| `gke` | `info` | `--cluster`, `--project`, `--location`, `--output` | Google Kubernetes Engine 클러스터 정보 조회 | `ic gcp gke info --cluster "prod-cluster" --location us-central1-a` |
+| `storage` | `info` | `--bucket`, `--project`, `--output` | Cloud Storage 버킷 정보 조회 | `ic gcp storage info --bucket "my-bucket"` |
+| `sql` | `info` | `--instance`, `--project`, `--output` | Cloud SQL 인스턴스 정보 조회 | `ic gcp sql info --instance "prod-db"` |
+| `functions` | `info` | `--function`, `--project`, `--region`, `--output` | Cloud Functions 정보 조회 | `ic gcp functions info --function "my-function" --region us-central1` |
+| `run` | `info` | `--service`, `--project`, `--region`, `--output` | Cloud Run 서비스 정보 조회 | `ic gcp run info --service "my-service" --region us-central1` |
+| `lb` | `info` | `--lb-name`, `--project`, `--output` | Load Balancer 정보 조회 | `ic gcp lb info --lb-name "my-lb"` |
+| `firewall` | `info` | `--rule-name`, `--project`, `--output` | Firewall Rules 정보 조회 | `ic gcp firewall info --rule-name "allow-http"` |
+| `billing` | `info` | `--project`, `--start-date`, `--end-date`, `--output` | Billing 및 Cost 정보 조회 | `ic gcp billing info --start-date 2024-01-01 --end-date 2024-01-31` |
 
 ### 5) Cloudflare
 
@@ -246,6 +391,49 @@ pip install -e .
 
 ---
 
+## 🔒 보안 및 설정 관리
+
+### 새로운 보안 중심 설정 시스템
+
+IC 1.0.0부터는 보안을 최우선으로 하는 새로운 설정 시스템을 도입했습니다:
+
+#### 주요 보안 기능
+- **민감한 데이터 자동 마스킹**: 로그, 콘솔 출력에서 API 키, 패스워드 등 자동 숨김
+- **설정 파일 보안 검증**: 민감한 정보가 설정 파일에 포함되면 경고
+- **Git 보안 훅**: pre-commit 시 민감한 정보 커밋 방지
+- **환경변수 기반 인증**: 모든 자격 증명은 환경변수로만 관리
+
+#### 설정 시스템 개선
+- **.env → YAML 전환**: 구조화된 설정 관리 (기존 .env 파일 호환성 유지)
+- **설정 계층화**: 기본값 → 사용자 → 프로젝트 → 환경변수 순서로 적용
+- **스키마 검증**: 설정 값의 타입과 형식 자동 검증
+- **마이그레이션 도구**: 기존 .env 설정을 안전하게 YAML로 변환
+
+#### 로깅 시스템 개선
+- **이중 레벨 로깅**: 콘솔은 ERROR만, 파일은 전체 로그 기록
+- **민감한 데이터 마스킹**: 모든 로그 출력에서 자동으로 민감한 정보 숨김
+- **자동 로그 순환**: 날짜별 로그 파일 분할 및 자동 정리
+
+### 마이그레이션 가이드
+
+기존 .env 사용자를 위한 마이그레이션:
+
+```bash
+# 1. 기존 설정 백업
+cp .env .env.backup
+
+# 2. 새 설정 시스템으로 마이그레이션
+ic config migrate
+
+# 3. 마이그레이션 결과 확인
+ic config validate
+
+# 4. 보안 검사
+ic config security-check
+```
+
+---
+
 ## 📊 주요 동작 방식
 
 - **병렬 처리**: `ThreadPoolExecutor`를 사용하여 여러 계정과 리전에 걸쳐 리소스 정보를 병렬로 수집하여 빠른 속도를 보장합니다.
@@ -253,10 +441,12 @@ pip install -e .
 - **자격 증명**: 각 플랫폼의 표준 자격 증명 방식을 사용합니다:
   - AWS: `~/.aws/config`, `~/.aws/credentials`
   - OCI: `~/.oci/config`
+  - GCP: Service Account Key, Application Default Credentials, gcloud CLI, MCP 서버 (권장)
   - Cloudflare: API Token 환경변수
 - **환경 변수**: `.env` 파일을 통해 계정 정보, 기본 리전, 태그 규칙 등 설정을 중앙에서 관리합니다.
-- **멀티 서비스**: 쉼표(`,`)로 구분하여 여러 서비스를 동시에 실행할 수 있습니다. (예: `ic oci vm,lb,nsg info`)
-- **필터링**: 이름, 계정, 리전, 컴파트먼트 등 다양한 필터 옵션을 제공합니다.
+- **MCP 서버 통합**: Model Context Protocol 서버를 통한 중앙화된 인증 및 데이터 처리로 보안성과 일관성을 향상시킵니다.
+- **멀티 서비스**: 쉼표(`,`)로 구분하여 여러 서비스를 동시에 실행할 수 있습니다. (예: `ic gcp compute,vpc,gke info`)
+- **필터링**: 이름, 계정, 리전, 프로젝트, 존 등 다양한 필터 옵션을 제공합니다.
 
 ---
 
@@ -279,7 +469,7 @@ pip install -e .
 - **태그 규칙**: `RULE_XXX` 정규식은 `.env` 기반 + 코드 내부 정의와 병합되어 동작
 - **SSH**: 기본적으로 `~/.ssh/config` 기반으로 등록된 서버들 조회
 - **자격 증명**: 각 플랫폼별 CLI 도구 및 설정 파일이 사전에 구성되어 있어야 함
-- **Mock 모듈**: Azure, GCP는 현재 Mock 데이터 기반으로 동작 (실제 API 연동 예정)
+- **GCP MCP 통합**: GCP 서비스는 MCP 서버를 통한 중앙화된 관리를 우선 사용하며, 직접 API 접근을 대체 수단으로 지원
 
 ---
 
@@ -288,7 +478,7 @@ pip install -e .
 - **태그 관리**: `apply_tags`, `backup_tags`, `excel_to_json` 등의 기능 추가 예정
 - **IaC 통합**: Terraform / CloudFormation 태그 통합 지원
 - **CI/CD 통합**: GitHub Actions / Jenkins 등과 통합하여 자동 검사 가능
-- **실제 API 연동**: Azure, GCP Mock 모듈을 실제 API 연동으로 전환 예정
+- **Azure API 연동**: Azure Mock 모듈을 실제 API 연동으로 전환 예정
 - **추가 서비스**: 각 플랫폼별 더 많은 서비스 지원 (Lambda, Functions, Storage 등)
 - **리포팅**: Excel, CSV, JSON 등 다양한 형식의 리포트 생성 기능
 - **모니터링**: 리소스 변경 사항 추적 및 알림 기능
@@ -403,6 +593,85 @@ ic azure aci info --resource-group rg-containers --output tree
 
 # 여러 Azure 서비스 동시 조회
 ic azure vm,vnet,aks,storage info --resource-group rg-prod
+
+# GCP 리소스 조회
+# Compute Engine 인스턴스 조회
+ic gcp compute info
+
+# 특정 프로젝트의 인스턴스 조회
+ic gcp compute info --project my-project
+
+# 특정 존의 인스턴스 필터링
+ic gcp compute info --zone us-central1-a --name web-server
+
+# VPC Networks 및 서브넷 조회
+ic gcp vpc info
+
+# 특정 리전의 VPC 조회
+ic gcp vpc info --region us-central1 --name production-vpc
+
+# GKE 클러스터 정보 조회
+ic gcp gke info
+
+# 특정 클러스터 상세 정보
+ic gcp gke info --cluster production --location us-central1-a
+
+# Cloud Storage 버킷 조회
+ic gcp storage info
+
+# 특정 버킷 정보
+ic gcp storage info --bucket my-data-bucket
+
+# Cloud SQL 인스턴스 조회
+ic gcp sql info
+
+# 특정 인스턴스 상세 정보
+ic gcp sql info --instance prod-database
+
+# Cloud Functions 조회
+ic gcp functions info
+
+# 특정 리전의 함수 조회
+ic gcp functions info --region us-central1 --function my-function
+
+# Cloud Run 서비스 조회
+ic gcp run info
+
+# 특정 서비스 상세 정보
+ic gcp run info --service my-api --region us-central1
+
+# Load Balancer 조회
+ic gcp lb info
+
+# 특정 로드밸런서 정보
+ic gcp lb info --lb-name production-lb
+
+# Firewall Rules 조회
+ic gcp firewall info
+
+# 특정 규칙 조회
+ic gcp firewall info --rule-name allow-https
+
+# Billing 정보 조회
+ic gcp billing info
+
+# 특정 기간 비용 조회
+ic gcp billing info --start-date 2024-01-01 --end-date 2024-01-31
+
+# 여러 GCP 서비스 동시 조회
+ic gcp compute,vpc,gke info --project production
+
+# 다양한 출력 형식 사용
+ic gcp compute info --output json
+ic gcp vpc info --output yaml
+ic gcp gke info --output tree
+ic gcp storage info --output table
+
+# 다중 프로젝트 조회
+ic gcp compute info --project project-1,project-2,project-3
+
+# MCP 서버를 통한 중앙화된 조회 (자동 감지)
+ic gcp compute,vpc,gke,storage,sql info --output tree
 ```
 
 ---

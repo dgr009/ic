@@ -3,11 +3,30 @@ import argparse
 import json
 import os
 from typing import Dict, List, Optional, Any
-from google.cloud.sql_v1 import SqlInstancesServiceClient, SqlDatabasesServiceClient
-from google.cloud.sql_v1.types import (
-    SqlInstancesListRequest, SqlInstancesGetRequest,
-    SqlDatabasesListRequest, SqlDatabasesGetRequest
-)
+# Using google-cloud-sql-python-connector for Cloud SQL connections
+try:
+    from google.cloud.sql.connector import Connector
+    CONNECTOR_AVAILABLE = True
+except ImportError:
+    CONNECTOR_AVAILABLE = False
+try:
+    from google.cloud.sql_v1 import SqlInstancesServiceClient, SqlDatabasesServiceClient
+    from google.cloud.sql_v1.types import (
+        SqlInstancesListRequest, SqlInstancesGetRequest,
+        SqlDatabasesListRequest, SqlDatabasesGetRequest
+    )
+    SQL_ADMIN_AVAILABLE = True
+except ImportError:
+    SQL_ADMIN_AVAILABLE = False
+    # Fallback classes for when the library is not available
+    class SqlInstancesServiceClient:
+        pass
+    class SqlDatabasesServiceClient:
+        pass
+    class SqlInstancesListRequest:
+        pass
+    class SqlDatabasesListRequest:
+        pass
 from google.api_core import exceptions as gcp_exceptions
 from rich.console import Console
 from rich.table import Table
@@ -20,6 +39,13 @@ from common.gcp_utils import (
     create_gcp_client, format_gcp_output, get_gcp_resource_labels
 )
 from common.log import log_info, log_error, log_exception
+
+# Import MCP integration
+try:
+    from mcp.gcp_connector import MCPGCPService
+    MCP_AVAILABLE = True
+except ImportError:
+    MCP_AVAILABLE = False
 
 console = Console()
 

@@ -1,0 +1,102 @@
+# IC Configuration Example
+# Copy this file to 'config.yaml' or '~/.ic/config.yaml' and customize
+# IMPORTANT: Never commit actual credentials to version control!
+
+version: "1.0"
+
+# AWS Configuration
+aws:
+  accounts: 
+    - "123456789012"  # Replace with your AWS account ID
+    - "987654321098"  # Add more account IDs as needed
+  regions: ["ap-northeast-2", "us-east-1"]
+  cross_account_role: "OrganizationAccountAccessRole"
+  session_duration: 3600
+  max_workers: 10
+
+# Azure Configuration
+azure:
+  subscriptions:
+    - "your-subscription-id-here"  # Replace with your Azure subscription ID
+  locations: ["Korea Central", "East US"]
+  max_workers: 10
+
+# GCP Configuration
+gcp:
+  projects:
+    - "your-project-id-here"  # Replace with your GCP project ID
+  regions: ["asia-northeast3", "us-central1"]
+  zones: ["asia-northeast3-a"]
+  max_workers: 10
+
+# OCI Configuration
+oci:
+  config_path: "~/.oci/config"
+  max_workers: 10
+
+# CloudFlare Configuration
+cloudflare:
+  accounts: ["your-account-name"]  # Replace with your CloudFlare account name
+  zones: ["your-domain.com"]       # Replace with your domain
+
+# SSH Configuration
+ssh:
+  config_file: "~/.ssh/config"
+  key_dir: "~/aws-key"
+  max_workers: 70
+
+# MCP Configuration
+mcp:
+  servers:
+    github:
+      enabled: true
+      auto_approve: ["list_repositories", "get_repository"]
+    terraform:
+      enabled: true
+      auto_approve: ["search_modules"]
+    aws_docs:
+      enabled: true
+      auto_approve: ["read_documentation", "search_documentation"]
+    azure:
+      enabled: true
+      auto_approve: ["documentation"]
+
+# Slack Integration (optional)
+slack:
+  enabled: false  # Set to true to enable Slack notifications
+
+# Logging Configuration
+logging:
+  console_level: "ERROR"  # Only errors in console
+  file_level: "INFO"      # Detailed logs in file
+  file_path: "logs/ic_{date}.log"
+  max_files: 30
+
+# REQUIRED ENVIRONMENT VARIABLES:
+# Set these in your environment or .env file (NOT in this config file!)
+#
+# AWS:
+#   AWS_PROFILE=your-profile-name
+#   # OR
+#   AWS_ACCESS_KEY_ID=your-access-key
+#   AWS_SECRET_ACCESS_KEY=your-secret-key
+#
+# Azure:
+#   AZURE_TENANT_ID=your-tenant-id
+#   AZURE_CLIENT_ID=your-client-id
+#   AZURE_CLIENT_SECRET=your-client-secret
+#
+# GCP:
+#   GCP_SERVICE_ACCOUNT_KEY_PATH=/path/to/service-account.json
+#   # OR
+#   GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
+#
+# CloudFlare:
+#   CLOUDFLARE_EMAIL=your-email@example.com
+#   CLOUDFLARE_API_TOKEN=your-api-token
+#
+# Slack (optional):
+#   SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+#
+# GitHub MCP (optional):
+#   GITHUB_PERSONAL_ACCESS_TOKEN=your-github-token

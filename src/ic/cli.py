@@ -2,9 +2,21 @@
 
 import argparse
 import sys
-from dotenv import load_dotenv
-from common.log import log_error, log_env_short, log_args_short
-from common.gather_env import gather_env_for_command
+import warnings
+
+# Set up compatibility layer first
+from .compat.cli import setup_cli_compatibility, wrap_command_function, ensure_env_compatibility
+from .compat.common import log_error, log_env_short, log_args_short, gather_env_for_command
+
+# Initialize compatibility layer
+setup_cli_compatibility()
+
+# Legacy dotenv support with deprecation warning
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 from aws.ec2 import list_tags as ec2_list_tags
 from aws.ec2 import tag_check as ec2_tag_check
 from aws.ec2 import info as ec2_info
@@ -44,8 +56,13 @@ from oci_module.cost import usage_add_arguments as cost_usage_add_args, usage_ma
 from oci_module.cost import credit_add_arguments as cost_credit_add_args, credit_main as cost_credit_main
 from oci_module.vcn import info as vcn_info
 from ssh import auto_ssh, server_info
+import concurrent.futures
+from threading import Lock
 
 load_dotenv()
+
+# Global lock for thread-safe output formatting
+output_lock = Lock()
 
 def oci_info_deprecated(args):
     from rich.console import Console
@@ -61,17 +78,151 @@ def oci_info_deprecated(args):
     console.print("  - 여러 서비스 : `ic oci vm,lb,nsg,volume,obj,policy info`\n")
     console.print("전체 OCI 명령어는 `ic oci --help`로 확인하실 수 있습니다.")
 
+def execute_gcp_multi_service(services, command_and_options, parser):
+    """GCP 다중 서비스 명령을 병렬로 실행합니다."""
+    from rich.console import Console
+    console = Console()
+    
+    def execute_service(service):
+        """단일 GCP 서비스를 실행하고 결과를 반환합니다."""
+        try:
+            current_argv = ['gcp', service] + command_and_options
+            args = parser.parse_args(current_argv)
+            
+            # Capture output for thread-safe display
+            import io
+            import contextlib
+            
+            output_buffer = io.StringIO()
+            with contextlib.redirect_stdout(output_buffer):
+                execute_single_command(args)
+            
+            return {
+                'service': service,
+                'success': True,
+                'output': output_buffer.getvalue(),
+                'error': None
+            }
+        except SystemExit as e:
+            # SystemExit with code 0 is normal (e.g., help command)
+            if e.code == 0:
+                return {
+                    'service': service,
+                    'success': True,
+                    'output': output_buffer.getvalue(),
+                    'error': None
+                }
+            else:
+                return {
+                    'service': service,
+                    'success': False,
+                    'output': '',
+                    'error': f"Command failed with exit code: {e.code}"
+                }
+        except Exception as e:
+            return {
+                'service': service,
+                'success': False,
+                'output': '',
+                'error': str(e)
+            }
+    
+    # Execute services in parallel
+    console.print(f"\n[bold cyan]Executing GCP services in parallel: {', '.join(services)}[/bold cyan]")
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=min(len(services), 5)) as executor:
+        future_to_service = {executor.submit(execute_service, service): service for service in services}
+        results = []
+        
+        for future in concurrent.futures.as_completed(future_to_service):
+            result = future.result()
+            results.append(result)
+    
+    # Sort results by original service order
+    service_order = {service: i for i, service in enumerate(services)}
+    results.sort(key=lambda x: service_order[x['service']])
+    
+    # Display results with thread-safe output
+    with output_lock:
+        has_error = False
+        for result in results:
+            service = result['service']
+            if result['success']:
+                console.print(f"\n[bold green]✓ GCP {service.upper()} Results:[/bold green]")
+                if result['output'].strip():
+                    print(result['output'])
+                else:
+                    console.print(f"[dim]No output from {service} service[/dim]")
+            else:
+                console.print(f"\n[bold red]✗ GCP {service.upper()} Failed:[/bold red]")
+                console.print(f"[red]Error: {result['error']}[/red]")
+                has_error = True
+        
+        if has_error:
+            console.print(f"\n[bold yellow]⚠️ Some GCP services failed. Check individual service configurations.[/bold yellow]")
+            sys.exit(1)
+        else:
+            console.print(f"\n[bold green]✓ All GCP services completed successfully[/bold green]")
+
+def gcp_monitor_performance_command(args):
+    """GCP 성능 메트릭을 표시하는 명령어"""
+    try:
+        from common.gcp_monitoring import log_gcp_performance_summary
+        log_gcp_performance_summary()
+    except ImportError:
+        from rich.console import Console
+        console = Console()
+        console.print("[bold red]GCP monitoring module not available[/bold red]")
+
+def gcp_monitor_health_command(args):
+    """GCP 서비스 헬스 상태를 표시하는 명령어"""
+    try:
+        from common.gcp_monitoring import gcp_monitor
+        from rich.console import Console
+        from rich.panel import Panel
+        
+        console = Console()
+        health_status = gcp_monitor.get_health_status()
+        
+        health_text = f"MCP Connected: {'✓' if health_status['mcp_connected'] else '✗'}\n"
+        health_text += f"Uptime: {health_status['uptime_minutes']:.1f} minutes\n"
+        health_text += f"Total API Calls: {health_status['total_api_calls']}\n"
+        
+        if health_status['service_health']:
+            health_text += "\nService Health:\n"
+            for service, is_healthy in health_status['service_health'].items():
+                status = '✓' if is_healthy else '✗'
+                health_text += f"  {service}: {status}\n"
+        else:
+            health_text += "\nNo service health data available"
+        
+        console.print(Panel(
+            health_text,
+            title="GCP System Health",
+            border_style="green" if health_status['mcp_connected'] else "yellow"
+        ))
+        
+    except ImportError:
+        from rich.console import Console
+        console = Console()
+        console.print("[bold red]GCP monitoring module not available[/bold red]")
+
 def main():
     """IC CLI 엔트리 포인트"""
     parser = argparse.ArgumentParser(
         description="Infra CLI: Platform Resource CLI Tool",
-        usage="ic <platform> <service> <command> [options]"
+        usage="ic <platform|config> <service> <command> [options]"
     )
     platform_subparsers = parser.add_subparsers(
         dest="platform",
         required=True,
-        help="클라우드 플랫폼 (aws, oci, cf, ssh, azure, gcp 등)"
+        help="클라우드 플랫폼 (aws, oci, cf, ssh, azure, gcp) 또는 config 관리"
     )
+    
+    # Add config commands
+    from .commands.config import ConfigCommands
+    config_commands = ConfigCommands()
+    config_commands.add_subparsers(platform_subparsers)
     
     aws_parser = platform_subparsers.add_parser("aws", help="AWS 관련 명령어")
     oci_parser = platform_subparsers.add_parser("oci", help="OCI 관련 명령어")
@@ -362,12 +513,12 @@ def main():
     gcp_storage_info.add_arguments(gcp_storage_info_parser)
     gcp_storage_info_parser.set_defaults(func=gcp_storage_info.main)
 
-    # gcp_sql_parser = gcp_subparsers.add_parser("sql", help="GCP Cloud SQL 관련 명령어")
-    # gcp_sql_subparsers = gcp_sql_parser.add_subparsers(dest="command", required=True)
-    # gcp_sql_info_parser = gcp_sql_subparsers.add_parser("info", help="GCP Cloud SQL 인스턴스 정보 조회")
-    # from gcp.sql import info as gcp_sql_info
-    # gcp_sql_info.add_arguments(gcp_sql_info_parser)
-    # gcp_sql_info_parser.set_defaults(func=gcp_sql_info.main)
+    gcp_sql_parser = gcp_subparsers.add_parser("sql", help="GCP Cloud SQL 관련 명령어")
+    gcp_sql_subparsers = gcp_sql_parser.add_subparsers(dest="command", required=True)
+    gcp_sql_info_parser = gcp_sql_subparsers.add_parser("info", help="GCP Cloud SQL 인스턴스 정보 조회")
+    from gcp.sql import info as gcp_sql_info
+    gcp_sql_info.add_arguments(gcp_sql_info_parser)
+    gcp_sql_info_parser.set_defaults(func=gcp_sql_info.main)
 
     gcp_functions_parser = gcp_subparsers.add_parser("functions", help="GCP Cloud Functions 관련 명령어")
     gcp_functions_subparsers = gcp_functions_parser.add_subparsers(dest="command", required=True)
@@ -389,6 +540,31 @@ def main():
     from gcp.lb import info as gcp_lb_info
     gcp_lb_info.add_arguments(gcp_lb_info_parser)
     gcp_lb_info_parser.set_defaults(func=gcp_lb_info.main)
+
+    gcp_firewall_parser = gcp_subparsers.add_parser("firewall", help="GCP 방화벽 규칙 관련 명령어")
+    gcp_firewall_subparsers = gcp_firewall_parser.add_subparsers(dest="command", required=True)
+    gcp_firewall_info_parser = gcp_firewall_subparsers.add_parser("info", help="GCP 방화벽 규칙 정보 조회")
+    from gcp.firewall import info as gcp_firewall_info
+    gcp_firewall_info.add_arguments(gcp_firewall_info_parser)
+    gcp_firewall_info_parser.set_defaults(func=gcp_firewall_info.main)
+
+    gcp_billing_parser = gcp_subparsers.add_parser("billing", help="GCP Billing 및 비용 관련 명령어")
+    gcp_billing_subparsers = gcp_billing_parser.add_subparsers(dest="command", required=True)
+    gcp_billing_info_parser = gcp_billing_subparsers.add_parser("info", help="GCP Billing 정보 및 비용 조회")
+    from gcp.billing import info as gcp_billing_info
+    gcp_billing_info.add_arguments(gcp_billing_info_parser)
+    gcp_billing_info_parser.set_defaults(func=gcp_billing_info.main)
+
+    # GCP 모니터링 및 성능 메트릭
+    gcp_monitor_parser = gcp_subparsers.add_parser("monitor", help="GCP 모니터링 및 성능 메트릭")
+    gcp_monitor_subparsers = gcp_monitor_parser.add_subparsers(dest="command", required=True)
+    gcp_monitor_perf_parser = gcp_monitor_subparsers.add_parser("performance", help="GCP 성능 메트릭 조회")
+    gcp_monitor_perf_parser.add_argument("--time-window", type=int, default=60, 
+                                        help="메트릭 조회 시간 창 (분, 기본값: 60)")
+    gcp_monitor_perf_parser.set_defaults(func=gcp_monitor_performance_command)
+    
+    gcp_monitor_health_parser = gcp_monitor_subparsers.add_parser("health", help="GCP 서비스 헬스 체크")
+    gcp_monitor_health_parser.set_defaults(func=gcp_monitor_health_command)
 
     # ---------------- CloudFlare ----------------
     cf_dns_parser = cf_subparsers.add_parser("dns", help="DNS Record 관련 명령어")
@@ -479,22 +655,27 @@ def process_and_execute_commands(parser):
         services = [s.strip() for s in sys.argv[2].split(',')]
         command_and_options = sys.argv[3:]
         
-        has_error = False
-        for service in services:
-            print(f"--- Executing: ic {platform} {service} {' '.join(command_and_options)} ---")
-            current_argv = [platform, service] + command_and_options
-            try:
-                args = parser.parse_args(current_argv)
-                execute_single_command(args)
-            except SystemExit:
-                print(f"--- Skipping service '{service}' due to an error or invalid arguments ---")
-                has_error = True
-            except Exception as e:
-                log_error(f"Error processing service '{service}': {e}")
-                has_error = True
-        
-        if has_error:
-            sys.exit(1)
+        # For GCP multi-service commands, use parallel execution
+        if platform == 'gcp':
+            execute_gcp_multi_service(services, command_and_options, parser)
+        else:
+            # Sequential execution for other platforms
+            has_error = False
+            for service in services:
+                print(f"--- Executing: ic {platform} {service} {' '.join(command_and_options)} ---")
+                current_argv = [platform, service] + command_and_options
+                try:
+                    args = parser.parse_args(current_argv)
+                    execute_single_command(args)
+                except SystemExit:
+                    print(f"--- Skipping service '{service}' due to an error or invalid arguments ---")
+                    has_error = True
+                except Exception as e:
+                    log_error(f"Error processing service '{service}': {e}")
+                    has_error = True
+            
+            if has_error:
+                sys.exit(1)
             
     else:
         try:
@@ -522,7 +703,18 @@ def execute_single_command(args):
         log_env_short(env_used)
 
     if hasattr(args, 'func'):
-        args.func(args)
+        # Add consistent error handling for GCP services
+        if args.platform == 'gcp':
+            try:
+                args.func(args)
+            except ImportError as e:
+                log_error(f"GCP service '{args.service}' dependencies not available: {e}")
+                raise
+            except Exception as e:
+                log_error(f"GCP service '{args.service}' execution failed: {e}")
+                raise
+        else:
+            args.func(args)
     else:
         log_error(f"'{args.service}' 서비스에 대해 실행할 명령어가 지정되지 않았습니다. 'ic {args.platform} {args.service} --help'를 확인하세요.")
         raise ValueError("No function to execute")

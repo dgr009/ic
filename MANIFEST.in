@@ -1,0 +1,58 @@
+# Include documentation and configuration files
+include README.md
+include LICENSE
+include CHANGELOG.md
+include SECURITY.md
+include requirements.txt
+include pyproject.toml
+include setup.py
+include setup.cfg
+
+# Include configuration files and examples
+recursive-include config *.yaml *.yml *.json *.example
+recursive-include docs *.md *.rst *.txt
+
+# Include source code
+recursive-include src *.py
+recursive-include src/ic/config *.yaml *.yml *.json
+
+# Exclude development and build files
+exclude .env
+exclude .env.*
+exclude *.key
+exclude *.pem
+exclude **/credentials.json
+exclude **/service-account*.json
+exclude **/*-key.json
+exclude .DS_Store
+exclude *.pyc
+exclude *.pyo
+exclude *.egg-info
+exclude .pytest_cache
+exclude __pycache__
+recursive-exclude * __pycache__
+recursive-exclude * *.py[co]
+recursive-exclude * .DS_Store
+recursive-exclude * *.key
+recursive-exclude * *.pem
+recursive-exclude * *credentials*
+recursive-exclude * *service-account*
+recursive-exclude logs *
+recursive-exclude .git *
+recursive-exclude .kiro *
+recursive-exclude tests *
+recursive-exclude .pytest_cache *
+
+# Include test files only in source distribution
+global-exclude tests/*
+global-exclude test_*
+global-exclude *_test.py
+
+# Security: Exclude sensitive files
+global-exclude *.key
+global-exclude *.pem
+global-exclude *credentials*
+global-exclude *service-account*
+global-exclude .env*
+global-exclude config.yaml
+global-exclude config.yml

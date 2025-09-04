@@ -1,0 +1,108 @@
+# IC Default Configuration
+# This file contains safe default values with NO sensitive data
+# All sensitive information should be provided via environment variables
+
+version: "1.0"
+
+# Logging configuration
+logging:
+  console_level: "ERROR"  # Only show errors and critical messages in console
+  file_level: "INFO"      # Log all info and above to file
+  file_path: "logs/ic_{date}.log"
+  max_files: 30
+  format: "%(asctime)s [%(levelname)s] - %(message)s"
+  mask_sensitive: true    # Automatically mask sensitive data in logs
+
+# AWS configuration
+aws:
+  accounts: []  # Account IDs - populate from environment or user config
+  regions: ["ap-northeast-2"]
+  cross_account_role: "OrganizationAccountAccessRole"
+  session_duration: 3600
+  max_workers: 10
+  
+  # Tag validation rules
+  tags:
+    required: ["User", "Team", "Environment"]
+    optional: ["Service", "Application"]
+    rules:
+      User: "^.+$"
+      Team: "^\\d+$"
+      Environment: "^(PROD|STG|DEV|TEST|QA)$"
+
+# Azure configuration
+azure:
+  subscriptions: []  # Subscription IDs - from environment variables
+  locations: ["Korea Central"]
+  max_workers: 10
+  # tenant_id, client_id, client_secret - from environment variables only
+
+# GCP configuration
+gcp:
+  mcp:
+    enabled: true
+    endpoint: "http://localhost:8080/gcp"
+    auth_method: "service_account"
+    prefer_mcp: true
+  projects: []  # Project IDs - from environment variables
+  regions: ["asia-northeast3"]
+  zones: ["asia-northeast3-a"]
+  max_workers: 10
+  # service_account_key_path - from environment variables only
+
+# OCI configuration
+oci:
+  config_path: "~/.oci/config"  # Reference to external config
+  max_workers: 10
+
+# CloudFlare configuration
+cloudflare:
+  accounts: []  # Account names - from environment variables
+  zones: []     # Zone names - from environment variables
+  # email, api_token - from environment variables only
+
+# SSH configuration
+ssh:
+  config_file: "~/.ssh/config"  # Reference to external config
+  key_dir: "~/aws-key"          # Reference to external key directory
+  max_workers: 70
+  timeouts:
+    port_scan: 0.5
+    ssh_connect: 5
+
+# MCP server configuration
+mcp:
+  servers:
+    github:
+      enabled: true
+      auto_approve: []
+      # personal_access_token - from environment variables only
+    terraform:
+      enabled: true
+      auto_approve: []
+    aws_docs:
+      enabled: true
+      auto_approve: ["read_documentation", "search_documentation"]
+    azure:
+      enabled: true
+      auto_approve: ["documentation"]
+
+# Slack integration
+slack:
+  enabled: false
+  # webhook_url - from environment variables only
+
+# Security configuration
+security:
+  sensitive_keys:
+    - "password"
+    - "token"
+    - "key"
+    - "secret"
+    - "webhook_url"
+    - "api_key"
+    - "access_key"
+    - "private_key"
+  mask_pattern: "***MASKED***"
+  warn_on_sensitive_in_config: true
+  git_hooks_enabled: true

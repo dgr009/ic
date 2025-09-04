@@ -252,14 +252,99 @@ docker-compose.override.yml
 # Ansible 관련 파일
 *.retry
 
-# 특정 폴더 내용 제외
+# IC Configuration - Security
+config.yaml
+config.yml
+.env
+.env.*
+*.key
+*.pem
+**/credentials.json
+**/service-account*.json
 logs/
-*.log
+.ic/
+
+# AWS credentials and configuration
+.aws/credentials
+aws-key/
+*.pem
+
+# GCP credentials
+gcp-key/
+**/gcp-*.json
+service-account*.json
+*-key.json
+
+# Azure credentials
+.azure/
+*.pfx
+*.p12
+
+# OCI credentials
+.oci/config
+.oci/sessions/
+
+# SSH keys and configuration
+id_rsa*
+*.ppk
+known_hosts
+
+# CloudFlare credentials
+.cloudflare/
+
+# Slack webhooks and tokens
+slack-*.json
+
+# Temporary and backup files
+*.tmp
+*.temp
+*.bak
+*.backup
+*~
+
+# Excel and data files (may contain sensitive info)
 excel/
 backup/
-json/
-*.json
 *.xlsx
+*.xls
+*.csv
 
+# JSON files (may contain credentials)
+*.json
+!package.json
+!package-lock.json
+!pyproject.toml
+!config/schema.json
+!config/default.yaml
+!config/*.example.*
+
+# Specific IC exclusions
 ic.egg-info/
+.ic/
+logs/
+*.log
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Files that might appear in the root of a volume
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
 

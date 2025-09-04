@@ -1,1 +1,1 @@
-# GCP Billing and Cost module
+# GCP Billing module

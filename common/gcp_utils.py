@@ -25,6 +25,23 @@ except ImportError:
     MCP_AVAILABLE = False
     log_info("MCP connector not available, using direct API access only")
 
+# Import configuration validator
+try:
+    from common.gcp_config_validator import GCPConfigValidator
+    CONFIG_VALIDATOR_AVAILABLE = True
+except ImportError:
+    CONFIG_VALIDATOR_AVAILABLE = False
+
+# Import monitoring utilities
+try:
+    from common.gcp_monitoring import (
+        monitor_gcp_operation, update_gcp_service_health, 
+        update_mcp_connection_status, log_gcp_structured_event
+    )
+    MONITORING_AVAILABLE = True
+except ImportError:
+    MONITORING_AVAILABLE = False
+
 load_dotenv()
 
 def _get_env_var(key: str, default: str = '') -> str:
@@ -57,11 +74,15 @@ class GCPProject:
 class GCPAuthManager:
     """GCP 인증을 관리하는 클래스 (MCP 우선, 직접 API 폴백)"""
     
-    def __init__(self, prefer_mcp: bool = True):
+    def __init__(self, prefer_mcp: bool = True, validate_config: bool = True):
         self._credentials = None
         self._project_id = None
         self.prefer_mcp = prefer_mcp and MCP_AVAILABLE
         self.mcp_connector = None
+        
+        # Validate configuration if requested
+        if validate_config and CONFIG_VALIDATOR_AVAILABLE:
+            self._validate_configuration()
         
         if self.prefer_mcp:
             try:
@@ -70,6 +91,28 @@ class GCPAuthManager:
             except Exception as e:
                 log_error(f"Failed to initialize MCP connector: {e}")
                 self.prefer_mcp = False
+    
+    def _validate_configuration(self):
+        """GCP 설정을 검증합니다."""
+        try:
+            validator = GCPConfigValidator()
+            is_valid, errors, warnings = validator.validate_config()
+            
+            if errors:
+                log_error("GCP configuration errors found:")
+                for error in errors:
+                    log_error(f"  - {error}")
+            
+            if warnings:
+                log_info("GCP configuration warnings:")
+                for warning in warnings:
+                    log_info(f"  - {warning}")
+            
+            if not is_valid:
+                log_error("GCP configuration validation failed. Please check your environment variables.")
+                
+        except Exception as e:
+            log_error(f"Configuration validation failed: {e}")
     
     def get_credentials(self) -> Optional[Credentials]:
         """GCP 인증 정보를 가져옵니다."""
@@ -125,29 +168,66 @@ class GCPAuthManager:
         # Try MCP first if available
         if self.use_mcp_if_available():
             try:
-                return self.mcp_connector.validate_connection()
+                is_valid = self.mcp_connector.validate_connection()
+                if MONITORING_AVAILABLE:
+                    update_mcp_connection_status(is_valid)
+                    log_gcp_structured_event('credential_validation', {
+                        'method': 'mcp',
+                        'success': is_valid
+                    })
+                return is_valid
             except Exception as e:
                 log_error(f"MCP credential validation failed: {e}")
+                if MONITORING_AVAILABLE:
+                    update_mcp_connection_status(False)
                 # Fall back to direct validation
         
         # Direct API validation
         try:
             credentials = self.get_credentials()
             if not credentials:
+                if MONITORING_AVAILABLE:
+                    log_gcp_structured_event('credential_validation', {
+                        'method': 'direct',
+                        'success': False,
+                        'error': 'No credentials available'
+                    })
                 return False
             
             # Resource Manager API를 사용하여 인증 테스트
-            client = ProjectsClient(credentials=credentials)
-            # 간단한 API 호출로 인증 확인
-            request = SearchProjectsRequest(
-                query="",
-                page_size=1
-            )
-            client.search_projects(request=request)
+            if MONITORING_AVAILABLE:
+                with monitor_gcp_operation('resourcemanager', 'search_projects', 
+                                         self.get_default_project_id() or 'unknown', via_mcp=False):
+                    client = ProjectsClient(credentials=credentials)
+                    # 간단한 API 호출로 인증 확인
+                    request = SearchProjectsRequest(
+                        query="",
+                        page_size=1
+                    )
+                    client.search_projects(request=request)
+            else:
+                client = ProjectsClient(credentials=credentials)
+                request = SearchProjectsRequest(
+                    query="",
+                    page_size=1
+                )
+                client.search_projects(request=request)
+            
+            if MONITORING_AVAILABLE:
+                log_gcp_structured_event('credential_validation', {
+                    'method': 'direct',
+                    'success': True
+                })
             return True
             
         except Exception as e:
             log_error(f"GCP 인증 검증 실패: {e}")
+            if MONITORING_AVAILABLE:
+                log_gcp_structured_event('credential_validation', {
+                    'method': 'direct',
+                    'success': False,
+                    'error': str(e)
+                })
             return False
     
     def use_mcp_if_available(self) -> bool:
@@ -172,7 +252,12 @@ class GCPProjectManager:
         # Try MCP first if available
         if self.auth_manager.use_mcp_if_available():
             try:
-                response = self.auth_manager.mcp_connector.get_projects()
+                if MONITORING_AVAILABLE:
+                    with monitor_gcp_operation('resourcemanager', 'get_projects', 'all', via_mcp=True):
+                        response = self.auth_manager.mcp_connector.get_projects()
+                else:
+                    response = self.auth_manager.mcp_connector.get_projects()
+                
                 if response.success:
                     projects = []
                     for project_data in response.data.get('projects', []):
@@ -185,10 +270,22 @@ class GCPProjectManager:
                         ))
                     
                     log_info(f"MCP를 통해 발견된 GCP 프로젝트: {len(projects)}개")
+                    if MONITORING_AVAILABLE:
+                        log_gcp_structured_event('project_discovery', {
+                            'method': 'mcp',
+                            'project_count': len(projects),
+                            'success': True
+                        })
                     self._projects_cache = projects
                     return projects
             except Exception as e:
                 log_error(f"MCP project discovery failed: {e}")
+                if MONITORING_AVAILABLE:
+                    log_gcp_structured_event('project_discovery', {
+                        'method': 'mcp',
+                        'success': False,
+                        'error': str(e)
+                    })
                 # Fall back to direct API
         
         # Direct API fallback
@@ -422,6 +519,13 @@ class GCPResourceCollector:
                     if key not in resource_labels or resource_labels[key] != value:
                         match = False
                         break
+            
+            # 빌링 계정 필터 (부분 일치)
+            if 'billing_account' in filters and filters['billing_account']:
+                billing_account_name = resource.get('billing_account_display_name', '').lower()
+                filter_account = filters['billing_account'].lower()
+                if filter_account not in billing_account_name:
+                    match = False
             
             if match:
                 filtered_resources.append(resource)
