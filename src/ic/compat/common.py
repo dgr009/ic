@@ -36,12 +36,13 @@ def log_error(message: str, **kwargs) -> None:
     logger.log_error(message)
 
 
-def log_env_short(**kwargs) -> None:
+def log_env_short(env_dict=None, **kwargs) -> None:
     """
     Backward compatibility function for log_env_short.
     
     Args:
-        **kwargs: Environment variables to log (ignored for compatibility)
+        env_dict: Environment variables dictionary (optional)
+        **kwargs: Additional keyword arguments (ignored for compatibility)
     """
     warn_deprecated(
         "common.log.log_env_short",
@@ -49,7 +50,10 @@ def log_env_short(**kwargs) -> None:
         "2.0.0"
     )
     logger = get_logger()
-    logger.log_info_file_only("Environment variables loaded")
+    if env_dict:
+        logger.log_info_file_only(f"Environment variables loaded: {len(env_dict)} variables")
+    else:
+        logger.log_info_file_only("Environment variables loaded")
 
 
 def log_args_short(args: Any) -> None:
@@ -68,12 +72,14 @@ def log_args_short(args: Any) -> None:
     logger.log_args(args)
 
 
-def gather_env_for_command(command: str) -> Dict[str, Any]:
+def gather_env_for_command(platform: str, service: str = None, command: str = None) -> Dict[str, Any]:
     """
     Backward compatibility function for gather_env_for_command.
     
     Args:
-        command: Command name
+        platform: Platform name (aws, gcp, azure, etc.)
+        service: Service name (optional)
+        command: Command name (optional)
         
     Returns:
         Environment configuration dictionary
@@ -83,7 +89,14 @@ def gather_env_for_command(command: str) -> Dict[str, Any]:
         "ConfigManager.get_config",
         "2.0.0"
     )
-    return compat_config.get_all()
+    
+    # Import the original function for backward compatibility
+    try:
+        from common.gather_env import gather_env_for_command as original_gather_env
+        return original_gather_env(platform, service, command)
+    except ImportError:
+        # Fallback to config manager
+        return compat_config.get_all()
 
 
 # Legacy log module compatibility
@@ -96,9 +109,9 @@ class LogCompat:
         log_error(message, **kwargs)
     
     @staticmethod
-    def log_env_short(**kwargs) -> None:
+    def log_env_short(env_dict=None, **kwargs) -> None:
         """Log environment variables."""
-        log_env_short(**kwargs)
+        log_env_short(env_dict, **kwargs)
     
     @staticmethod
     def log_args_short(args: Any) -> None:
@@ -111,9 +124,9 @@ class GatherEnvCompat:
     """Compatibility class for common.gather_env module."""
     
     @staticmethod
-    def gather_env_for_command(command: str) -> Dict[str, Any]:
+    def gather_env_for_command(platform: str, service: str = None, command: str = None) -> Dict[str, Any]:
         """Gather environment for command."""
-        return gather_env_for_command(command)
+        return gather_env_for_command(platform, service, command)
 
 
 # Create module-like objects for backward compatibility

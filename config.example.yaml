@@ -1,102 +1,155 @@
 # IC Configuration Example
-# Copy this file to 'config.yaml' or '~/.ic/config.yaml' and customize
-# IMPORTANT: Never commit actual credentials to version control!
+# 이 파일을 config.yaml로 복사하고 실제 값으로 수정하세요.
+# 민감한 정보는 환경변수로 설정하는 것을 권장합니다.
 
 version: "1.0"
 
-# AWS Configuration
+# 로깅 설정
+logging:
+  console_level: "ERROR"        # 콘솔에는 ERROR만 표시
+  file_level: "INFO"            # 파일에는 INFO 이상 모든 로그 기록
+  file_path: "logs/ic_{date}.log"
+  max_files: 30
+  format: "%(asctime)s [%(levelname)s] - %(message)s"
+  mask_sensitive: true          # 민감한 데이터 자동 마스킹
+
+# AWS 설정
 aws:
   accounts: 
-    - "123456789012"  # Replace with your AWS account ID
-    - "987654321098"  # Add more account IDs as needed
-  regions: ["ap-northeast-2", "us-east-1"]
+    - "229930918337"            # 실제 AWS 계정 ID로 변경
+  regions: 
+    - "ap-northeast-2"
+    - "us-east-1"
   cross_account_role: "OrganizationAccountAccessRole"
   session_duration: 3600
   max_workers: 10
+  tags:
+    required: ["User", "Team", "Environment"]
+    optional: ["Service", "Application"]
+    rules:
+      User: "^.+$"
+      Team: "^\\d+$"
+      Environment: "^(PROD|STG|DEV|TEST|QA)$"
 
-# Azure Configuration
+# Azure 설정
 azure:
   subscriptions:
-    - "your-subscription-id-here"  # Replace with your Azure subscription ID
-  locations: ["Korea Central", "East US"]
+    - "your-subscription-id-here"  # 실제 구독 ID로 변경
+  locations: 
+    - "Korea Central"
+    - "East US"
   max_workers: 10
+  # 민감한 정보는 환경변수로 설정:
+  # AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET
 
-# GCP Configuration
+# GCP 설정
 gcp:
+  mcp:
+    enabled: true
+    endpoint: "http://localhost:8080/gcp"
+    auth_method: "service_account"
+    prefer_mcp: true
   projects:
-    - "your-project-id-here"  # Replace with your GCP project ID
-  regions: ["asia-northeast3", "us-central1"]
-  zones: ["asia-northeast3-a"]
+    - "infracli"                # 실제 프로젝트 ID로 변경
+  regions: 
+    - "asia-northeast3"
+  zones: 
+    - "asia-northeast3-a"
+    - "asia-northeast3-b"
+    - "asia-northeast3-c"
   max_workers: 10
+  # 민감한 정보는 환경변수로 설정:
+  # GCP_SERVICE_ACCOUNT_KEY_PATH 또는 GOOGLE_APPLICATION_CREDENTIALS
 
-# OCI Configuration
+# OCI 설정
 oci:
   config_path: "~/.oci/config"
   max_workers: 10
 
-# CloudFlare Configuration
+# CloudFlare 설정
 cloudflare:
-  accounts: ["your-account-name"]  # Replace with your CloudFlare account name
-  zones: ["your-domain.com"]       # Replace with your domain
+  accounts: 
+    - "your-account-name"       # 실제 계정명으로 변경
+  zones: 
+    - "your-domain.com"         # 실제 도메인으로 변경
+  # 민감한 정보는 환경변수로 설정:
+  # CLOUDFLARE_EMAIL, CLOUDFLARE_API_TOKEN
 
-# SSH Configuration
+# SSH 설정
 ssh:
   config_file: "~/.ssh/config"
-  key_dir: "~/aws-key"
+  key_dir: "~/aws-key"          # 실제 키 디렉토리로 변경
   max_workers: 70
+  timeouts:
+    port_scan: 0.5
+    ssh_connect: 5
+  skip_prefixes:                # 제외할 호스트 접두사
+    - "git"
+    - "akrr-portx"
+    - "akrr-taas-gw"
 
-# MCP Configuration
+# MCP 서버 설정
 mcp:
   servers:
     github:
       enabled: true
-      auto_approve: ["list_repositories", "get_repository"]
+      auto_approve: []
+      # 민감한 정보는 환경변수로 설정: MCP_GITHUB_TOKEN
     terraform:
       enabled: true
-      auto_approve: ["search_modules"]
+      auto_approve: []
     aws_docs:
       enabled: true
-      auto_approve: ["read_documentation", "search_documentation"]
+      auto_approve: 
+        - "read_documentation"
+        - "search_documentation"
     azure:
       enabled: true
-      auto_approve: ["documentation"]
+      auto_approve: 
+        - "documentation"
 
-# Slack Integration (optional)
+# Slack 설정 (선택사항)
 slack:
-  enabled: false  # Set to true to enable Slack notifications
+  enabled: false
+  # 민감한 정보는 환경변수로 설정: SLACK_WEBHOOK_URL
 
-# Logging Configuration
-logging:
-  console_level: "ERROR"  # Only errors in console
-  file_level: "INFO"      # Detailed logs in file
-  file_path: "logs/ic_{date}.log"
-  max_files: 30
+# 보안 설정
+security:
+  sensitive_keys:
+    - "password"
+    - "passwd"
+    - "pwd"
+    - "token"
+    - "access_token"
+    - "refresh_token"
+    - "auth_token"
+    - "key"
+    - "api_key"
+    - "access_key"
+    - "secret_key"
+    - "private_key"
+    - "secret"
+    - "client_secret"
+    - "webhook_secret"
+    - "webhook_url"
+    - "webhook"
+    - "credential"
+    - "credentials"
+    - "cert"
+    - "certificate"
+    - "session"
+    - "session_token"
+  mask_pattern: "***MASKED***"
+  warn_on_sensitive_in_config: true
+  git_hooks_enabled: true
 
-# REQUIRED ENVIRONMENT VARIABLES:
-# Set these in your environment or .env file (NOT in this config file!)
-#
-# AWS:
-#   AWS_PROFILE=your-profile-name
-#   # OR
-#   AWS_ACCESS_KEY_ID=your-access-key
-#   AWS_SECRET_ACCESS_KEY=your-secret-key
-#
-# Azure:
-#   AZURE_TENANT_ID=your-tenant-id
-#   AZURE_CLIENT_ID=your-client-id
-#   AZURE_CLIENT_SECRET=your-client-secret
-#
-# GCP:
-#   GCP_SERVICE_ACCOUNT_KEY_PATH=/path/to/service-account.json
-#   # OR
-#   GOOGLE_APPLICATION_CREDENTIALS=/path/to/service-account.json
-#
-# CloudFlare:
-#   CLOUDFLARE_EMAIL=your-email@example.com
-#   CLOUDFLARE_API_TOKEN=your-api-token
-#
-# Slack (optional):
-#   SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
-#
-# GitHub MCP (optional):
-#   GITHUB_PERSONAL_ACCESS_TOKEN=your-github-token
+# 환경변수 설정 예시:
+# export AWS_PROFILE=your-profile
+# export AZURE_TENANT_ID=your-tenant-id
+# export AZURE_CLIENT_ID=your-client-id
+# export AZURE_CLIENT_SECRET=your-client-secret
+# export GCP_SERVICE_ACCOUNT_KEY_PATH=/path/to/service-account.json
+# export CLOUDFLARE_EMAIL=your-email@example.com
+# export CLOUDFLARE_API_TOKEN=your-api-token
+# export SLACK_WEBHOOK_URL=https://hooks.slack.com/services/...
+# export MCP_GITHUB_TOKEN=your-github-token
