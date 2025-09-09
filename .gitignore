@@ -80,7 +80,6 @@ venv.bak/
 ic-new-env/
 *-env/
 venv_test
-tests
 examples
 
 # Jupyter Notebook

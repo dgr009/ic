@@ -1,7 +1,7 @@
 # IC CLI Tool
 
 [![Tests](https://github.com/yourusername/ic-cli/workflows/Tests/badge.svg)](https://github.com/yourusername/ic-cli/actions)
-[![PyPI version](https://badge.fury.io/py/ic-cli.svg)](https://badge.fury.io/py/ic-cli)
+[![PyPI version](https://badge.fury.io/py/ic-code.svg)](https://badge.fury.io/py/ic-code)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -23,15 +23,15 @@ Infrastructure Command Line Interface tool for managing various cloud services a
 ### From PyPI (Recommended)
 
 ```bash
-pip install ic-cli
+pip install ic-code
 ```
 
 ### From Source
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/ic-cli.git
-cd ic-cli
+git clone https://github.com/dgr009/ic.git
+cd ic
 
 # Create virtual environment
 python -m venv ic-env
