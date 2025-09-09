@@ -162,7 +162,7 @@ def info(args):
     """
     # 인증 정보 검사
     if not CF_EMAIL or not CF_TOKEN:
-        log_error("CloudFlare 인증 정보가 설정되지 않았습니다. config/secrets.yaml을 확인하세요.")
+        log_error("CloudFlare 인증 정보가 설정되지 않았습니다. .ic/config/secrets.yaml 또는 config/secrets.yaml을 확인하세요.")
         return
 
     env_accounts = []

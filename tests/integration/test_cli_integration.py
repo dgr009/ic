@@ -396,6 +396,239 @@ AZURE_SUBSCRIPTION_ID=sub-12345
             
         finally:
             os.unlink(config_file)
+    
+    def test_aws_profile_command_integration(self):
+        """Test AWS profile info command integration."""
+        with patch('aws.profile.info.ProfileInfoCollector') as mock_collector_class:
+            with patch('aws.profile.info.ProfileTableRenderer') as mock_renderer_class:
+                # Mock the collector and renderer
+                mock_collector = Mock()
+                mock_renderer = Mock()
+                mock_collector_class.return_value = mock_collector
+                mock_renderer_class.return_value = mock_renderer
+                
+                # Mock profile data
+                mock_profiles = [
+                    {
+                        'profile_name': 'default',
+                        'account_id': '123456789012',
+                        'source': '',
+                        'role_name': '',
+                        'credential': 'active',
+                        'region': 'us-east-1'
+                    },
+                    {
+                        'profile_name': 'dev',
+                        'account_id': '123456789012',
+                        'source': 'default',
+                        'role_name': 'DevRole',
+                        'credential': 'inactive',
+                        'region': 'us-west-2'
+                    }
+                ]
+                mock_collector.collect_profile_info.return_value = mock_profiles
+                
+                # Test command execution
+                from src.ic.cli import create_parser
+                parser = create_parser()
+                args = parser.parse_args(['aws', 'profile', 'info'])
+                
+                # Execute the command function
+                try:
+                    args.func(args)
+                except SystemExit:
+                    pass  # Command may exit normally
+                
+                # Verify collector and renderer were called
+                mock_collector.collect_profile_info.assert_called_once()
+                mock_renderer.render_profiles.assert_called_once_with(mock_profiles)
+    
+    def test_aws_cloudfront_command_integration(self):
+        """Test AWS CloudFront info command integration."""
+        with patch('aws.cloudfront.info.CloudFrontCollector') as mock_collector_class:
+            with patch('aws.cloudfront.info.CloudFrontRenderer') as mock_renderer_class:
+                # Mock the collector and renderer
+                mock_collector = Mock()
+                mock_renderer = Mock()
+                mock_collector_class.return_value = mock_collector
+                mock_renderer_class.return_value = mock_renderer
+                
+                # Mock distribution data
+                mock_distributions = [
+                    {
+                        'account': 'default',
+                        'ID': 'E1234567890ABC',
+                        'Name': 'Test Distribution',
+                        '원본(Origin)': 'example.com',
+                        '도메인(Domain)': 'd1234567890abc.cloudfront.net',
+                        'Class': 'All Edge Locations'
+                    }
+                ]
+                mock_collector.collect_distributions.return_value = mock_distributions
+                
+                # Test command execution
+                from src.ic.cli import create_parser
+                parser = create_parser()
+                args = parser.parse_args(['aws', 'cloudfront', 'info'])
+                
+                # Execute the command function
+                try:
+                    args.func(args)
+                except SystemExit:
+                    pass  # Command may exit normally
+                
+                # Verify collector and renderer were called
+                mock_collector.collect_distributions.assert_called_once()
+                mock_renderer.render_distributions.assert_called_once_with(mock_distributions)
+    
+    def test_oci_compartment_command_integration(self):
+        """Test OCI compartment tree command integration."""
+        with patch('oci.config.from_file') as mock_config_from_file:
+            with patch('oci.identity.IdentityClient') as mock_identity_client_class:
+                with patch('oci_module.compartment.info.CompartmentTreeBuilder') as mock_builder_class:
+                    with patch('oci_module.compartment.info.CompartmentTreeRenderer') as mock_renderer_class:
+                        # Mock OCI configuration
+                        mock_config = {
+                            'tenancy': 'ocid1.tenancy.oc1..test',
+                            'user': 'ocid1.user.oc1..test',
+                            'fingerprint': 'test-fingerprint',
+                            'key_file': '/path/to/key.pem',
+                            'region': 'us-ashburn-1'
+                        }
+                        mock_config_from_file.return_value = mock_config
+                        
+                        # Mock identity client
+                        mock_identity_client = Mock()
+                        mock_identity_client_class.return_value = mock_identity_client
+                        
+                        # Mock tree builder and renderer
+                        mock_builder = Mock()
+                        mock_renderer = Mock()
+                        mock_builder_class.return_value = mock_builder
+                        mock_renderer_class.return_value = mock_renderer
+                        
+                        # Mock tree data
+                        mock_tree_data = {
+                            'id': 'ocid1.tenancy.oc1..test',
+                            'name': 'Root Compartment (Tenancy)',
+                            'children': [
+                                {
+                                    'id': 'ocid1.compartment.oc1..child1',
+                                    'name': 'Development',
+                                    'children': []
+                                }
+                            ]
+                        }
+                        mock_builder.build_compartment_tree.return_value = mock_tree_data
+                        
+                        # Test command execution
+                        from src.ic.cli import create_parser
+                        parser = create_parser()
+                        args = parser.parse_args(['oci', 'compartment', 'tree'])
+                        
+                        # Execute the command function
+                        try:
+                            args.func(args)
+                        except SystemExit:
+                            pass  # Command may exit normally
+                        
+                        # Verify OCI configuration was loaded
+                        mock_config_from_file.assert_called_once()
+                        
+                        # Verify identity client was created
+                        mock_identity_client_class.assert_called_once_with(mock_config)
+                        
+                        # Verify tree builder and renderer were called
+                        mock_builder.build_compartment_tree.assert_called_once()
+                        mock_renderer.render_tree.assert_called_once_with(mock_tree_data)
+    
+    def test_config_show_aws_filter_integration(self):
+        """Test config show command with AWS filter integration."""
+        config_file = self.create_temp_config_file(self.test_config)
+        
+        try:
+            with patch('src.ic.commands.config.ConfigCommands') as mock_config_commands_class:
+                mock_config_commands = Mock()
+                mock_config_commands_class.return_value = mock_config_commands
+                
+                # Test command execution
+                from src.ic.cli import create_parser
+                parser = create_parser()
+                args = parser.parse_args(['config', 'show', '--aws'])
+                
+                # Execute the command function
+                try:
+                    args.func(args)
+                except SystemExit:
+                    pass  # Command may exit normally
+                
+                # Verify config commands was called with AWS filter
+                mock_config_commands.show_config.assert_called_once()
+                call_args = mock_config_commands.show_config.call_args[1]
+                assert call_args.get('aws') is True
+                
+        finally:
+            os.unlink(config_file)
+    
+    def test_cli_error_handling_for_new_commands(self):
+        """Test error handling for new CLI commands."""
+        # Test AWS profile command with missing credentials
+        with patch('aws.profile.info.ProfileInfoCollector') as mock_collector_class:
+            mock_collector = Mock()
+            mock_collector_class.return_value = mock_collector
+            mock_collector.collect_profile_info.side_effect = FileNotFoundError("AWS config not found")
+            
+            from src.ic.cli import create_parser
+            parser = create_parser()
+            args = parser.parse_args(['aws', 'profile', 'info'])
+            
+            # Should handle error gracefully
+            with pytest.raises(SystemExit):
+                args.func(args)
+        
+        # Test OCI compartment command with missing configuration
+        with patch('oci.config.from_file') as mock_config_from_file:
+            mock_config_from_file.side_effect = Exception("OCI config not found")
+            
+            parser = create_parser()
+            args = parser.parse_args(['oci', 'compartment', 'tree'])
+            
+            # Should handle error gracefully
+            with pytest.raises(SystemExit):
+                args.func(args)
+    
+    def test_cli_argument_parsing_integration(self):
+        """Test CLI argument parsing for new commands."""
+        from src.ic.cli import create_parser
+        parser = create_parser()
+        
+        # Test AWS profile command arguments
+        args = parser.parse_args(['aws', 'profile', 'info', '--config-path', '/custom/config'])
+        assert args.platform == 'aws'
+        assert args.service == 'profile'
+        assert args.command == 'info'
+        assert args.config_path == '/custom/config'
+        
+        # Test AWS CloudFront command arguments
+        args = parser.parse_args(['aws', 'cloudfront', 'info', '--profile', 'prod', '--accounts', 'acc1', 'acc2'])
+        assert args.platform == 'aws'
+        assert args.service == 'cloudfront'
+        assert args.command == 'info'
+        assert args.profile == 'prod'
+        assert args.accounts == ['acc1', 'acc2']
+        
+        # Test OCI compartment command arguments
+        args = parser.parse_args(['oci', 'compartment', 'tree', '--profile', 'CUSTOM'])
+        assert args.platform == 'oci'
+        assert args.service == 'compartment'
+        assert args.command == 'tree'
+        assert args.profile == 'CUSTOM'
+        
+        # Test config show command arguments
+        args = parser.parse_args(['config', 'show', '--aws', '--format', 'json'])
+        assert args.command == 'show'
+        assert args.aws is True
+        assert args.format == 'json'
 
 
 if __name__ == '__main__':

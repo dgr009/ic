@@ -82,6 +82,8 @@ from aws.ecs import service as ecs_service
 from aws.ecs import task as ecs_task
 from aws.msk import info as msk_info
 from aws.msk import broker as msk_broker
+from aws.profile.info import ProfileInfoCollector, ProfileTableRenderer
+from aws.cloudfront.info import CloudFrontCollector, CloudFrontRenderer
 from cf.dns import list_info as dns_info
 from oci_module.info import oci_info as oci_info # Deprecated. 통합 oci info
 from oci_module.vm import add_arguments as vm_add_args, main as vm_main
@@ -94,6 +96,7 @@ from oci_module.obj import add_arguments as obj_add_args, main as obj_main
 from oci_module.cost import usage_add_arguments as cost_usage_add_args, usage_main as cost_usage_main
 from oci_module.cost import credit_add_arguments as cost_credit_add_args, credit_main as cost_credit_main
 from oci_module.vcn import info as vcn_info
+from oci_module.compartment.info import CompartmentTreeBuilder, CompartmentTreeRenderer
 from ssh import auto_ssh, server_info
 import concurrent.futures
 from threading import Lock
@@ -408,6 +411,342 @@ def main():
         console.print("ECS Fargate는 [bold cyan]ic aws ecs task[/bold cyan] 명령어를 사용하세요.")
         return
     
+    def handle_aws_profile_info(args):
+        """Handle AWS profile info command."""
+        import time
+        start_time = time.time()
+        
+        try:
+            from pathlib import Path
+            from rich.console import Console
+            console = Console()
+            
+            # Create profile collector and renderer
+            collector = ProfileInfoCollector()
+            renderer = ProfileTableRenderer()
+            
+            # Override default paths if provided
+            if hasattr(args, 'config_path') and args.config_path:
+                config_path = Path(args.config_path)
+                if not config_path.exists():
+                    console.print(f"❌ AWS config file not found: {config_path}")
+                    console.print("\n💡 Troubleshooting:")
+                    console.print("  • Check the specified config file path")
+                    console.print("  • Ensure the file exists and is readable")
+                    sys.exit(1)
+                collector.parser.aws_config_path = config_path
+                
+            if hasattr(args, 'credentials_path') and args.credentials_path:
+                creds_path = Path(args.credentials_path)
+                if not creds_path.exists():
+                    console.print(f"❌ AWS credentials file not found: {creds_path}")
+                    console.print("\n💡 Troubleshooting:")
+                    console.print("  • Check the specified credentials file path")
+                    console.print("  • Ensure the file exists and is readable")
+                    sys.exit(1)
+                collector.parser.aws_credentials_path = creds_path
+            
+            # Collect and render profile information
+            profiles = collector.collect_profile_info()
+            
+            if not profiles:
+                console.print("⚠️  No AWS profiles found.")
+                console.print("\n💡 Getting started:")
+                console.print("  • Run 'aws configure' to set up your first profile")
+                console.print("  • Or run 'aws configure --profile <name>' for named profiles")
+                console.print("  • Check AWS CLI documentation for setup instructions")
+                sys.exit(0)
+            
+            renderer.render_profiles(profiles)
+            
+            # Display execution time
+            execution_time = time.time() - start_time
+            console.print(f"\n⏱️  Command completed in {execution_time:.2f} seconds")
+            
+        except FileNotFoundError as e:
+            from rich.console import Console
+            console = Console()
+            console.print(f"❌ AWS configuration file not found: {e}")
+            console.print("\n💡 Troubleshooting:")
+            console.print("  • Run 'aws configure' to create AWS configuration")
+            console.print("  • Ensure ~/.aws/config and ~/.aws/credentials files exist")
+            console.print("  • Check if AWS CLI is installed: 'aws --version'")
+            sys.exit(1)
+        except PermissionError as e:
+            from rich.console import Console
+            console = Console()
+            console.print(f"❌ Permission denied accessing AWS configuration: {e}")
+            console.print("\n💡 Troubleshooting:")
+            console.print("  • Check file permissions on ~/.aws/ directory")
+            console.print("  • Ensure current user has read access to AWS config files")
+            console.print("  • Try: chmod 600 ~/.aws/config ~/.aws/credentials")
+            sys.exit(1)
+        except ImportError as e:
+            from rich.console import Console
+            console = Console()
+            console.print(f"❌ Missing required dependencies: {e}")
+            console.print("\n💡 Troubleshooting:")
+            console.print("  • Install required packages: pip install configparser")
+            console.print("  • Ensure all AWS profile dependencies are installed")
+            sys.exit(1)
+        except Exception as e:
+            from rich.console import Console
+            console = Console()
+            console.print(f"❌ Failed to retrieve AWS profile information: {e}")
+            console.print("\n💡 Troubleshooting:")
+            console.print("  • Ensure AWS CLI is installed and configured")
+            console.print("  • Check if ~/.aws/config and ~/.aws/credentials files exist")
+            console.print("  • Verify file permissions (should be readable)")
+            console.print("  • Run 'aws configure list' to check current configuration")
+            console.print("  • Try running with --debug flag for more details")
+            sys.exit(1)
+    
+    def handle_aws_cloudfront_info(args):
+        """Handle AWS CloudFront info command."""
+        import time
+        start_time = time.time()
+        
+        try:
+            from rich.console import Console
+            console = Console()
+            
+            # Create CloudFront collector and renderer
+            collector = CloudFrontCollector()
+            renderer = CloudFrontRenderer()
+            
+            # Determine account profiles to use
+            account_profiles = {}
+            
+            if hasattr(args, 'accounts') and args.accounts:
+                # Use specified accounts with profile mapping
+                for account in args.accounts:
+                    profile_name = getattr(args, 'profile', account)
+                    account_profiles[account] = profile_name
+            elif hasattr(args, 'profile') and args.profile:
+                # Use single specified profile
+                account_profiles[args.profile] = args.profile
+            else:
+                # Use default profile
+                account_profiles['default'] = 'default'
+            
+            console.print(f"🔍 Collecting CloudFront distributions from {len(account_profiles)} account(s)...")
+            
+            # Validate profiles exist before proceeding
+            if hasattr(args, 'profile') and args.profile:
+                try:
+                    import boto3
+                    session = boto3.Session(profile_name=args.profile)
+                    # Test if profile is valid by getting credentials
+                    session.get_credentials()
+                except Exception as profile_error:
+                    console.print(f"❌ Invalid AWS profile '{args.profile}': {profile_error}")
+                    console.print("\n💡 Troubleshooting:")
+                    console.print("  • Check available profiles: aws configure list-profiles")
+                    console.print("  • Ensure the profile is properly configured")
+                    console.print("  • Run 'aws configure --profile <name>' to set up the profile")
+                    sys.exit(1)
+            
+            # Collect and render CloudFront distributions
+            distributions = collector.collect_distributions(account_profiles)
+            
+            if not distributions:
+                console.print("📋 No CloudFront distributions found.")
+                console.print("\n💡 This could mean:")
+                console.print("  • No distributions exist in the specified accounts")
+                console.print("  • Insufficient permissions to list distributions")
+                console.print("  • The specified profiles don't have access to CloudFront")
+                sys.exit(0)
+            
+            renderer.render_distributions(distributions)
+            
+            # Display execution time
+            execution_time = time.time() - start_time
+            console.print(f"\n⏱️  Command completed in {execution_time:.2f} seconds")
+            
+        except ImportError as e:
+            from rich.console import Console
+            console = Console()
+            console.print(f"❌ Missing required dependencies: {e}")
+            console.print("\n💡 Troubleshooting:")
+            console.print("  • Install required packages: pip install boto3")
+            console.print("  • Ensure all AWS dependencies are installed")
+            sys.exit(1)
+        except Exception as e:
+            from rich.console import Console
+            console = Console()
+            error_msg = str(e).lower()
+            
+            if 'credentials' in error_msg or 'access' in error_msg:
+                console.print(f"❌ AWS credentials error: {e}")
+                console.print("\n💡 Troubleshooting:")
+                console.print("  • Ensure AWS CLI is configured: aws configure")
+                console.print("  • Check if credentials are valid: aws sts get-caller-identity")
+                console.print("  • Verify CloudFront permissions: cloudfront:ListDistributions")
+            elif 'profile' in error_msg:
+                console.print(f"❌ AWS profile error: {e}")
+                console.print("\n💡 Troubleshooting:")
+                console.print("  • Check available profiles: aws configure list-profiles")
+                console.print("  • Ensure the specified profile exists and is configured")
+            elif 'region' in error_msg:
+                console.print(f"❌ AWS region error: {e}")
+                console.print("\n💡 Troubleshooting:")
+                console.print("  • CloudFront is a global service, but requires valid region config")
+                console.print("  • Set default region: aws configure set region us-east-1")
+            else:
+                console.print(f"❌ Failed to retrieve CloudFront information: {e}")
+                console.print("\n💡 Troubleshooting:")
+                console.print("  • Ensure AWS CLI is configured with proper credentials")
+                console.print("  • Verify CloudFront permissions (cloudfront:ListDistributions)")
+                console.print("  • Check if the specified AWS profile exists")
+                console.print("  • CloudFront is a global service - ensure proper region access")
+                console.print("  • Try running with --debug flag for more details")
+            sys.exit(1)
+    
+    def handle_oci_compartment_tree(args):
+        """Handle OCI compartment tree command."""
+        import time
+        start_time = time.time()
+        
+        try:
+            import oci
+            from rich.console import Console
+            console = Console()
+            
+            # Create compartment tree builder and renderer
+            builder = CompartmentTreeBuilder()
+            renderer = CompartmentTreeRenderer()
+            
+            console.print("🔍 Building OCI compartment tree...")
+            
+            # Set up OCI configuration
+            config_file = getattr(args, 'config_file', None)
+            profile = getattr(args, 'profile', 'DEFAULT')
+            
+            # Load OCI configuration
+            if config_file:
+                config = oci.config.from_file(config_file, profile)
+            else:
+                config = oci.config.from_file(profile_name=profile)
+            
+            # Validate configuration
+            oci.config.validate_config(config)
+            
+            # Create identity client
+            identity_client = oci.identity.IdentityClient(config)
+            tenancy_ocid = config['tenancy']
+            
+            # Validate configuration file exists if specified
+            if config_file:
+                from pathlib import Path
+                config_path = Path(config_file)
+                if not config_path.exists():
+                    console.print(f"❌ OCI configuration file not found: {config_file}")
+                    console.print("\n💡 Troubleshooting:")
+                    console.print("  • Check the specified config file path")
+                    console.print("  • Ensure the file exists and is readable")
+                    console.print("  • Use default config location: ~/.oci/config")
+                    sys.exit(1)
+            
+            # Build and render compartment tree
+            tree_data = builder.build_compartment_tree(identity_client, tenancy_ocid)
+            
+            if not tree_data:
+                console.print("📋 No compartment data available.")
+                console.print("\n💡 This could mean:")
+                console.print("  • No compartments exist in the tenancy")
+                console.print("  • Insufficient permissions to list compartments")
+                console.print("  • Network connectivity issues")
+                sys.exit(0)
+            
+            renderer.render_tree(tree_data)
+            
+            # Display execution time
+            execution_time = time.time() - start_time
+            console.print(f"\n⏱️  Command completed in {execution_time:.2f} seconds")
+            
+        except ImportError as e:
+            from rich.console import Console
+            console = Console()
+            console.print(f"❌ Missing required dependencies: {e}")
+            console.print("\n💡 Troubleshooting:")
+            console.print("  • Install OCI SDK: pip install oci")
+            console.print("  • Ensure all OCI dependencies are installed")
+            sys.exit(1)
+        except oci.exceptions.ConfigFileNotFound as e:
+            from rich.console import Console
+            console = Console()
+            console.print(f"❌ OCI configuration file not found: {e}")
+            console.print("\n💡 Troubleshooting:")
+            console.print("  • Run 'oci setup config' to create OCI configuration")
+            console.print("  • Ensure ~/.oci/config file exists")
+            console.print("  • Verify the specified profile exists in the config file")
+            console.print("  • Check OCI CLI installation: oci --version")
+            sys.exit(1)
+        except oci.exceptions.InvalidConfig as e:
+            from rich.console import Console
+            console = Console()
+            console.print(f"❌ Invalid OCI configuration: {e}")
+            console.print("\n💡 Troubleshooting:")
+            console.print("  • Check OCI configuration file format")
+            console.print("  • Verify all required fields are present (user, fingerprint, key_file, tenancy, region)")
+            console.print("  • Ensure private key file exists and is readable")
+            console.print("  • Validate key file permissions: chmod 600 ~/.oci/oci_api_key.pem")
+            sys.exit(1)
+        except oci.exceptions.ServiceError as e:
+            from rich.console import Console
+            console = Console()
+            if e.status == 401:
+                console.print(f"❌ OCI authentication failed: {e.message}")
+                console.print("\n💡 Troubleshooting:")
+                console.print("  • Verify OCI credentials are correct")
+                console.print("  • Check if API key fingerprint matches")
+                console.print("  • Ensure private key file is valid")
+                console.print("  • Test authentication: oci iam user get --user-id <user-ocid>")
+            elif e.status == 403:
+                console.print(f"❌ OCI permission denied: {e.message}")
+                console.print("\n💡 Troubleshooting:")
+                console.print("  • Ensure user has identity:compartments:list permission")
+                console.print("  • Check IAM policies for compartment access")
+                console.print("  • Verify tenancy-level permissions")
+            elif e.status == 404:
+                console.print(f"❌ OCI resource not found: {e.message}")
+                console.print("\n💡 Troubleshooting:")
+                console.print("  • Verify tenancy OCID is correct")
+                console.print("  • Check if compartments exist in the tenancy")
+            else:
+                console.print(f"❌ OCI service error ({e.status}): {e.message}")
+                console.print("\n💡 Troubleshooting:")
+                console.print("  • Check OCI service status")
+                console.print("  • Verify network connectivity to OCI")
+                console.print("  • Try again later if this is a temporary issue")
+            sys.exit(1)
+        except Exception as e:
+            from rich.console import Console
+            console = Console()
+            error_msg = str(e).lower()
+            
+            if 'network' in error_msg or 'connection' in error_msg:
+                console.print(f"❌ Network connectivity error: {e}")
+                console.print("\n💡 Troubleshooting:")
+                console.print("  • Check internet connectivity")
+                console.print("  • Verify firewall settings")
+                console.print("  • Check if OCI endpoints are accessible")
+            elif 'timeout' in error_msg:
+                console.print(f"❌ Request timeout: {e}")
+                console.print("\n💡 Troubleshooting:")
+                console.print("  • Check network connectivity")
+                console.print("  • Try again later")
+                console.print("  • Consider using a different region")
+            else:
+                console.print(f"❌ Failed to retrieve OCI compartment information: {e}")
+                console.print("\n💡 Troubleshooting:")
+                console.print("  • Ensure OCI CLI is installed and configured")
+                console.print("  • Verify OCI credentials and permissions")
+                console.print("  • Check network connectivity to OCI")
+                console.print("  • Ensure identity:compartments:list permission")
+                console.print("  • Try running with --debug flag for more details")
+            sys.exit(1)
+    
     fargate_parser = aws_subparsers.add_parser("fargate", help="[DEPRECATED] Fargate 관련 명령어 - 'ic aws eks' 사용 권장")
     fargate_subparsers = fargate_parser.add_subparsers(dest="command", required=False)
     fargate_parser.set_defaults(func=fargate_deprecated_handler)
@@ -451,6 +790,24 @@ def main():
     msk_broker_parser = msk_subparsers.add_parser("broker", help="MSK 브로커 엔드포인트 정보 조회")
     msk_broker.add_arguments(msk_broker_parser)
     msk_broker_parser.set_defaults(func=msk_broker.main)
+
+    # AWS Profile 관련 명령어
+    profile_parser = aws_subparsers.add_parser("profile", help="AWS Profile 정보 조회")
+    profile_subparsers = profile_parser.add_subparsers(dest="command", required=True)
+    
+    profile_info_parser = profile_subparsers.add_parser("info", help="AWS Profile 상세 정보 조회")
+    profile_info_parser.add_argument("--config-path", help="AWS config 파일 경로 (기본값: ~/.aws/config)")
+    profile_info_parser.add_argument("--credentials-path", help="AWS credentials 파일 경로 (기본값: ~/.aws/credentials)")
+    profile_info_parser.set_defaults(func=handle_aws_profile_info)
+
+    # AWS CloudFront 관련 명령어
+    cloudfront_parser = aws_subparsers.add_parser("cloudfront", help="AWS CloudFront 배포 정보 조회")
+    cloudfront_subparsers = cloudfront_parser.add_subparsers(dest="command", required=True)
+    
+    cloudfront_info_parser = cloudfront_subparsers.add_parser("info", help="CloudFront 배포 상세 정보 조회")
+    cloudfront_info_parser.add_argument("--profile", help="사용할 AWS 프로파일")
+    cloudfront_info_parser.add_argument("--accounts", nargs="+", help="조회할 AWS 계정 목록")
+    cloudfront_info_parser.set_defaults(func=handle_aws_cloudfront_info)
 
     # ---------------- Azure ----------------
     # Azure VM 관련 명령어
@@ -686,6 +1043,14 @@ def main():
     cost_credit_p = cost_sub.add_parser("credit", help="크레딧 사용 조회")
     cost_credit_add_args(cost_credit_p)
     cost_credit_p.set_defaults(func=cost_credit_main)
+
+    # OCI Compartment 관련 명령어
+    compartment_parser = oci_subparsers.add_parser("compartment", help="OCI Compartment 계층 구조 조회")
+    compartment_sub = compartment_parser.add_subparsers(dest="command", required=True)
+    compartment_tree_p = compartment_sub.add_parser("tree", help="Compartment 계층 구조를 트리 형태로 표시")
+    compartment_tree_p.add_argument("--config-file", help="OCI 설정 파일 경로")
+    compartment_tree_p.add_argument("--profile", help="사용할 OCI 프로파일", default="DEFAULT")
+    compartment_tree_p.set_defaults(func=handle_oci_compartment_tree)
 
     # 인수 처리
     process_and_execute_commands(parser)

@@ -59,10 +59,20 @@ class ConfigValidator:
             
     def validate_required_config_files(self) -> bool:
         """필수 설정 파일 존재 확인"""
-        required_files = [
-            "config/default.yaml",
-            "config/secrets.yaml",
+        # Check both new and legacy configuration paths
+        config_paths = [
+            (".ic/config/default.yaml", "config/default.yaml"),
+            (".ic/config/secrets.yaml", "config/secrets.yaml"),
         ]
+        
+        required_files = []
+        for new_path, legacy_path in config_paths:
+            if os.path.exists(new_path):
+                required_files.append(new_path)
+            elif os.path.exists(legacy_path):
+                required_files.append(legacy_path)
+            else:
+                required_files.append(new_path)  # Use new path as default
         
         all_exist = True
         for file_path in required_files:

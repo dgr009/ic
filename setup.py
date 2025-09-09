@@ -12,7 +12,10 @@ Security Notice:
 """
 
 from setuptools import setup, find_packages
+from setuptools.command.install import install
+from setuptools.command.develop import develop
 import os
+import sys
 
 # Read version from src/ic/__init__.py
 def get_version():
@@ -45,6 +48,81 @@ Use environment variables or secure credential stores. See `docs/security.md` fo
 """
     
     return content + security_notice
+
+
+class PostInstallCommand(install):
+    """Custom post-installation command to set up default configuration."""
+    
+    def run(self):
+        install.run(self)
+        self._post_install()
+    
+    def _post_install(self):
+        """Run post-installation configuration setup."""
+        try:
+            # Import here to avoid import errors during setup
+            from src.ic.config.installer import ConfigInstaller
+            
+            installer = ConfigInstaller()
+            
+            # Check if we should install default configs
+            home_config_dir = os.path.expanduser("~/.ic/config")
+            local_config_dir = ".ic/config"
+            
+            # Try to install in user's home directory first
+            if not os.path.exists(home_config_dir):
+                print("🔧 Setting up default IC configuration...")
+                success = installer.install_default_configs(home_config_dir)
+                if success:
+                    print(f"✅ Default configuration installed in {home_config_dir}")
+                    print("💡 You can customize the configuration files as needed.")
+                    print("📖 See documentation for configuration options.")
+                else:
+                    print("⚠️  Could not install default configuration in home directory.")
+            else:
+                print(f"ℹ️  Configuration directory {home_config_dir} already exists.")
+            
+        except ImportError:
+            # Fallback: create basic configuration structure
+            self._create_basic_config_structure()
+        except Exception as e:
+            print(f"⚠️  Post-installation setup encountered an issue: {e}")
+            print("💡 You can manually run 'ic config init' after installation.")
+    
+    def _create_basic_config_structure(self):
+        """Create basic configuration structure as fallback."""
+        try:
+            home_config_dir = os.path.expanduser("~/.ic/config")
+            os.makedirs(home_config_dir, exist_ok=True)
+            
+            # Create a basic default.yaml
+            basic_config = """# IC Configuration
+# Run 'ic config init' to generate a complete configuration
+version: '2.0'
+logging:
+  level: INFO
+security:
+  mask_sensitive_data: true
+"""
+            
+            config_file = os.path.join(home_config_dir, "default.yaml")
+            if not os.path.exists(config_file):
+                with open(config_file, 'w') as f:
+                    f.write(basic_config)
+                print(f"✅ Basic configuration created at {config_file}")
+                
+        except Exception as e:
+            print(f"⚠️  Could not create basic configuration: {e}")
+
+
+class PostDevelopCommand(develop):
+    """Custom post-development command for development installations."""
+    
+    def run(self):
+        develop.run(self)
+        # For development, we might want different behavior
+        print("🔧 Development installation complete.")
+        print("💡 Run 'ic config init' to set up configuration for development.")
 
 setup(
     name="ic",
@@ -179,4 +257,8 @@ setup(
         "kubernetes", "containers", "serverless"
     ],
     python_requires=">=3.8",
+    cmdclass={
+        'install': PostInstallCommand,
+        'develop': PostDevelopCommand,
+    },
 )

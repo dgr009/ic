@@ -146,6 +146,11 @@ class ConfigCommands:
             help="Output format (default: yaml)"
         )
         show_parser.add_argument(
+            "--aws",
+            action="store_true",
+            help="Show only AWS-related configuration settings"
+        )
+        show_parser.add_argument(
             "key_path",
             nargs="?",
             help="Specific configuration key to show (dot notation, e.g., aws.regions)"
@@ -361,18 +366,27 @@ class ConfigCommands:
             args: Command line arguments
         """
         try:
-            # Load configuration
-            config = self.config_manager.load_config()
+            # Load configuration with enhanced error handling
+            config = self._load_config_with_validation()
             
             # Mask sensitive data if requested
             if args.mask_sensitive:
                 config = self.security_manager.mask_sensitive_data(config)
+            
+            # Filter AWS configuration if requested
+            if args.aws:
+                config = self._filter_aws_config(config)
+                # Use AWS-specific display for better formatting
+                if args.format == "table":
+                    self._display_aws_config(config)
+                    return
             
             # Show specific key if requested
             if args.key_path:
                 value = self.config_manager.get_config_value(args.key_path)
                 if value is None:
                     self.console.print(f"❌ Configuration key '{args.key_path}' not found.")
+                    self._suggest_similar_keys(args.key_path)
                     sys.exit(1)
                 config = {args.key_path: value}
             
@@ -391,8 +405,15 @@ class ConfigCommands:
                 sources = self.config_manager.get_config_sources()
                 self.console.print(f"\n📋 Configuration sources: {', '.join(sources)}")
                 
+        except FileNotFoundError as e:
+            self._handle_missing_config_error(e)
+        except yaml.YAMLError as e:
+            self._handle_yaml_error(e)
+        except PermissionError as e:
+            self._handle_permission_error(e)
         except Exception as e:
             self.console.print(f"❌ Failed to show configuration: {e}")
+            self._suggest_config_troubleshooting()
             sys.exit(1)
     
     def set_config(self, args) -> None:
@@ -675,6 +696,226 @@ class ConfigCommands:
                 table.add_row(section, ", ".join(keys[:3]) + ("..." if len(keys) > 3 else ""), status)
         
         self.console.print(table)
+    
+    def _filter_aws_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Filter configuration to show only AWS-related settings.
+        
+        Args:
+            config: Full configuration dictionary
+            
+        Returns:
+            Dictionary containing only AWS-related configuration
+        """
+        aws_config = {}
+        
+        # Include AWS-specific sections
+        aws_keys = ['aws', 'AWS']
+        for key in aws_keys:
+            if key in config:
+                aws_config[key] = config[key]
+        
+        # Include environment variables that are AWS-related
+        if 'environment' in config:
+            aws_env = {}
+            for env_key, env_value in config['environment'].items():
+                if env_key.startswith(('AWS_', 'aws_')):
+                    aws_env[env_key] = env_value
+            if aws_env:
+                aws_config['environment'] = aws_env
+        
+        # Include logging and security if they exist (common sections)
+        for common_key in ['logging', 'security', 'version']:
+            if common_key in config:
+                aws_config[common_key] = config[common_key]
+        
+        return aws_config if aws_config else {"message": "No AWS configuration found"}
+    
+    def _display_aws_config(self, config: Dict[str, Any]) -> None:
+        """
+        Display AWS-specific configuration in table format.
+        
+        Args:
+            config: AWS configuration dictionary
+        """
+        if not config or config.get("message") == "No AWS configuration found":
+            self.console.print("📋 No AWS configuration found.")
+            return
+        
+        table = Table(title="AWS Configuration")
+        table.add_column("Setting", style="cyan", no_wrap=True)
+        table.add_column("Value", style="green")
+        table.add_column("Source", style="yellow")
+        
+        def add_aws_rows(data: Dict[str, Any], prefix: str = "", source: str = "config"):
+            for key, value in data.items():
+                setting_name = f"{prefix}.{key}" if prefix else key
+                
+                if isinstance(value, dict):
+                    add_aws_rows(value, setting_name, source)
+                elif isinstance(value, list):
+                    table.add_row(setting_name, f"[{len(value)} items: {', '.join(map(str, value[:3]))}{'...' if len(value) > 3 else ''}]", source)
+                else:
+                    # Mask sensitive AWS data
+                    masked_value = self._mask_aws_credentials(str(value), key)
+                    table.add_row(setting_name, masked_value, source)
+        
+        add_aws_rows(config)
+        self.console.print(table)
+    
+    def _mask_aws_credentials(self, value: str, key: str) -> str:
+        """
+        Security masking for AWS credentials and sensitive data.
+        
+        Args:
+            value: Configuration value to potentially mask
+            key: Configuration key name
+            
+        Returns:
+            Masked value if sensitive, original value otherwise
+        """
+        sensitive_keys = [
+            'access_key', 'secret_key', 'session_token', 'password', 'token',
+            'key', 'secret', 'credential', 'auth', 'api_key'
+        ]
+        
+        # Check if key contains sensitive terms
+        key_lower = key.lower()
+        if any(sensitive_term in key_lower for sensitive_term in sensitive_keys):
+            if len(value) > 8:
+                return f"{value[:4]}{'*' * (len(value) - 8)}{value[-4:]}"
+            else:
+                return "*" * len(value)
+        
+        # Check for AWS access key pattern (AKIA...)
+        if value.startswith('AKIA') and len(value) == 20:
+            return f"AKIA{'*' * 12}{value[-4:]}"
+        
+        # Check for AWS secret key pattern (long base64-like string)
+        if len(value) == 40 and value.isalnum():
+            return f"{value[:8]}{'*' * 24}{value[-8:]}"
+        
+        return value
+    
+    def _load_config_with_validation(self) -> Dict[str, Any]:
+        """
+        Load configuration with enhanced validation and error handling.
+        
+        Returns:
+            Validated configuration dictionary
+            
+        Raises:
+            Various exceptions for different error conditions
+        """
+        try:
+            # Load configuration
+            config = self.config_manager.load_config()
+            
+            # Validate AWS-specific settings if present
+            if 'aws' in config:
+                self._validate_aws_config(config['aws'])
+            
+            return config
+            
+        except Exception as e:
+            # Re-raise with more context
+            raise e
+    
+    def _validate_aws_config(self, aws_config: Dict[str, Any]) -> None:
+        """
+        Validate AWS-specific configuration settings.
+        
+        Args:
+            aws_config: AWS configuration dictionary
+            
+        Raises:
+            ValueError: If AWS configuration is invalid
+        """
+        # Validate regions
+        if 'regions' in aws_config:
+            regions = aws_config['regions']
+            if not isinstance(regions, list) or not regions:
+                raise ValueError("AWS regions must be a non-empty list")
+            
+            # Check for valid region format
+            valid_region_pattern = r'^[a-z]{2}-[a-z]+-\d+$'
+            import re
+            for region in regions:
+                if not re.match(valid_region_pattern, region):
+                    self.console.print(f"⚠️  Warning: '{region}' may not be a valid AWS region format")
+        
+        # Validate accounts
+        if 'accounts' in aws_config:
+            accounts = aws_config['accounts']
+            if not isinstance(accounts, list):
+                raise ValueError("AWS accounts must be a list")
+            
+            # Check for valid account ID format (12 digits)
+            for account in accounts:
+                if not isinstance(account, str) or not account.isdigit() or len(account) != 12:
+                    raise ValueError(f"Invalid AWS account ID format: {account}. Must be 12 digits.")
+    
+    def _handle_missing_config_error(self, error: FileNotFoundError) -> None:
+        """Handle missing configuration file errors."""
+        self.console.print("❌ Configuration file not found.")
+        self.console.print("\n💡 Suggestions:")
+        self.console.print("  • Run 'ic config init' to create a new configuration")
+        self.console.print("  • Check if you're in the correct directory")
+        self.console.print("  • Verify configuration file permissions")
+        sys.exit(1)
+    
+    def _handle_yaml_error(self, error: yaml.YAMLError) -> None:
+        """Handle YAML parsing errors."""
+        self.console.print(f"❌ Configuration file has invalid YAML syntax: {error}")
+        self.console.print("\n💡 Suggestions:")
+        self.console.print("  • Check for proper indentation (use spaces, not tabs)")
+        self.console.print("  • Verify all quotes are properly closed")
+        self.console.print("  • Run 'ic config validate' for detailed error information")
+        sys.exit(1)
+    
+    def _handle_permission_error(self, error: PermissionError) -> None:
+        """Handle file permission errors."""
+        self.console.print(f"❌ Permission denied accessing configuration file: {error}")
+        self.console.print("\n💡 Suggestions:")
+        self.console.print("  • Check file permissions with 'ls -la'")
+        self.console.print("  • Ensure you have read access to the configuration directory")
+        self.console.print("  • Try running with appropriate permissions")
+        sys.exit(1)
+    
+    def _suggest_similar_keys(self, key_path: str) -> None:
+        """Suggest similar configuration keys when a key is not found."""
+        try:
+            config = self.config_manager.load_config()
+            all_keys = self._get_all_config_keys(config)
+            
+            # Simple similarity check
+            similar_keys = [k for k in all_keys if key_path.lower() in k.lower() or k.lower() in key_path.lower()]
+            
+            if similar_keys:
+                self.console.print("\n💡 Did you mean one of these?")
+                for key in similar_keys[:5]:  # Show max 5 suggestions
+                    self.console.print(f"  • {key}")
+        except:
+            pass  # Ignore errors in suggestion generation
+    
+    def _get_all_config_keys(self, config: Dict[str, Any], prefix: str = "") -> List[str]:
+        """Get all configuration keys in dot notation."""
+        keys = []
+        for key, value in config.items():
+            full_key = f"{prefix}.{key}" if prefix else key
+            keys.append(full_key)
+            if isinstance(value, dict):
+                keys.extend(self._get_all_config_keys(value, full_key))
+        return keys
+    
+    def _suggest_config_troubleshooting(self) -> None:
+        """Provide general configuration troubleshooting suggestions."""
+        self.console.print("\n🔧 Troubleshooting steps:")
+        self.console.print("  1. Run 'ic config validate' to check for issues")
+        self.console.print("  2. Verify configuration file exists and is readable")
+        self.console.print("  3. Check YAML syntax with an online validator")
+        self.console.print("  4. Review the documentation for configuration format")
+        self.console.print("  5. Try 'ic config init' to create a fresh configuration")
     
     def _display_config_table(self, config: Dict[str, Any], prefix: str = "") -> None:
         """Display configuration as table."""

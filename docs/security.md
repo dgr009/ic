@@ -28,14 +28,15 @@ IC implements a security-first approach to configuration and credential manageme
 IC uses a hierarchical configuration system with security built-in:
 
 ```
-config/default.yaml     # Safe defaults, no secrets
-config.example.yaml     # Example with placeholders
-.env.example           # Environment variable examples
+.ic/config/default.yaml     # Safe defaults, no secrets (preferred)
+.ic/config/secrets.yaml.example  # Example with placeholders
+config/default.yaml          # Legacy location (still supported)
+.env.example                # Environment variable examples
 ```
 
 ### Configuration Hierarchy
 
-1. **Default configuration** (`config/default.yaml`) - Safe defaults
+1. **Default configuration** (`.ic/config/default.yaml`) - Safe defaults
 2. **System configuration** (`/etc/ic/config.yaml`) - System-wide settings
 3. **User configuration** (`~/.ic/config.yaml`) - User-specific settings
 4. **Project configuration** (`./ic.yaml` or `.ic/config.yaml`) - Project settings

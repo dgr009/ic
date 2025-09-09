@@ -57,7 +57,9 @@ cat .env | grep -E "^[A-Z_]+="
 
 ### 2. YAML 파일 생성
 
-#### config/default.yaml 생성
+#### .ic/config/default.yaml 생성
+
+**Note**: IC now uses `.ic/config/` as the preferred configuration directory.
 ```yaml
 # 일반 설정
 aws:
@@ -80,7 +82,7 @@ ssh:
   timeout: 5
 ```
 
-#### config/secrets.yaml 생성
+#### .ic/config/secrets.yaml 생성
 ```yaml
 # 민감한 정보 (환경변수 참조 권장)
 aws:

@@ -72,7 +72,9 @@ ic ssh connect <hostname>
 
 ### YAML 설정 파일
 
-#### config/default.yaml
+#### .ic/config/default.yaml
+
+**Note**: IC now uses `.ic/config/` as the preferred configuration directory. The legacy `config/` directory is still supported for backward compatibility.
 ```yaml
 aws:
   region: us-west-2
@@ -87,7 +89,7 @@ azure:
   resource_group: my-resource-group
 ```
 
-#### config/secrets.yaml
+#### .ic/config/secrets.yaml
 ```yaml
 aws:
   access_key_id: ${AWS_ACCESS_KEY_ID}
@@ -150,6 +152,8 @@ export CLOUDFLARE_API_TOKEN=your-api-token
 
 2. **권한 오류**
    ```bash
+   chmod 600 .ic/config/secrets.yaml
+   # Or for legacy location:
    chmod 600 config/secrets.yaml
    ```
 
@@ -206,7 +210,8 @@ secrets = secrets_manager.load_secrets()
 
 1. **파일 권한**
    ```bash
-   chmod 600 config/secrets.yaml
+   chmod 600 .ic/config/secrets.yaml
+   chmod 600 config/secrets.yaml  # Legacy location
    chmod 600 .env
    ```
 
@@ -216,6 +221,7 @@ secrets = secrets_manager.load_secrets()
 
 3. **Git 관리**
    ```gitignore
+   .ic/config/secrets.yaml
    config/secrets.yaml
    .env
    *.log

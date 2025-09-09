@@ -49,7 +49,9 @@ Default Config (built-in)
 
 ### Default Configuration
 
-The default configuration (`config/default.yaml`) contains safe defaults:
+The default configuration (`.ic/config/default.yaml`) contains safe defaults:
+
+**Note**: IC now uses `.ic/config/` as the preferred configuration directory. Legacy `config/` paths are still supported for backward compatibility.
 
 ```yaml
 version: "1.0"

@@ -18,7 +18,7 @@ class LoggingConfig:
     """Logging configuration data model."""
     console_level: str = "ERROR"
     file_level: str = "INFO"
-    file_path: str = "logs/ic_{date}.log"
+    file_path: str = "~/.ic/logs/ic_{date}.log"
     max_files: int = 30
     format: str = "%(asctime)s [%(levelname)s] - %(message)s"
     mask_sensitive: bool = True

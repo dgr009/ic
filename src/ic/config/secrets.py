@@ -58,14 +58,21 @@ class SecretsManager:
         """
         secrets = {}
         
-        # Try to load from secrets.yaml file first
-        secrets_path = Path("config/secrets.yaml")
-        if secrets_path.exists():
-            try:
-                secrets = self._load_secrets_file(secrets_path)
-                logger.debug("Loaded secrets from config/secrets.yaml")
-            except Exception as e:
-                logger.warning(f"Failed to load secrets from {secrets_path}: {e}")
+        # Try to load from secrets.yaml file with new path structure
+        secrets_paths = [
+            Path("~/.ic/config/secrets.yaml"),  # New preferred location
+            # Path("config/secrets.yaml")       # Legacy location for backward compatibility
+        ]
+        
+        secrets = {}
+        for secrets_path in secrets_paths:
+            if secrets_path.exists():
+                try:
+                    secrets = self._load_secrets_file(secrets_path)
+                    logger.debug(f"Loaded secrets from {secrets_path}")
+                    break
+                except Exception as e:
+                    logger.warning(f"Failed to load secrets from {secrets_path}: {e}")
         
         # Fallback to environment variables
         env_secrets = self._load_secrets_from_env()
@@ -330,7 +337,7 @@ class SecretsManager:
         value = self.get_secret_value(key_path)
         return value is not None and value != "" and value != []
     
-    def create_secrets_template(self, output_path: Union[str, Path] = "config/secrets.yaml.template") -> bool:
+    def create_secrets_template(self, output_path: Union[str, Path] = ".ic/config/secrets.yaml.template") -> bool:
         """
         Create a template secrets file with empty values.
         

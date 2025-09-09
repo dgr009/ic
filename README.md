@@ -50,14 +50,18 @@ IC CLI uses a modern YAML-based configuration system with separate files for def
 #### 1. Create Configuration Files
 
 ```bash
-# Copy example files
+# Copy example files (new preferred location)
+mkdir -p .ic/config
+cp .ic/config/secrets.yaml.example .ic/config/secrets.yaml
+
+# Or use legacy location for backward compatibility
 cp config/secrets.yaml.example config/secrets.yaml
 
 # Edit with your actual values
-vim config/secrets.yaml
+vim .ic/config/secrets.yaml
 ```
 
-#### 2. Configure Secrets (config/secrets.yaml)
+#### 2. Configure Secrets (~/.ic/config/secrets.yaml)
 
 ```yaml
 # AWS Configuration
@@ -90,7 +94,7 @@ oci:
   profile: "DEFAULT"
 ```
 
-#### 3. Default Settings (config/default.yaml)
+#### 3. Default Settings (.ic/config/default.yaml)
 
 The default configuration is already provided and includes:
 - AWS regions

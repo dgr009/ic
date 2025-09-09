@@ -54,7 +54,7 @@ class ConfigManager:
         self.secrets_manager = SecretsManager(self)
         self.external_loader = ExternalConfigLoader(self)
         self.migration_manager = MigrationManager(self)
-        self._backup_dir = Path.home() / ".ic" / "backups"
+        self._backup_dir = Path.home() / "~/.ic" / "backups"
     
     def load_config(self, config_paths: Optional[List[Union[str, Path]]] = None) -> Dict[str, Any]:
         """
@@ -118,7 +118,7 @@ class ConfigManager:
             paths.append(system_config)
         
         # User configuration
-        user_config = Path.home() / ".ic" / "config.yaml"
+        user_config = Path.home() / "~/.ic" / "config.yaml"
         if user_config.exists():
             paths.append(user_config)
         
@@ -148,10 +148,232 @@ class ConfigManager:
         with open(config_path, 'r', encoding='utf-8') as f:
             if config_path.suffix.lower() in ['.yaml', '.yml']:
                 return yaml.safe_load(f) or {}
-            elif config_path.suffix.lower() == '.json':
-                return json.load(f) or {}
-            else:
-                raise ValueError(f"Unsupported config file format: {config_path.suffix}")
+    
+    def _load_cloudflare_config(self) -> Dict[str, Any]:
+        """
+        Enhanced CloudFlare config loading with fallback logic.
+        
+        Returns:
+            CloudFlare configuration dictionary
+        """
+        cloudflare_config = {}
+        
+        # Priority system: check default.yaml first, then secrets.yaml
+        config_sources = [
+            Path(".ic/config/default.yaml"),
+            Path("config/default.yaml"),
+            Path(".ic/config/secrets.yaml"),
+            Path("config/secrets.yaml")
+        ]
+        
+        for config_path in config_sources:
+            if config_path.exists():
+                try:
+                    config_data = self._load_config_file(config_path)
+                    if 'cloudflare' in config_data:
+                        # Merge CloudFlare config, with later sources taking precedence
+                        cloudflare_config = self._merge_configs(
+                            cloudflare_config, 
+                            config_data['cloudflare']
+                        )
+                        logger.debug(f"Loaded CloudFlare config from {config_path}")
+                except Exception as e:
+                    logger.warning(f"Failed to load CloudFlare config from {config_path}: {e}")
+        
+        # Override with environment variables
+        env_cloudflare = self._load_cloudflare_env_config()
+        if env_cloudflare:
+            cloudflare_config = self._merge_configs(cloudflare_config, env_cloudflare)
+        
+        return cloudflare_config
+    
+    def _load_cloudflare_env_config(self) -> Dict[str, Any]:
+        """
+        Load CloudFlare configuration from environment variables.
+        
+        Returns:
+            CloudFlare configuration from environment variables
+        """
+        env_config = {}
+        
+        # Map environment variables to config keys
+        env_mappings = {
+            'CLOUDFLARE_API_TOKEN': 'api_token',
+            'CLOUDFLARE_EMAIL': 'email',
+            'CLOUDFLARE_API_KEY': 'api_key',
+            'CLOUDFLARE_ZONE_ID': 'zone_id',
+            'CLOUDFLARE_API_BASE_URL': 'api_base_url'
+        }
+        
+        for env_var, config_key in env_mappings.items():
+            value = os.getenv(env_var)
+            if value:
+                env_config[config_key] = value
+        
+        return env_config
+    
+    def _resolve_config_path(self, config_type: str, filename: str) -> Optional[Path]:
+        """
+        Generic path resolution with multiple sources.
+        
+        Args:
+            config_type: Type of configuration (e.g., 'cloudflare', 'aws')
+            filename: Configuration filename
+            
+        Returns:
+            Resolved configuration file path or None
+        """
+        search_paths = [
+            Path(f"~/.ic/config/{filename}"),
+            Path(f"config/{filename}"),
+            Path.home() / "~/.ic" / "config" / filename,
+            Path(f"/etc/ic/{filename}")
+        ]
+        
+        for path in search_paths:
+            if path.exists():
+                logger.debug(f"Resolved {config_type} config path: {path}")
+                return path
+        
+        logger.debug(f"No {config_type} config file found in standard locations")
+        return None
+    
+    def validate_cloudflare_config(self, cloudflare_config: Dict[str, Any]) -> List[str]:
+        """
+        Validate CloudFlare configuration settings.
+        
+        Args:
+            cloudflare_config: CloudFlare configuration dictionary
+            
+        Returns:
+            List of validation error messages
+        """
+        errors = []
+        
+        if not cloudflare_config:
+            errors.append("CloudFlare configuration is empty or missing")
+            return errors
+        
+        # Validate required fields
+        required_fields = ['api_token', 'zone_id']
+        alternative_auth = ['email', 'api_key']  # Alternative authentication method
+        
+        # Check for API token (preferred method)
+        has_api_token = 'api_token' in cloudflare_config and cloudflare_config['api_token']
+        
+        # Check for alternative authentication (email + api_key)
+        has_alternative_auth = (
+            'email' in cloudflare_config and cloudflare_config['email'] and
+            'api_key' in cloudflare_config and cloudflare_config['api_key']
+        )
+        
+        if not has_api_token and not has_alternative_auth:
+            errors.append(
+                "CloudFlare authentication missing. Provide either 'api_token' "
+                "or both 'email' and 'api_key'"
+            )
+        
+        # Validate zone_id
+        if 'zone_id' not in cloudflare_config or not cloudflare_config['zone_id']:
+            errors.append("CloudFlare 'zone_id' is required")
+        else:
+            zone_id = cloudflare_config['zone_id']
+            if not isinstance(zone_id, str) or len(zone_id) != 32:
+                errors.append(
+                    f"Invalid CloudFlare zone_id format: '{zone_id}'. "
+                    "Zone ID should be a 32-character string"
+                )
+        
+        # Validate API token format if present
+        if has_api_token:
+            api_token = cloudflare_config['api_token']
+            if not isinstance(api_token, str) or len(api_token) < 40:
+                errors.append(
+                    f"Invalid CloudFlare API token format. "
+                    "API tokens should be at least 40 characters long"
+                )
+        
+        # Validate email format if using alternative auth
+        if 'email' in cloudflare_config and cloudflare_config['email']:
+            email = cloudflare_config['email']
+            if '@' not in email or '.' not in email:
+                errors.append(f"Invalid email format: '{email}'")
+        
+        # Validate API base URL if present
+        if 'api_base_url' in cloudflare_config:
+            api_url = cloudflare_config['api_base_url']
+            if not api_url.startswith(('http://', 'https://')):
+                errors.append(
+                    f"Invalid API base URL: '{api_url}'. "
+                    "URL must start with http:// or https://"
+                )
+        
+        return errors
+    
+    def get_cloudflare_config_with_validation(self) -> Dict[str, Any]:
+        """
+        Get CloudFlare configuration with comprehensive validation and error handling.
+        
+        Returns:
+            Validated CloudFlare configuration
+            
+        Raises:
+            ValueError: If CloudFlare configuration is invalid
+            FileNotFoundError: If configuration files are missing
+        """
+        try:
+            # Load CloudFlare configuration
+            cloudflare_config = self._load_cloudflare_config()
+            
+            # Validate configuration
+            validation_errors = self.validate_cloudflare_config(cloudflare_config)
+            
+            if validation_errors:
+                error_message = "CloudFlare configuration validation failed:\n"
+                for i, error in enumerate(validation_errors, 1):
+                    error_message += f"  {i}. {error}\n"
+                
+                error_message += "\n💡 Configuration help:\n"
+                error_message += "  • Check .ic/config/default.yaml for CloudFlare settings\n"
+                error_message += "  • Check .ic/config/secrets.yaml for API credentials\n"
+                error_message += "  • Use environment variables: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ZONE_ID\n"
+                error_message += "  • Run 'ic config init' to create default configuration\n"
+                
+                raise ValueError(error_message)
+            
+            return cloudflare_config
+            
+        except FileNotFoundError as e:
+            raise FileNotFoundError(
+                f"CloudFlare configuration file not found: {e}\n"
+                "💡 Run 'ic config init' to create default configuration files"
+            )
+        except yaml.YAMLError as e:
+            raise ValueError(
+                f"CloudFlare configuration file has invalid YAML syntax: {e}\n"
+                "💡 Check your configuration file for proper YAML formatting"
+            )
+        except Exception as e:
+            raise ValueError(f"Failed to load CloudFlare configuration: {e}")
+    
+    def _handle_cloudflare_config_error(self, error: Exception) -> None:
+        """
+        Handle CloudFlare configuration errors with helpful messages.
+        
+        Args:
+            error: The configuration error that occurred
+        """
+        if isinstance(error, FileNotFoundError):
+            logger.error("CloudFlare configuration file not found")
+            logger.info("💡 Create configuration with: ic config init")
+        elif isinstance(error, ValueError):
+            logger.error(f"CloudFlare configuration validation failed: {error}")
+        elif isinstance(error, yaml.YAMLError):
+            logger.error(f"CloudFlare configuration YAML syntax error: {error}")
+            logger.info("💡 Check YAML formatting in your configuration file")
+        else:
+            logger.error(f"Unexpected CloudFlare configuration error: {error}")
+            logger.info("💡 Try recreating configuration with: ic config init")
     
     def _load_env_config(self) -> Dict[str, Any]:
         """

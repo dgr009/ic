@@ -33,8 +33,14 @@ jobs:
     
     - name: Create example config files
       run: |
-        mkdir -p config
-        cp config/secrets.yaml.example config/secrets.yaml
+        mkdir -p .ic/config config
+        # Support both new and legacy paths for testing
+        if [ -f config/secrets.yaml.example ]; then
+          cp config/secrets.yaml.example config/secrets.yaml
+        fi
+        if [ -f .ic/config/secrets.yaml.example ]; then
+          cp .ic/config/secrets.yaml.example .ic/config/secrets.yaml
+        fi
     
     - name: Verify package installation
       run: |

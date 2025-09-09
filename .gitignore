@@ -3,6 +3,7 @@
 .env.local
 .env.*.local
 config/secrets.yaml
+.ic/config/secrets.yaml
 .kiro
 .cursor
 
