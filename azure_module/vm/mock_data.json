@@ -1,0 +1,35 @@
+[
+  {
+    "subscription_id": "sub-id-dev-1111-2222-3333-4444",
+    "subscription_name": "Azure Dev Subscription",
+    "name": "az-dev-vm01",
+    "resource_group": "rg-dev-koreacentral",
+    "location": "koreacentral",
+    "size": "Standard_D2s_v3",
+    "power_state": "VM running",
+    "private_ip": "10.1.0.4",
+    "public_ip": "20.194.88.12"
+  },
+  {
+    "subscription_id": "sub-id-prod-5555-6666-7777-8888",
+    "subscription_name": "Azure Production Subscription",
+    "name": "az-prod-vm01",
+    "resource_group": "rg-prod-koreacentral",
+    "location": "koreacentral",
+    "size": "Standard_E4s_v3",
+    "power_state": "VM running",
+    "private_ip": "10.0.0.5",
+    "public_ip": "20.200.10.5"
+  },
+  {
+    "subscription_id": "sub-id-dev-1111-2222-3333-4444",
+    "subscription_name": "Azure Dev Subscription",
+    "name": "az-dev-vm-stopped",
+    "resource_group": "rg-dev-koreasouth",
+    "location": "koreasouth",
+    "size": "Standard_B2s",
+    "power_state": "VM deallocated",
+    "private_ip": "10.2.1.10",
+    "public_ip": null
+  }
+]

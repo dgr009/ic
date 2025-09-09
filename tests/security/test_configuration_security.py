@@ -9,8 +9,8 @@ import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from src.ic.config.security import SecurityManager
-from src.ic.config.manager import ConfigManager
+from ic.config.security import SecurityManager
+from ic.config.manager import ConfigManager
 
 
 class TestConfigurationSecurity:

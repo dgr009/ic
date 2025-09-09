@@ -1,0 +1,32 @@
+[
+  {
+    "project_id": "gcp-project-dev-12345",
+    "project_name": "Dev Project",
+    "name": "gke-dev-cluster-default-pool-e1a2b3c4",
+    "zone": "asia-northeast3-a",
+    "machineType": "e2-medium",
+    "status": "RUNNING",
+    "internalIp": "10.1.2.3",
+    "externalIp": "34.64.123.45"
+  },
+  {
+    "project_id": "gcp-project-prod-67890",
+    "project_name": "Production Project",
+    "name": "instance-prod-web-01",
+    "zone": "asia-northeast3-b",
+    "machineType": "n2-standard-4",
+    "status": "RUNNING",
+    "internalIp": "10.10.1.2",
+    "externalIp": "34.64.100.200"
+  },
+  {
+    "project_id": "gcp-project-dev-12345",
+    "project_name": "Dev Project",
+    "name": "instance-dev-batch",
+    "zone": "asia-northeast3-c",
+    "machineType": "e2-standard-2",
+    "status": "TERMINATED",
+    "internalIp": "10.1.3.10",
+    "externalIp": null
+  }
+]

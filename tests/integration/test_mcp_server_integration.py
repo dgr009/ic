@@ -10,8 +10,8 @@ import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch, mock_open
 
-from src.ic.core.mcp_manager import MCPManager, MCPQueryResult
-from src.ic.config.security import SecurityManager
+from ic.core.mcp_manager import MCPManager, MCPQueryResult
+from ic.config.security import SecurityManager
 
 
 class TestMCPServerIntegration:

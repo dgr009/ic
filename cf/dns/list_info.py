@@ -11,20 +11,23 @@ import os
 import argparse
 import requests
 from datetime import datetime
-from dotenv import load_dotenv
+from ic.config.manager import ConfigManager
 from rich.table import Table
 from rich import box
 
 # 공통 모듈
 from common.log import log_error, console
 
-load_dotenv()
+# Initialize config manager
+_config_manager = ConfigManager()
+_config = _config_manager.load_all_configs()
+_cf_config = _config.get('cloudflare', {})
 
 API_ENDPOINT = "https://api.cloudflare.com/client/v4"
 
-# .env에서 Cloudflare API 인증 정보 읽기
-CF_EMAIL = os.getenv("CLOUDFLARE_EMAIL")
-CF_TOKEN = os.getenv("CLOUDFLARE_API_TOKEN")
+# CloudFlare API 인증 정보 읽기
+CF_EMAIL = _cf_config.get('email')
+CF_TOKEN = _cf_config.get('api_token')
 
 headers = {
     "X-Auth-Email": CF_EMAIL,
@@ -152,23 +155,31 @@ def display_dns_table(account_name, zone_name, records):
     console.print(table)
     console.print("")  # 빈 줄
 
-def main(args):
+def info(args):
     """
     Cloudflare DNS 목록 조회 메인 진입점
     --account / --zone 인자를 기준으로 필터 적용
     """
-    # 환경변수 검사
+    # 인증 정보 검사
     if not CF_EMAIL or not CF_TOKEN:
-        log_error("Cloudflare 인증 정보가 .env에서 설정되지 않았습니다.")
+        log_error("CloudFlare 인증 정보가 설정되지 않았습니다. config/secrets.yaml을 확인하세요.")
         return
 
     env_accounts = []
-    if os.getenv("CLOUDFLARE_ACCOUNTS"):
-        env_accounts = [a.strip().lower() for a in os.getenv("CLOUDFLARE_ACCOUNTS").split(",") if a.strip()]
+    accounts_config = _cf_config.get('cloudflare_accounts')
+    if accounts_config:
+        if isinstance(accounts_config, list):
+            env_accounts = [a.strip().lower() for a in accounts_config if a.strip()]
+        else:
+            env_accounts = [a.strip().lower() for a in accounts_config.split(",") if a.strip()]
 
     env_zones = []
-    if os.getenv("CLOUDFLARE_ZONES"):
-        env_zones = [z.strip().lower() for z in os.getenv("CLOUDFLARE_ZONES").split(",") if z.strip()]
+    zones_config = _cf_config.get('cloudflare_zones')
+    if zones_config:
+        if isinstance(zones_config, list):
+            env_zones = [z.strip().lower() for z in zones_config if z.strip()]
+        else:
+            env_zones = [z.strip().lower() for z in zones_config.split(",") if z.strip()]
 
     # 1) 계정 목록 조회
     accounts = get_accounts()
@@ -178,13 +189,13 @@ def main(args):
 
 
 
-    # 2) .env & CLI 인자를 통해 Filter 수행
+    # 2) 설정 & CLI 인자를 통해 Filter 수행
     if args.account:
         # 사용자가 직접 --account 옵션 입력 => 단일 string
         # 그걸 리스트화해서 일관되게 사용
         filter_account = [args.account.lower()]
     else:
-        # .env에서 가져온 리스트
+        # 설정에서 가져온 리스트
         filter_account = env_accounts
 
     if args.zone:
@@ -228,4 +239,4 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Cloudflare DNS Info")
     add_arguments(parser)
     parsed_args = parser.parse_args()
-    main(parsed_args)
+    info(parsed_args)

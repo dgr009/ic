@@ -10,10 +10,10 @@ import pytest
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from unittest.mock import Mock, patch
 
-from src.ic.config.security import SecurityManager
-from src.ic.core.session import AWSSessionManager
-from src.ic.core.logging import ICLogger
-from src.ic.core.mcp_manager import MCPManager
+from ic.config.security import SecurityManager
+from ic.core.session import AWSSessionManager
+from ic.core.logging import ICLogger
+from ic.core.mcp_manager import MCPManager
 
 
 class TestPerformanceSecurity:
@@ -38,7 +38,7 @@ class TestPerformanceSecurity:
         
         with patch('boto3.Session', side_effect=slow_session_creation):
             with patch.object(session_manager, 'get_profiles') as mock_profiles:
-                from src.ic.core.session import ProfileInfo
+                from ic.core.session import ProfileInfo
                 mock_profiles.return_value = {
                     '123456789012': ProfileInfo('test-profile', 'direct', '123456789012')
                 }
@@ -273,7 +273,7 @@ class TestPerformanceSecurity:
         manager = MCPManager(security_manager=self.security_manager)
         
         # Add many servers with various configurations
-        from src.ic.core.mcp_manager import MCPServerConfig
+        from ic.core.mcp_manager import MCPServerConfig
         
         for i in range(100):
             manager.servers[f'server_{i}'] = MCPServerConfig(

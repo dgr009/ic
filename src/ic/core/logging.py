@@ -59,17 +59,42 @@ class ICLogger:
         # Setup loggers
         self.logger = self._setup_logger()
         
+        # Set global logging level to suppress console output for non-ERROR messages
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.DEBUG)  # Allow all levels for file logging
+        
+        # Remove any existing console handlers from root logger
+        for handler in root_logger.handlers[:]:
+            if isinstance(handler, (logging.StreamHandler, RichHandler if RICH_AVAILABLE else type(None))):
+                root_logger.removeHandler(handler)
+        
     def _get_log_file_path(self) -> str:
-        """Generate log file path with date."""
-        log_path_template = self.logging_config.get('file_path', 'logs/ic_{date}.log')
+        """Generate log file path with date using fixed path logic."""
+        log_path_template = self.logging_config.get('file_path', '~/.ic/logs/ic_{date}.log')
         date_str = datetime.now().strftime('%Y%m%d')
         log_path = log_path_template.format(date=date_str)
         
-        # Ensure log directory exists
-        log_dir = Path(log_path).parent
-        log_dir.mkdir(parents=True, exist_ok=True)
+        # Expand user path and resolve
+        log_path = Path(log_path).expanduser().resolve()
         
-        return log_path
+        # Ensure log directory exists with fallback logic
+        log_dir = log_path.parent
+        
+        try:
+            log_dir.mkdir(parents=True, exist_ok=True)
+        except (PermissionError, OSError) as e:
+            # Fallback to temp directory if home directory is not writable
+            fallback_dir = Path("/tmp/ic/logs")
+            try:
+                fallback_dir.mkdir(parents=True, exist_ok=True)
+                log_path = fallback_dir / f"ic_{date_str}.log"
+                print(f"Warning: Using fallback log path {log_path} due to: {e}")
+            except Exception as fallback_error:
+                # Last resort: current directory
+                log_path = Path(f"ic_{date_str}.log")
+                print(f"Warning: Using current directory for logs due to: {fallback_error}")
+        
+        return str(log_path)
     
     def _setup_logger(self) -> logging.Logger:
         """Setup dual-level logger with console and file handlers."""
@@ -93,6 +118,12 @@ class ICLogger:
         console_handler.setLevel(self.console_level)
         console_formatter = logging.Formatter('%(message)s')
         console_handler.setFormatter(console_formatter)
+        
+        # Add filter to suppress non-ERROR messages on console
+        def error_only_filter(record):
+            return record.levelno >= logging.ERROR
+        
+        console_handler.addFilter(error_only_filter)
         logger.addHandler(console_handler)
         
         # File handler - comprehensive logging with rotation

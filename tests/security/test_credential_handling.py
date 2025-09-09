@@ -10,9 +10,9 @@ import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from src.ic.config.security import SecurityManager
-from src.ic.core.session import AWSSessionManager
-from src.ic.core.mcp_manager import MCPManager
+from ic.config.security import SecurityManager
+from ic.core.session import AWSSessionManager
+from ic.core.mcp_manager import MCPManager
 
 
 class TestCredentialHandling:
@@ -137,7 +137,7 @@ source_profile = default
         manager = MCPManager(security_manager=self.security_manager)
         
         # Add server with various credential types
-        from src.ic.core.mcp_manager import MCPServerConfig
+        from ic.core.mcp_manager import MCPServerConfig
         
         manager.servers['test-server'] = MCPServerConfig(
             name='test-server',
@@ -175,7 +175,7 @@ source_profile = default
         manager = MCPManager(security_manager=self.security_manager)
         
         # Add server with credentials in command arguments
-        from src.ic.core.mcp_manager import MCPServerConfig
+        from ic.core.mcp_manager import MCPServerConfig
         
         manager.servers['insecure-server'] = MCPServerConfig(
             name='insecure-server',

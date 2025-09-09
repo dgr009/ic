@@ -11,7 +11,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from src.ic.config.security import GitSecurityChecker, SecurityManager
+from ic.config.security import GitSecurityChecker, SecurityManager
 
 
 class TestGitSecurityHooks:

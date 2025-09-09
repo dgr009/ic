@@ -10,11 +10,30 @@ include setup.cfg
 
 # Include configuration files and examples
 recursive-include config *.yaml *.yml *.json *.example
+recursive-include config/schema *.yaml *.yml *.json
 recursive-include docs *.md *.rst *.txt
+
+# Include scripts and tools
+recursive-include scripts *.py *.sh *.bat
 
 # Include source code
 recursive-include src *.py
 recursive-include src/ic/config *.yaml *.yml *.json
+
+# Include service modules
+recursive-include aws *.py
+recursive-include azure_module *.py
+recursive-include gcp *.py
+recursive-include oci_module *.py
+recursive-include ssh *.py
+recursive-include cf *.py
+recursive-include common *.py
+recursive-include mcp *.py
+
+# Include new configuration system files
+include requirements-updated.txt
+include activate_new_env.sh
+include activate_new_env.bat
 
 # Exclude development and build files
 exclude .env

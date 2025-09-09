@@ -1,193 +1,114 @@
 """
-Configuration migration module for IC.
+Migration manager module for IC.
 
-This module provides utilities for migrating from .env files to YAML configuration.
+This module provides migration functionality from .env files to YAML configuration.
 """
 
 import os
-import re
-import yaml
 import shutil
 from datetime import datetime
-from typing import Dict, List, Any, Optional, Tuple
 from pathlib import Path
+from typing import Dict, Any, List, Optional, Tuple
 import logging
-
-from .security import SecurityManager
 
 logger = logging.getLogger(__name__)
 
 
-class ConfigMigration:
+class MigrationManager:
     """
-    Handles migration from .env files to YAML configuration.
+    Manages migration from .env files to YAML configuration system.
     """
     
-    def __init__(self, security_manager: Optional[SecurityManager] = None):
+    def __init__(self, config_manager=None):
         """
-        Initialize ConfigMigration.
+        Initialize MigrationManager.
         
         Args:
-            security_manager: SecurityManager instance for validation
+            config_manager: Reference to ConfigManager instance
         """
-        self.security_manager = security_manager
-        self.migration_log: List[str] = []
-        self.backup_dir = Path.home() / ".ic" / "migration_backups"
-        
-        # Mapping from .env variables to YAML structure
-        self.env_to_yaml_mapping = {
-            # Logging
-            'IC_LOG_LEVEL': ['logging', 'console_level'],
-            'IC_LOG_FILE_LEVEL': ['logging', 'file_level'],
-            'IC_LOG_FILE_PATH': ['logging', 'file_path'],
-            'IC_LOG_MAX_FILES': ['logging', 'max_files'],
-            'IC_LOG_FORMAT': ['logging', 'format'],
-            'IC_LOG_MASK_SENSITIVE': ['logging', 'mask_sensitive'],
-            
-            # AWS
-            'AWS_ACCOUNTS': ['aws', 'accounts'],
-            'AWS_REGIONS': ['aws', 'regions'],
-            'AWS_CROSS_ACCOUNT_ROLE': ['aws', 'cross_account_role'],
-            'AWS_SESSION_DURATION': ['aws', 'session_duration'],
-            'AWS_MAX_WORKERS': ['aws', 'max_workers'],
-            'AWS_DEFAULT_PROFILE': ['aws', 'default_profile'],
-            'AWS_DEFAULT_REGION': ['aws', 'default_region'],
-            
-            # Azure
-            'AZURE_SUBSCRIPTIONS': ['azure', 'subscriptions'],
-            'AZURE_LOCATIONS': ['azure', 'locations'],
-            'AZURE_MAX_WORKERS': ['azure', 'max_workers'],
-            'AZURE_SUBSCRIPTION_ID': ['azure', 'subscription_id'],
-            
-            # GCP
-            'GCP_PROJECTS': ['gcp', 'projects'],
-            'GCP_REGIONS': ['gcp', 'regions'],
-            'GCP_ZONES': ['gcp', 'zones'],
-            'GCP_MAX_WORKERS': ['gcp', 'max_workers'],
-            'GCP_PROJECT_ID': ['gcp', 'project_id'],
-            'GCP_MCP_ENABLED': ['gcp', 'mcp', 'enabled'],
-            'GCP_MCP_ENDPOINT': ['gcp', 'mcp', 'endpoint'],
-            'GCP_MCP_AUTH_METHOD': ['gcp', 'mcp', 'auth_method'],
-            'GCP_MCP_PREFER_MCP': ['gcp', 'mcp', 'prefer_mcp'],
-            
-            # OCI
-            'OCI_CONFIG_PATH': ['oci', 'config_path'],
-            'OCI_MAX_WORKERS': ['oci', 'max_workers'],
-            
-            # CloudFlare
-            'CLOUDFLARE_ACCOUNTS': ['cloudflare', 'accounts'],
-            'CLOUDFLARE_ZONES': ['cloudflare', 'zones'],
-            
-            # SSH
-            'SSH_CONFIG_FILE': ['ssh', 'config_file'],
-            'SSH_KEY_DIR': ['ssh', 'key_dir'],
-            'SSH_MAX_WORKERS': ['ssh', 'max_workers'],
-            'SSH_PORT_SCAN_TIMEOUT': ['ssh', 'timeouts', 'port_scan'],
-            'SSH_CONNECT_TIMEOUT': ['ssh', 'timeouts', 'ssh_connect'],
-            
-            # Slack
-            'SLACK_ENABLED': ['slack', 'enabled'],
-            
-            # MCP
-            'MCP_GITHUB_ENABLED': ['mcp', 'servers', 'github', 'enabled'],
-            'MCP_TERRAFORM_ENABLED': ['mcp', 'servers', 'terraform', 'enabled'],
-            'MCP_AWS_DOCS_ENABLED': ['mcp', 'servers', 'aws_docs', 'enabled'],
-            'MCP_AZURE_ENABLED': ['mcp', 'servers', 'azure', 'enabled'],
-        }
-        
-        # Sensitive variables that should remain in environment
-        self.sensitive_env_vars = {
-            'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN',
-            'AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET',
-            'GCP_SERVICE_ACCOUNT_KEY_PATH', 'GOOGLE_APPLICATION_CREDENTIALS',
-            'CLOUDFLARE_EMAIL', 'CLOUDFLARE_API_TOKEN',
-            'SLACK_WEBHOOK_URL',
-            'MCP_GITHUB_TOKEN',
-        }
+        self.config_manager = config_manager
+        self.backup_dir = Path("backup")
+        self.migration_history: List[Dict[str, Any]] = []
     
-    def migrate_env_to_yaml(self, env_file_path: str = '.env', 
-                           output_path: str = 'config.yaml',
-                           backup: bool = True) -> Dict[str, Any]:
+    def migrate_env_to_yaml(self, env_file_path: str = ".env", 
+                           force: bool = False) -> bool:
         """
-        Migrate .env file to YAML configuration.
+        Migrate configuration from .env file to YAML format.
         
         Args:
-            env_file_path: Path to .env file
-            output_path: Path for output YAML file
-            backup: Whether to create backup of existing files
+            env_file_path: Path to the .env file
+            force: Force migration even if YAML files already exist
             
         Returns:
-            Migration result with status and details
+            True if migration was successful
         """
-        result = {
-            'success': False,
-            'config_created': False,
-            'backup_created': False,
-            'sensitive_vars_found': [],
-            'migrated_vars': [],
-            'errors': [],
-            'warnings': []
-        }
+        env_path = Path(env_file_path)
+        if not env_path.exists():
+            logger.warning(f"No .env file found at {env_path}")
+            return False
+        
+        # Check if YAML files already exist
+        config_dir = Path("config")
+        default_yaml = config_dir / "default.yaml"
+        secrets_yaml = config_dir / "secrets.yaml"
+        
+        if not force and (default_yaml.exists() or secrets_yaml.exists()):
+            logger.warning("YAML configuration files already exist. Use force=True to overwrite.")
+            return False
         
         try:
-            env_path = Path(env_file_path)
-            output_path = Path(output_path)
+            # Parse .env file
+            env_vars = self._parse_env_file(env_path)
             
-            # Check if .env file exists
-            if not env_path.exists():
-                result['errors'].append(f".env file not found: {env_file_path}")
-                return result
+            # Separate sensitive and non-sensitive data
+            default_config, secrets_config = self._categorize_env_vars(env_vars)
             
-            # Create backup if requested
-            if backup:
-                backup_success = self._create_backup(env_path, output_path)
-                result['backup_created'] = backup_success
-                if not backup_success:
-                    result['warnings'].append("Failed to create backup, continuing anyway")
+            # Create config directory
+            config_dir.mkdir(exist_ok=True)
             
-            # Load .env file
-            env_vars = self._load_env_file(env_path)
-            if not env_vars:
-                result['errors'].append("No variables found in .env file")
-                return result
+            # Backup existing files if they exist
+            if default_yaml.exists():
+                self._backup_file(default_yaml)
+            if secrets_yaml.exists():
+                self._backup_file(secrets_yaml)
             
-            # Separate sensitive and non-sensitive variables
-            sensitive_vars, config_vars = self._separate_variables(env_vars)
-            result['sensitive_vars_found'] = list(sensitive_vars.keys())
+            # Save configurations
+            success = True
             
-            # Convert to YAML structure
-            yaml_config = self._convert_to_yaml_structure(config_vars)
-            result['migrated_vars'] = list(config_vars.keys())
+            # Save default configuration
+            if default_config:
+                success &= self._save_yaml_config(default_yaml, default_config)
             
-            # Add default configuration structure
-            yaml_config = self._merge_with_defaults(yaml_config)
+            # Save secrets configuration
+            if secrets_config:
+                success &= self._save_yaml_config(secrets_yaml, secrets_config)
+                
+                # Set restrictive permissions on secrets file
+                try:
+                    secrets_yaml.chmod(0o600)
+                except Exception as e:
+                    logger.warning(f"Failed to set restrictive permissions on secrets file: {e}")
             
-            # Validate security if SecurityManager is available
-            if self.security_manager:
-                security_warnings = self.security_manager.validate_config_security(yaml_config)
-                result['warnings'].extend(security_warnings)
-            
-            # Save YAML configuration
-            self._save_yaml_config(yaml_config, output_path)
-            result['config_created'] = True
-            
-            # Create environment variables documentation
-            self._create_env_documentation(sensitive_vars, output_path.parent)
-            
-            # Log migration details
-            self._log_migration_results(result, env_vars, sensitive_vars, config_vars)
-            
-            result['success'] = True
-            
+            if success:
+                # Backup original .env file
+                self._backup_file(env_path)
+                
+                # Record migration
+                self._record_migration(env_path, default_yaml, secrets_yaml)
+                
+                logger.info("Successfully migrated .env file to YAML configuration")
+                return True
+            else:
+                logger.error("Failed to save YAML configuration files")
+                return False
+                
         except Exception as e:
-            result['errors'].append(f"Migration failed: {e}")
-            logger.error(f"Migration error: {e}")
-        
-        return result
+            logger.error(f"Failed to migrate .env file: {e}")
+            return False
     
-    def _load_env_file(self, env_path: Path) -> Dict[str, str]:
+    def _parse_env_file(self, env_path: Path) -> Dict[str, str]:
         """
-        Load variables from .env file.
+        Parse .env file and extract key-value pairs.
         
         Args:
             env_path: Path to .env file
@@ -197,136 +118,168 @@ class ConfigMigration:
         """
         env_vars = {}
         
-        try:
-            with open(env_path, 'r', encoding='utf-8') as f:
-                for line_num, line in enumerate(f, 1):
-                    line = line.strip()
+        with open(env_path, 'r', encoding='utf-8') as f:
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+                
+                # Skip empty lines and comments
+                if not line or line.startswith('#'):
+                    continue
+                
+                # Handle lines with equals sign
+                if '=' in line:
+                    key, value = line.split('=', 1)
+                    key = key.strip()
+                    value = value.strip()
                     
-                    # Skip empty lines and comments
-                    if not line or line.startswith('#'):
-                        continue
+                    # Remove quotes if present
+                    if value.startswith('"') and value.endswith('"'):
+                        value = value[1:-1]
+                    elif value.startswith("'") and value.endswith("'"):
+                        value = value[1:-1]
                     
-                    # Parse variable assignment
-                    if '=' in line:
-                        key, value = line.split('=', 1)
-                        key = key.strip()
-                        value = value.strip()
-                        
-                        # Remove quotes if present
-                        if value.startswith('"') and value.endswith('"'):
-                            value = value[1:-1]
-                        elif value.startswith("'") and value.endswith("'"):
-                            value = value[1:-1]
-                        
-                        env_vars[key] = value
-                    else:
-                        logger.warning(f"Invalid line {line_num} in {env_path}: {line}")
-        
-        except Exception as e:
-            logger.error(f"Failed to load .env file {env_path}: {e}")
+                    env_vars[key] = value
+                else:
+                    logger.warning(f"Skipping invalid line {line_num} in {env_path}: {line}")
         
         return env_vars
     
-    def _separate_variables(self, env_vars: Dict[str, str]) -> Tuple[Dict[str, str], Dict[str, str]]:
+    def _categorize_env_vars(self, env_vars: Dict[str, str]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """
-        Separate sensitive and non-sensitive environment variables.
+        Categorize environment variables into default config and secrets.
         
         Args:
-            env_vars: All environment variables
+            env_vars: Dictionary of environment variables
             
         Returns:
-            Tuple of (sensitive_vars, config_vars)
+            Tuple of (default_config, secrets_config)
         """
-        sensitive_vars = {}
-        config_vars = {}
+        # Start with base default configuration
+        default_config = self._get_base_default_config()
+        secrets_config = {"version": "2.0"}
         
+        # Define sensitive keys
+        sensitive_keys = {
+            'SLACK_WEBHOOK_URL', 'CLOUDFLARE_EMAIL', 'CLOUDFLARE_API_TOKEN',
+            'AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET',
+            'GCP_SERVICE_ACCOUNT_KEY_PATH', 'GOOGLE_APPLICATION_CREDENTIALS',
+            'AWS_ACCOUNTS'  # Account IDs are considered sensitive
+        }
+        
+        # Categorize each environment variable
         for key, value in env_vars.items():
-            if key in self.sensitive_env_vars:
-                sensitive_vars[key] = value
-            elif key in self.env_to_yaml_mapping:
-                config_vars[key] = value
+            if key in sensitive_keys or self._is_sensitive_key(key):
+                self._add_to_secrets_config(secrets_config, key, value)
             else:
-                # Check if it looks sensitive
-                if self.security_manager and self.security_manager._is_sensitive_key(key):
-                    sensitive_vars[key] = value
-                else:
-                    # Unknown variable, add to config with warning
-                    config_vars[key] = value
-                    logger.warning(f"Unknown environment variable: {key}")
+                self._add_to_default_config(default_config, key, value)
         
-        return sensitive_vars, config_vars
+        return default_config, secrets_config
     
-    def _convert_to_yaml_structure(self, config_vars: Dict[str, str]) -> Dict[str, Any]:
+    def _is_sensitive_key(self, key: str) -> bool:
         """
-        Convert environment variables to YAML structure.
+        Check if a key is potentially sensitive.
         
         Args:
-            config_vars: Configuration variables to convert
+            key: Environment variable key
             
         Returns:
-            YAML configuration structure
+            True if key is potentially sensitive
         """
-        yaml_config = {}
+        sensitive_patterns = [
+            'token', 'key', 'secret', 'password', 'passwd', 'pwd',
+            'credential', 'webhook', 'api_key', 'access_key', 'private_key'
+        ]
         
-        for env_var, value in config_vars.items():
-            if env_var in self.env_to_yaml_mapping:
-                yaml_path = self.env_to_yaml_mapping[env_var]
-                converted_value = self._convert_value(env_var, value)
-                self._set_nested_value(yaml_config, yaml_path, converted_value)
-            else:
-                # Handle unknown variables by putting them in a custom section
-                if 'custom' not in yaml_config:
-                    yaml_config['custom'] = {}
-                yaml_config['custom'][env_var] = self._convert_value(env_var, value)
-        
-        return yaml_config
+        key_lower = key.lower()
+        return any(pattern in key_lower for pattern in sensitive_patterns)
     
-    def _convert_value(self, env_var: str, value: str) -> Any:
-        """
-        Convert string value to appropriate type.
-        
-        Args:
-            env_var: Environment variable name
-            value: String value
-            
-        Returns:
-            Converted value
-        """
-        # Handle comma-separated lists
-        if any(env_var.endswith(suffix) for suffix in ['_ACCOUNTS', '_REGIONS', '_ZONES', '_LOCATIONS', '_SUBSCRIPTIONS', '_PROJECTS']):
-            return [item.strip() for item in value.split(',') if item.strip()]
-        
-        # Handle boolean values
-        if any(env_var.endswith(suffix) for suffix in ['_ENABLED', '_MASK_SENSITIVE', '_PREFER_MCP']):
-            return value.lower() in ('true', '1', 'yes', 'on')
-        
-        # Handle integer values
-        if any(field in env_var for field in ['MAX_WORKERS', 'DURATION', 'MAX_FILES', 'TIMEOUT']):
-            try:
-                return int(value)
-            except ValueError:
-                logger.warning(f"Invalid integer value for {env_var}: {value}")
-                return value
-        
-        # Handle float values
-        if 'TIMEOUT' in env_var and '.' in value:
-            try:
-                return float(value)
-            except ValueError:
-                logger.warning(f"Invalid float value for {env_var}: {value}")
-                return value
-        
-        return value
+    def _add_to_secrets_config(self, secrets_config: Dict[str, Any], key: str, value: str):
+        """Add environment variable to secrets configuration."""
+        if key == 'AWS_ACCOUNTS':
+            self._set_nested_value(secrets_config, ['aws', 'accounts'], 
+                                 [acc.strip() for acc in value.split(',') if acc.strip()])
+        elif key == 'CLOUDFLARE_EMAIL':
+            self._set_nested_value(secrets_config, ['cloudflare', 'email'], value)
+        elif key == 'CLOUDFLARE_API_TOKEN':
+            self._set_nested_value(secrets_config, ['cloudflare', 'api_token'], value)
+        elif key == 'CLOUDFLARE_ACCOUNTS':
+            self._set_nested_value(secrets_config, ['cloudflare', 'accounts'], 
+                                 [acc.strip() for acc in value.split(',') if acc.strip()])
+        elif key == 'CLOUDFLARE_ZONES':
+            self._set_nested_value(secrets_config, ['cloudflare', 'zones'], 
+                                 [zone.strip() for zone in value.split(',') if zone.strip()])
+        elif key == 'SLACK_WEBHOOK_URL':
+            self._set_nested_value(secrets_config, ['slack', 'webhook_url'], value)
+        elif key == 'GCP_SERVICE_ACCOUNT_KEY_PATH' or key == 'GOOGLE_APPLICATION_CREDENTIALS':
+            self._set_nested_value(secrets_config, ['gcp', 'service_account_key_path'], value)
+        elif key == 'GCP_PROJECTS':
+            self._set_nested_value(secrets_config, ['gcp', 'projects'], 
+                                 [proj.strip() for proj in value.split(',') if proj.strip()])
+        elif key == 'AZURE_TENANT_ID':
+            self._set_nested_value(secrets_config, ['azure', 'tenant_id'], value)
+        elif key == 'AZURE_CLIENT_ID':
+            self._set_nested_value(secrets_config, ['azure', 'client_id'], value)
+        elif key == 'AZURE_CLIENT_SECRET':
+            self._set_nested_value(secrets_config, ['azure', 'client_secret'], value)
+        elif key == 'AZURE_SUBSCRIPTIONS':
+            self._set_nested_value(secrets_config, ['azure', 'subscriptions'], 
+                                 [sub.strip() for sub in value.split(',') if sub.strip()])
+        else:
+            # Generic sensitive key handling
+            logger.warning(f"Unknown sensitive key '{key}', storing in secrets under 'other'")
+            self._set_nested_value(secrets_config, ['other', key.lower()], value)
     
-    def _set_nested_value(self, config: Dict[str, Any], path: List[str], value: Any) -> None:
-        """
-        Set a nested value in configuration dictionary.
-        
-        Args:
-            config: Configuration dictionary
-            path: List of keys representing the path
-            value: Value to set
-        """
+    def _add_to_default_config(self, default_config: Dict[str, Any], key: str, value: str):
+        """Add environment variable to default configuration."""
+        if key == 'REGIONS':
+            self._set_nested_value(default_config, ['aws', 'regions'], 
+                                 [reg.strip() for reg in value.split(',') if reg.strip()])
+        elif key == 'REQUIRED_TAGS':
+            self._set_nested_value(default_config, ['aws', 'tags', 'required'], 
+                                 [tag.strip() for tag in value.split(',') if tag.strip()])
+        elif key == 'OPTIONAL_TAGS':
+            self._set_nested_value(default_config, ['aws', 'tags', 'optional'], 
+                                 [tag.strip() for tag in value.split(',') if tag.strip()])
+        elif key.startswith('RULE_'):
+            rule_name = key[5:].lower()  # Remove 'RULE_' prefix
+            self._set_nested_value(default_config, ['aws', 'tags', 'rules', rule_name.title()], value)
+        elif key == 'SSH_MAX_WORKER':
+            self._set_nested_value(default_config, ['ssh', 'max_workers'], int(value))
+        elif key == 'SSH_SKIP_PREFIXES':
+            self._set_nested_value(default_config, ['ssh', 'skip_prefixes'], 
+                                 [prefix.strip() for prefix in value.split(',') if prefix.strip()])
+        elif key == 'PORT_OPEN_TIMEOUT':
+            self._set_nested_value(default_config, ['ssh', 'timeouts', 'port_scan'], float(value))
+        elif key == 'SSH_TIMEOUT':
+            self._set_nested_value(default_config, ['ssh', 'timeouts', 'ssh_connect'], int(value))
+        elif key == 'SSH_KEY_DIR':
+            self._set_nested_value(default_config, ['ssh', 'key_dir'], value)
+        elif key == 'SSH_CONFIG_FILE':
+            self._set_nested_value(default_config, ['ssh', 'config_file'], value)
+        elif key == 'LOG_LEVEL':
+            self._set_nested_value(default_config, ['logging', 'console_level'], value.upper())
+        elif key == 'OCI_CONFIG_PATH':
+            self._set_nested_value(default_config, ['oci', 'config_path'], value)
+        elif key == 'GCP_REGIONS':
+            self._set_nested_value(default_config, ['gcp', 'regions'], 
+                                 [reg.strip() for reg in value.split(',') if reg.strip()])
+        elif key == 'GCP_ZONES':
+            self._set_nested_value(default_config, ['gcp', 'zones'], 
+                                 [zone.strip() for zone in value.split(',') if zone.strip()])
+        elif key == 'GCP_MAX_WORKERS':
+            self._set_nested_value(default_config, ['gcp', 'max_workers'], int(value))
+        elif key == 'AZURE_LOCATIONS':
+            self._set_nested_value(default_config, ['azure', 'locations'], 
+                                 [loc.strip() for loc in value.split(',') if loc.strip()])
+        elif key == 'AZURE_MAX_WORKERS':
+            self._set_nested_value(default_config, ['azure', 'max_workers'], int(value))
+        else:
+            # Generic non-sensitive key handling
+            logger.info(f"Unknown non-sensitive key '{key}', storing in default config under 'other'")
+            self._set_nested_value(default_config, ['other', key.lower()], value)
+    
+    def _set_nested_value(self, config: Dict[str, Any], path: List[str], value: Any):
+        """Set a nested value in configuration dictionary."""
         current = config
         for key in path[:-1]:
             if key not in current:
@@ -334,28 +287,21 @@ class ConfigMigration:
             current = current[key]
         current[path[-1]] = value
     
-    def _merge_with_defaults(self, yaml_config: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Merge migrated config with default configuration structure.
-        
-        Args:
-            yaml_config: Migrated configuration
-            
-        Returns:
-            Complete configuration with defaults
-        """
-        # Get default configuration structure
-        default_config = {
-            "version": "1.0",
+    def _get_base_default_config(self) -> Dict[str, Any]:
+        """Get base default configuration structure."""
+        return {
+            "version": "2.0",
             "logging": {
                 "console_level": "ERROR",
                 "file_level": "INFO",
-                "file_path": "logs/ic_{date}.log",
+                "file_path": "~/.ic/logs/ic_{date}.log",
                 "max_files": 30,
                 "format": "%(asctime)s [%(levelname)s] - %(message)s",
                 "mask_sensitive": True,
             },
             "aws": {
+                "config_path": "~/.aws/config",
+                "credentials_path": "~/.aws/credentials",
                 "accounts": [],
                 "regions": ["ap-northeast-2"],
                 "cross_account_role": "OrganizationAccountAccessRole",
@@ -393,6 +339,7 @@ class ConfigMigration:
                 "max_workers": 10,
             },
             "cloudflare": {
+                "config_path": "~/.cloudflare/config",
                 "accounts": [],
                 "zones": [],
             },
@@ -400,6 +347,7 @@ class ConfigMigration:
                 "config_file": "~/.ssh/config",
                 "key_dir": "~/aws-key",
                 "max_workers": 70,
+                "skip_prefixes": ["git", "akrr-portx", "akrr-taas-gw", "agw01", "semaphore"],
                 "timeouts": {
                     "port_scan": 0.5,
                     "ssh_connect": 5,
@@ -444,276 +392,237 @@ class ConfigMigration:
                 "git_hooks_enabled": True,
             },
         }
-        
-        return self._deep_merge(default_config, yaml_config)
     
-    def _deep_merge(self, base: Dict[str, Any], override: Dict[str, Any]) -> Dict[str, Any]:
+    def _save_yaml_config(self, file_path: Path, config: Dict[str, Any]) -> bool:
         """
-        Deep merge two dictionaries.
+        Save configuration to YAML file.
         
         Args:
-            base: Base dictionary
-            override: Override dictionary
+            file_path: Path to save the file
+            config: Configuration dictionary
             
         Returns:
-            Merged dictionary
-        """
-        result = base.copy()
-        
-        for key, value in override.items():
-            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-                result[key] = self._deep_merge(result[key], value)
-            else:
-                result[key] = value
-        
-        return result
-    
-    def _save_yaml_config(self, yaml_config: Dict[str, Any], output_path: Path) -> None:
-        """
-        Save YAML configuration to file.
-        
-        Args:
-            yaml_config: Configuration to save
-            output_path: Output file path
-        """
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        
-        with open(output_path, 'w', encoding='utf-8') as f:
-            # Add header comment
-            f.write("# IC Configuration\n")
-            f.write("# Generated from .env migration\n")
-            f.write(f"# Migration date: {datetime.now().isoformat()}\n")
-            f.write("# \n")
-            f.write("# This file contains non-sensitive configuration values.\n")
-            f.write("# Sensitive values should be provided via environment variables.\n")
-            f.write("# See .env.example for required environment variables.\n")
-            f.write("\n")
-            
-            yaml.dump(yaml_config, f, default_flow_style=False, indent=2, sort_keys=False)
-    
-    def _create_env_documentation(self, sensitive_vars: Dict[str, str], output_dir: Path) -> None:
-        """
-        Create documentation for required environment variables.
-        
-        Args:
-            sensitive_vars: Sensitive variables that should remain in environment
-            output_dir: Directory to create documentation
-        """
-        env_example_path = output_dir / ".env.example"
-        
-        with open(env_example_path, 'w', encoding='utf-8') as f:
-            f.write("# IC Environment Variables\n")
-            f.write("# These sensitive variables should be set in your environment\n")
-            f.write("# DO NOT commit actual values to version control\n")
-            f.write("\n")
-            
-            # Group variables by service
-            aws_vars = [k for k in sensitive_vars.keys() if k.startswith('AWS_')]
-            azure_vars = [k for k in sensitive_vars.keys() if k.startswith('AZURE_')]
-            gcp_vars = [k for k in sensitive_vars.keys() if k.startswith('GCP_') or k.startswith('GOOGLE_')]
-            cf_vars = [k for k in sensitive_vars.keys() if k.startswith('CLOUDFLARE_')]
-            slack_vars = [k for k in sensitive_vars.keys() if k.startswith('SLACK_')]
-            mcp_vars = [k for k in sensitive_vars.keys() if k.startswith('MCP_')]
-            
-            if aws_vars:
-                f.write("# AWS Credentials\n")
-                for var in aws_vars:
-                    f.write(f"{var}=your-{var.lower().replace('_', '-')}-here\n")
-                f.write("\n")
-            
-            if azure_vars:
-                f.write("# Azure Credentials\n")
-                for var in azure_vars:
-                    f.write(f"{var}=your-{var.lower().replace('_', '-')}-here\n")
-                f.write("\n")
-            
-            if gcp_vars:
-                f.write("# GCP Credentials\n")
-                for var in gcp_vars:
-                    f.write(f"{var}=your-{var.lower().replace('_', '-')}-here\n")
-                f.write("\n")
-            
-            if cf_vars:
-                f.write("# CloudFlare Credentials\n")
-                for var in cf_vars:
-                    f.write(f"{var}=your-{var.lower().replace('_', '-')}-here\n")
-                f.write("\n")
-            
-            if slack_vars:
-                f.write("# Slack Integration\n")
-                for var in slack_vars:
-                    f.write(f"{var}=your-{var.lower().replace('_', '-')}-here\n")
-                f.write("\n")
-            
-            if mcp_vars:
-                f.write("# MCP Server Credentials\n")
-                for var in mcp_vars:
-                    f.write(f"{var}=your-{var.lower().replace('_', '-')}-here\n")
-                f.write("\n")
-    
-    def _create_backup(self, env_path: Path, output_path: Path) -> bool:
-        """
-        Create backup of existing files.
-        
-        Args:
-            env_path: Path to .env file
-            output_path: Path to output YAML file
-            
-        Returns:
-            True if backup was successful
+            True if successful
         """
         try:
-            self.backup_dir.mkdir(parents=True, exist_ok=True)
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            import yaml
             
-            # Backup .env file
-            if env_path.exists():
-                backup_env = self.backup_dir / f"{env_path.name}_{timestamp}"
-                shutil.copy2(env_path, backup_env)
-                logger.info(f"Backed up {env_path} to {backup_env}")
+            with open(file_path, 'w', encoding='utf-8') as f:
+                yaml.dump(config, f, default_flow_style=False, indent=2, 
+                         allow_unicode=True, sort_keys=False)
             
-            # Backup existing YAML config if it exists
-            if output_path.exists():
-                backup_yaml = self.backup_dir / f"{output_path.name}_{timestamp}"
-                shutil.copy2(output_path, backup_yaml)
-                logger.info(f"Backed up {output_path} to {backup_yaml}")
-            
+            logger.info(f"Saved configuration to {file_path}")
             return True
             
         except Exception as e:
-            logger.error(f"Failed to create backup: {e}")
+            logger.error(f"Failed to save configuration to {file_path}: {e}")
             return False
     
-    def _log_migration_results(self, result: Dict[str, Any], env_vars: Dict[str, str],
-                              sensitive_vars: Dict[str, str], config_vars: Dict[str, str]) -> None:
+    def _backup_file(self, file_path: Path) -> Optional[Path]:
         """
-        Log migration results.
+        Create a backup of a file.
         
         Args:
-            result: Migration result
-            env_vars: All environment variables
-            sensitive_vars: Sensitive variables
-            config_vars: Configuration variables
-        """
-        logger.info("=== Migration Summary ===")
-        logger.info(f"Total variables processed: {len(env_vars)}")
-        logger.info(f"Variables migrated to config: {len(config_vars)}")
-        logger.info(f"Sensitive variables kept in environment: {len(sensitive_vars)}")
-        
-        if result['errors']:
-            logger.error("Migration errors:")
-            for error in result['errors']:
-                logger.error(f"  - {error}")
-        
-        if result['warnings']:
-            logger.warning("Migration warnings:")
-            for warning in result['warnings']:
-                logger.warning(f"  - {warning}")
-        
-        if result['success']:
-            logger.info("Migration completed successfully!")
-        else:
-            logger.error("Migration failed!")
-    
-    def rollback_migration(self, backup_timestamp: str) -> bool:
-        """
-        Rollback migration using backup files.
-        
-        Args:
-            backup_timestamp: Timestamp of backup to restore
+            file_path: Path to file to backup
             
         Returns:
-            True if rollback was successful
+            Path to backup file if successful
+        """
+        if not file_path.exists():
+            return None
+        
+        # Create backup directory
+        self.backup_dir.mkdir(exist_ok=True)
+        
+        # Generate backup filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_name = f"{file_path.stem}_{timestamp}{file_path.suffix}"
+        backup_path = self.backup_dir / backup_name
+        
+        try:
+            shutil.copy2(file_path, backup_path)
+            logger.info(f"Backed up {file_path} to {backup_path}")
+            return backup_path
+        except Exception as e:
+            logger.error(f"Failed to backup {file_path}: {e}")
+            return None
+    
+    def _record_migration(self, env_path: Path, default_yaml: Path, secrets_yaml: Path):
+        """Record migration details for history."""
+        migration_record = {
+            "timestamp": datetime.now().isoformat(),
+            "source_file": str(env_path),
+            "target_files": {
+                "default_config": str(default_yaml),
+                "secrets_config": str(secrets_yaml) if secrets_yaml.exists() else None
+            },
+            "backup_location": str(self.backup_dir)
+        }
+        
+        self.migration_history.append(migration_record)
+    
+    def create_migration_history_document(self) -> bool:
+        """
+        Create a migration history document.
+        
+        Returns:
+            True if document was created successfully
         """
         try:
-            # Find backup files with the given timestamp
-            backup_files = list(self.backup_dir.glob(f"*_{backup_timestamp}"))
+            history_content = self._generate_migration_history_content()
             
-            if not backup_files:
-                logger.error(f"No backup files found for timestamp: {backup_timestamp}")
-                return False
+            history_path = self.backup_dir / "migration_history.md"
+            with open(history_path, 'w', encoding='utf-8') as f:
+                f.write(history_content)
             
-            for backup_file in backup_files:
-                # Determine original file path
-                original_name = backup_file.name.replace(f"_{backup_timestamp}", "")
-                original_path = Path(original_name)
+            logger.info(f"Created migration history document at {history_path}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Failed to create migration history document: {e}")
+            return False
+    
+    def _generate_migration_history_content(self) -> str:
+        """Generate migration history document content."""
+        content = """# IC Configuration Migration History
+
+This document records the migration from .env files to YAML configuration system.
+
+## Migration Overview
+
+The IC configuration system has been migrated from environment variable-based (.env) 
+configuration to a structured YAML-based system with the following benefits:
+
+- **Security**: Sensitive data is separated into `config/secrets.yaml`
+- **Structure**: Configuration is organized by service and purpose
+- **Validation**: Built-in validation and security checks
+- **External References**: Direct integration with cloud provider config files
+- **Fixed Logging**: Logs are written to a consistent location
+
+## File Structure Changes
+
+### Before Migration
+```
+.env                    # All configuration in one file
+logs/                   # Logs created in current directory
+```
+
+### After Migration
+```
+config/
+├── default.yaml        # Non-sensitive configuration
+└── secrets.yaml        # Sensitive configuration (600 permissions)
+
+~/.ic/
+└── logs/               # Fixed log location
+
+backup/
+├── .env_YYYYMMDD_HHMMSS    # Backed up original .env
+└── migration_history.md    # This document
+```
+
+## Migration Records
+
+"""
+        
+        if self.migration_history:
+            for i, record in enumerate(self.migration_history, 1):
+                content += f"### Migration {i}\n\n"
+                content += f"- **Date**: {record['timestamp']}\n"
+                content += f"- **Source**: {record['source_file']}\n"
+                content += f"- **Default Config**: {record['target_files']['default_config']}\n"
                 
-                # Restore file
-                shutil.copy2(backup_file, original_path)
-                logger.info(f"Restored {original_path} from {backup_file}")
-            
-            logger.info("Migration rollback completed successfully!")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Rollback failed: {e}")
-            return False
+                if record['target_files']['secrets_config']:
+                    content += f"- **Secrets Config**: {record['target_files']['secrets_config']}\n"
+                
+                content += f"- **Backup Location**: {record['backup_location']}\n\n"
+        else:
+            content += "No migration records found.\n\n"
+        
+        content += """## Configuration Categories
+
+### Default Configuration (config/default.yaml)
+- Logging settings
+- Service endpoints and regions
+- Worker thread counts
+- Timeout values
+- Tag validation rules
+- External config file paths
+
+### Secrets Configuration (config/secrets.yaml)
+- API tokens and keys
+- Account IDs and credentials
+- Webhook URLs
+- Service account paths
+- Subscription IDs
+
+## Security Notes
+
+1. **File Permissions**: `config/secrets.yaml` should have 600 permissions (owner read/write only)
+2. **Version Control**: Add `config/secrets.yaml` to `.gitignore`
+3. **Environment Fallback**: If secrets.yaml is missing, system falls back to environment variables
+4. **Sensitive Data Masking**: All logs automatically mask sensitive information
+
+## Rollback Instructions
+
+If you need to rollback to the .env system:
+
+1. Copy the backed up .env file from the backup directory
+2. Remove or rename the config/ directory
+3. Restart the application
+
+## Next Steps
+
+1. Review the generated configuration files
+2. Update any service-specific settings as needed
+3. Ensure secrets.yaml has proper file permissions
+4. Add secrets.yaml to .gitignore if using version control
+5. Test all services to ensure proper configuration loading
+
+"""
+        
+        return content
     
-    def list_backups(self) -> List[Dict[str, Any]]:
+    def validate_migration(self) -> Dict[str, List[str]]:
         """
-        List available backup files.
+        Validate the migration results.
         
         Returns:
-            List of backup information
+            Dictionary of validation results
         """
-        backups = []
+        issues = {
+            "errors": [],
+            "warnings": [],
+            "info": []
+        }
         
-        if not self.backup_dir.exists():
-            return backups
+        # Check if config files exist
+        config_dir = Path("config")
+        default_yaml = config_dir / "default.yaml"
+        secrets_yaml = config_dir / "secrets.yaml"
         
-        backup_files = list(self.backup_dir.glob("*_*"))
+        if not default_yaml.exists():
+            issues["errors"].append("default.yaml not found in config directory")
         
-        # Group by timestamp
-        timestamp_groups = {}
-        for backup_file in backup_files:
-            parts = backup_file.name.split('_')
-            if len(parts) >= 2:
-                timestamp = '_'.join(parts[-2:])  # Get last two parts as timestamp
-                if timestamp not in timestamp_groups:
-                    timestamp_groups[timestamp] = []
-                timestamp_groups[timestamp].append(backup_file)
-        
-        for timestamp, files in timestamp_groups.items():
+        if not secrets_yaml.exists():
+            issues["warnings"].append("secrets.yaml not found - will use environment variables")
+        else:
+            # Check file permissions
             try:
-                # Parse timestamp
-                dt = datetime.strptime(timestamp, "%Y%m%d_%H%M%S")
-                backups.append({
-                    'timestamp': timestamp,
-                    'date': dt.isoformat(),
-                    'files': [f.name for f in files],
-                    'file_count': len(files)
-                })
-            except ValueError:
-                # Skip invalid timestamps
-                continue
+                file_mode = secrets_yaml.stat().st_mode & 0o777
+                if file_mode != 0o600:
+                    issues["warnings"].append(f"secrets.yaml has insecure permissions: {oct(file_mode)}")
+            except Exception as e:
+                issues["warnings"].append(f"Could not check secrets.yaml permissions: {e}")
         
-        # Sort by date (newest first)
-        backups.sort(key=lambda x: x['date'], reverse=True)
+        # Check if backup was created
+        if not self.backup_dir.exists():
+            issues["warnings"].append("No backup directory found")
+        else:
+            backup_files = list(self.backup_dir.glob("*.env*"))
+            if not backup_files:
+                issues["warnings"].append("No .env backup files found")
+            else:
+                issues["info"].append(f"Found {len(backup_files)} backup files")
         
-        return backups
-
-
-def create_migration_status_file(migration_result: Dict[str, Any], 
-                                output_dir: Path = Path('.')) -> None:
-    """
-    Create a migration status file with results.
-    
-    Args:
-        migration_result: Result from migration
-        output_dir: Directory to create status file
-    """
-    status_file = output_dir / ".ic_migration_status.yaml"
-    
-    status_data = {
-        'migration_date': datetime.now().isoformat(),
-        'success': migration_result['success'],
-        'migrated_variables': migration_result.get('migrated_vars', []),
-        'sensitive_variables': migration_result.get('sensitive_vars_found', []),
-        'errors': migration_result.get('errors', []),
-        'warnings': migration_result.get('warnings', []),
-    }
-    
-    with open(status_file, 'w', encoding='utf-8') as f:
-        yaml.dump(status_data, f, default_flow_style=False, indent=2)
-    
-    logger.info(f"Migration status saved to {status_file}")
+        return issues

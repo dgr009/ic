@@ -1,14 +1,14 @@
 # IC (Infra Resource Management CLI) - Production Dependencies
-# Version: 1.0.0
-# Last Updated: 2025-01-03
+# Version: 2.0.0
+# Last Updated: 2025-09-08
 # Security: All versions are pinned for security and reproducibility
 
 # Core Cloud SDKs
-boto3==1.40.59                    # AWS SDK for Python
+boto3==1.40.25                    # AWS SDK for Python
 oci==2.149.2                      # Oracle Cloud Infrastructure SDK (compatible with oci-cli 3.54.1)
 requests==2.32.3                  # HTTP library for API calls
 kubernetes==29.0.0                # Kubernetes Python client
-awscli==1.42.7                    # AWS CLI for additional functionality
+awscli==1.42.25                   # AWS CLI for additional functionality
 
 # Google Cloud SDKs
 google-cloud-compute==1.36.0      # Google Compute Engine API
@@ -55,6 +55,11 @@ invoke==2.2.0                     # Task execution library
 # Security and Validation
 jsonschema==4.23.0                # JSON schema validation
 cryptography==42.0.8              # Cryptographic recipes and primitives
+
+# Additional dependencies for new config system (v2.0)
+watchdog==3.0.0                   # File change monitoring
+cerberus==1.3.7                   # Schema validation
+pydantic==2.11.7                  # Data validation and settings management
 
 # Development and Testing (Optional - install with pip install -e .[dev])
 # pytest==8.3.3

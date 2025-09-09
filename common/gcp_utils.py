@@ -13,7 +13,7 @@ from google.cloud.resourcemanager_v3 import ProjectsClient
 from google.cloud.resourcemanager_v3.types import SearchProjectsRequest, GetProjectRequest
 from google.api_core import exceptions as gcp_exceptions
 from google.api_core import retry
-from dotenv import load_dotenv
+from ic.config.manager import ConfigManager
 
 from common.log import log_info, log_error, log_exception
 
@@ -42,21 +42,29 @@ try:
 except ImportError:
     MONITORING_AVAILABLE = False
 
-load_dotenv()
+# Initialize config manager
+_config_manager = ConfigManager()
 
 def _get_env_var(key: str, default: str = '') -> str:
     """환경변수를 동적으로 가져옵니다."""
-    return os.getenv(key, default)
+    config = _config_manager.get_config()
+    gcp_config = config.get('gcp', {})
+    return gcp_config.get(key, os.getenv(key, default))
 
 def _get_env_list(key: str, default: str = '') -> List[str]:
     """환경변수를 리스트로 가져옵니다."""
-    value = os.getenv(key, default)
+    config = _config_manager.get_config()
+    gcp_config = config.get('gcp', {})
+    value = gcp_config.get(key, os.getenv(key, default))
     return [item.strip() for item in value.split(',') if item.strip()] if value else []
 
 def _get_env_int(key: str, default: int) -> int:
     """환경변수를 정수로 가져옵니다."""
     try:
-        return int(os.getenv(key, str(default)))
+        config = _config_manager.get_config()
+        gcp_config = config.get('gcp', {})
+        value = gcp_config.get(key, os.getenv(key, str(default)))
+        return int(value)
     except (ValueError, TypeError):
         return default
 

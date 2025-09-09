@@ -8,19 +8,26 @@ import paramiko
 # Paramiko 내부 디버그 로그를 별도 파일로 남겨 문제 파악을 쉽게 함
 # paramiko.util.log_to_file("ssh_paramiko_debug.log")
 
-from dotenv import load_dotenv
+from ic.config.manager import ConfigManager
 from rich.table import Table
 from common.log import log_info,log_error,log_exception,console
 # -----------------------------------------------------------------------------
-# 환경 변수 로드
+# 설정 관리자 초기화
 # -----------------------------------------------------------------------------
-load_dotenv()
+_config_manager = ConfigManager()
+_config = _config_manager.load_all_configs()
+_ssh_config = _config.get('ssh', {})
 
-SSH_CONFIG_FILE = os.getenv("SSH_CONFIG_FILE", "~/.ssh/config")
-SSH_TIMEOUT = int(os.getenv("SSH_TIMEOUT", "5"))
-MAX_WORKER = int(os.getenv("MAX_WORKER", "20"))
-# 쉼표(,)로 구분된 접두사를 가진 호스트는 제외 (default: 'git')
-SSH_SKIP_PREFIXES = [p.strip().lower() for p in os.getenv("SSH_SKIP_PREFIXES", "git").split(",") if p.strip()]
+SSH_CONFIG_FILE = _ssh_config.get('config_file', "~/.ssh/config")
+SSH_TIMEOUT = int(_ssh_config.get('timeout', 5))
+MAX_WORKER = int(_ssh_config.get('workers', 20))
+
+# Skip prefixes 설정 (secrets에서 가져오기)
+skip_prefixes = _ssh_config.get('skip_prefixes', ['git'])
+if isinstance(skip_prefixes, str):
+    SSH_SKIP_PREFIXES = [p.strip().lower() for p in skip_prefixes.split(",") if p.strip()]
+else:
+    SSH_SKIP_PREFIXES = [p.strip().lower() for p in skip_prefixes if p.strip()]
 
 # -----------------------------------------------------------------------------
 # 유틸 함수
@@ -206,7 +213,13 @@ def parse_ssh_config() -> list:
         config = ssh_config.lookup(host_info)
 
         identity_files = config.get("identityfile", [])
-        private_key = identity_files[0] if identity_files else None
+        if identity_files:
+            private_key = identity_files[0]
+        else:
+            # 기본 키 경로 설정
+            default_key_dir = _ssh_config.get('key_dir', '~/.ssh')
+            default_key_dir = os.path.expanduser(default_key_dir)
+            private_key = os.path.join(default_key_dir, 'id_rsa')
 
         user = config.get("user", getpass.getuser())
         port = config.get("port", 22)
@@ -219,7 +232,10 @@ def parse_ssh_config() -> list:
             "private_key_path": private_key
         })
 
-    log_info(f"ssh_config 파싱 완료 (총 {len(servers)}개 호스트, 제외 {len(list(ssh_config.get_hostnames()))-len(servers)-1})")
+    total_hosts = len(list(ssh_config.get_hostnames())) - 1  # '*' 제외
+    excluded_hosts = total_hosts - len(servers)
+    log_info(f"ssh_config 파싱 완료 (총 {len(servers)}개 호스트, 제외 {excluded_hosts}개)")
+    log_info(f"Skip prefixes: {SSH_SKIP_PREFIXES}")
     return servers
 
 # -----------------------------------------------------------------------------

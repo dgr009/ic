@@ -10,9 +10,9 @@ import pytest
 from pathlib import Path
 from unittest.mock import patch
 
-from src.ic.config.manager import ConfigManager
-from src.ic.config.migration import ConfigMigration
-from src.ic.config.security import SecurityManager
+from ic.config.manager import ConfigManager
+from ic.config.migration import ConfigMigration
+from ic.config.security import SecurityManager
 
 
 class TestConfigMigrationIntegration:

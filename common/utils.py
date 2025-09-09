@@ -3,20 +3,49 @@ import configparser
 import os
 import re
 import json
-from dotenv import load_dotenv
 from botocore.exceptions import BotoCoreError, ClientError
 from common.log import log_info, log_error, log_exception  # 로그 모듈 통합
 
-load_dotenv()
+# 새로운 설정 시스템 import
+try:
+    from ic.config.manager import ConfigManager
+    config_manager = ConfigManager()
+    config = config_manager.load_all_configs()  # secrets 포함한 전체 설정 로드
+    USE_NEW_CONFIG = True
+except ImportError:
+    # 호환성을 위한 fallback
+    from dotenv import load_dotenv
+    load_dotenv()
+    config = {}
+    USE_NEW_CONFIG = False
+
+def get_config_value(key, default_value, config_path=None):
+    """설정에서 값을 가져오는 헬퍼 함수"""
+    if USE_NEW_CONFIG and config:
+        if config_path:
+            # 중첩된 설정 경로 (예: 'aws.regions')
+            value = config
+            for path_part in config_path.split('.'):
+                value = value.get(path_part, {})
+            return value if value != {} else default_value
+        else:
+            return config.get(key, default_value)
+    else:
+        return os.getenv(key, default_value)
 
 # 기본 태그 정의
-DEFINED_TAGS = os.getenv("REQUIRED_TAGS", "Name")
-DEFINED_REGIONS = os.getenv("REGIONS", "ap-northeast-2").split(",")
+DEFINED_TAGS = get_config_value("REQUIRED_TAGS", "Name")
+DEFINED_REGIONS = get_config_value("REGIONS", "ap-northeast-2", "aws.regions")
+if isinstance(DEFINED_REGIONS, str):
+    DEFINED_REGIONS = DEFINED_REGIONS.split(",")
 
 def get_env_accounts():
-    """ .env에서 계정 목록을 가져옵니다. """
-    accounts = os.getenv("AWS_ACCOUNTS", "")
-    return accounts.split(",") if accounts else []
+    """설정에서 계정 목록을 가져옵니다."""
+    if USE_NEW_CONFIG and config and 'aws' in config:
+        return config['aws'].get('accounts', [])
+    else:
+        accounts = os.getenv("AWS_ACCOUNTS", "")
+        return accounts.split(",") if accounts else []
 
 def ensure_directory_exists(directory):
     """지정된 경로에 디렉터리가 없으면 생성합니다."""
@@ -51,21 +80,52 @@ def load_json(file_path):
 
 def get_profiles():
     """AWS 프로파일과 계정 ID를 매핑하여 로드합니다."""
-    config = configparser.ConfigParser()
-    config.read(f"{os.path.expanduser('~')}/.aws/config")
+    # 새로운 설정 시스템에서 외부 AWS 설정 로드 시도
+    if USE_NEW_CONFIG:
+        try:
+            from ic.config.external import ExternalConfigLoader
+            external_loader = ExternalConfigLoader()
+            aws_config = external_loader.load_aws_config()
+            
+            if aws_config and 'profiles' in aws_config:
+                # 프로파일에서 계정 ID 추출하여 매핑
+                profiles = {}
+                for profile_name, profile_config in aws_config['profiles'].items():
+                    role_arn = profile_config.get('role_arn')
+                    if role_arn:
+                        match = re.search(r'arn:aws:iam::(\d+):role', role_arn)
+                        if match:
+                            account_id = match.group(1)
+                            profiles[account_id] = profile_name
+                    else:
+                        account_id = profile_config.get('account_id')
+                        if account_id:
+                            profiles[account_id] = profile_name
+                
+                # default 프로파일 추가
+                if 'default' in aws_config['profiles']:
+                    profiles['default'] = 'default'
+                
+                return profiles
+        except Exception as e:
+            log_error(f"Failed to load AWS config from new system: {e}")
+    
+    # Fallback to traditional AWS config file parsing
+    aws_config = configparser.ConfigParser()
+    aws_config.read(f"{os.path.expanduser('~')}/.aws/config")
 
     profiles = {}
-    for section in config.sections():
+    for section in aws_config.sections():
         if section.startswith('profile '):
             profile_name = section.split('profile ')[1]
-            role_arn = config[section].get('role_arn')
+            role_arn = aws_config[section].get('role_arn')
             if role_arn:
                 match = re.search(r'arn:aws:iam::(\d+):role', role_arn)
                 if match:
                     account_id = match.group(1)
                     profiles[account_id] = profile_name
             else:
-                account_id = config[section].get('account_id')
+                account_id = aws_config[section].get('account_id')
                 if account_id:
                     profiles[account_id] = profile_name
 

@@ -7,10 +7,10 @@ Tests comprehensive sensitive data detection and masking across all components.
 import pytest
 from unittest.mock import Mock, patch
 
-from src.ic.config.security import SecurityManager
-from src.ic.core.logging import ICLogger
-from src.ic.core.mcp_manager import MCPManager
-from src.ic.config.manager import ConfigManager
+from ic.config.security import SecurityManager
+from ic.core.logging import ICLogger
+from ic.core.mcp_manager import MCPManager
+from ic.config.manager import ConfigManager
 
 
 class TestSensitiveDataMasking:
@@ -224,7 +224,7 @@ class TestSensitiveDataMasking:
         manager = MCPManager(security_manager=self.security_manager)
         
         # Add server with sensitive environment variables
-        from src.ic.core.mcp_manager import MCPServerConfig
+        from ic.core.mcp_manager import MCPServerConfig
         
         manager.servers['test-server'] = MCPServerConfig(
             name='test-server',

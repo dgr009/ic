@@ -17,7 +17,7 @@ from unittest.mock import Mock, patch, mock_open, MagicMock
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 
-from src.ic.core.session import AWSSessionManager, ProfileInfo, SessionInfo
+from ic.core.session import AWSSessionManager, ProfileInfo, SessionInfo
 
 
 class TestAWSSessionManager:
@@ -541,7 +541,7 @@ class TestBackwardCompatibilityFunctions:
     @patch('src.ic.core.session.AWSSessionManager')
     def test_get_profiles_backward_compatibility(self, mock_manager_class):
         """Test backward compatibility get_profiles function."""
-        from src.ic.core.session import get_profiles
+        from ic.core.session import get_profiles
         
         # Mock manager and profiles
         mock_manager = Mock()
@@ -563,7 +563,7 @@ class TestBackwardCompatibilityFunctions:
     @patch('boto3.Session')
     def test_create_session_backward_compatibility(self, mock_session_class):
         """Test backward compatibility create_session function."""
-        from src.ic.core.session import create_session
+        from ic.core.session import create_session
         
         mock_session = Mock()
         mock_session_class.return_value = mock_session
@@ -579,7 +579,7 @@ class TestBackwardCompatibilityFunctions:
     @patch('boto3.Session')
     def test_create_session_backward_compatibility_failure(self, mock_session_class):
         """Test backward compatibility create_session function with failure."""
-        from src.ic.core.session import create_session
+        from ic.core.session import create_session
         
         mock_session_class.side_effect = NoCredentialsError()
         

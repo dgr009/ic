@@ -10,7 +10,7 @@ IC 프로젝트의 공용 모듈을 사용하도록 리팩토링되었습니다.
 import oci
 import os
 import re
-from dotenv import load_dotenv
+from ic.config.manager import ConfigManager
 from InquirerPy import inquirer
 from rich.console import Console
 from rich.tree import Tree
@@ -18,7 +18,8 @@ from rich.prompt import Prompt
 
 from common.log import log_info, log_error, log_exception, console
 
-load_dotenv()
+# Initialize config manager
+_config_manager = ConfigManager()
 
 
 def add_arguments(parser):

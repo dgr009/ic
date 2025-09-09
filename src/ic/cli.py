@@ -4,6 +4,10 @@ import argparse
 import sys
 import warnings
 
+# Silence all logging except ERROR messages
+from .core.silence_logging import silence_all_logging
+silence_all_logging()
+
 # Set up compatibility layer first
 from .compat.cli import setup_cli_compatibility, wrap_command_function, ensure_env_compatibility
 from .compat.common import log_error, log_env_short, log_args_short, gather_env_for_command
@@ -11,10 +15,45 @@ from .compat.common import log_error, log_env_short, log_args_short, gather_env_
 # Initialize compatibility layer
 setup_cli_compatibility()
 
-# Legacy dotenv support with deprecation warning
+# Initialize new configuration system
+from .config.manager import ConfigManager
+from .config.security import SecurityManager
+from .core.logging import init_logger
+
+# Global configuration manager instance
+_config_manager = None
+_ic_logger = None
+
+def get_config_manager():
+    """Get or create global configuration manager."""
+    global _config_manager, _ic_logger
+    if _config_manager is None:
+        # Suppress all logging during initialization
+        import logging
+        logging.getLogger().setLevel(logging.CRITICAL)
+        
+        security_manager = SecurityManager()
+        _config_manager = ConfigManager(security_manager)
+        
+        # Load all configurations
+        config = _config_manager.load_all_configs()
+        
+        # Initialize logging with new configuration
+        _ic_logger = init_logger(config)
+        
+        # Log .env file usage to file only (no console output)
+        from pathlib import Path
+        if Path('.env').exists() and _ic_logger:
+            _ic_logger.log_info_file_only("Using .env file for configuration. Consider migrating to YAML configuration with 'ic config migrate'")
+    
+    return _config_manager
+
+# Legacy dotenv support (silent loading)
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    from pathlib import Path
+    if Path('.env').exists():
+        load_dotenv()
 except ImportError:
     pass
 from aws.ec2 import list_tags as ec2_list_tags
@@ -43,7 +82,7 @@ from aws.ecs import service as ecs_service
 from aws.ecs import task as ecs_task
 from aws.msk import info as msk_info
 from aws.msk import broker as msk_broker
-from cf.dns import list_info as dns_list_info
+from cf.dns import list_info as dns_info
 from oci_module.info import oci_info as oci_info # Deprecated. 통합 oci info
 from oci_module.vm import add_arguments as vm_add_args, main as vm_main
 from oci_module.lb import add_arguments as lb_add_args, main as lb_main
@@ -209,6 +248,13 @@ def gcp_monitor_health_command(args):
 
 def main():
     """IC CLI 엔트리 포인트"""
+    # Initialize configuration system early
+    try:
+        config_manager = get_config_manager()
+    except Exception as e:
+        print(f"Warning: Failed to initialize configuration system: {e}")
+        print("Falling back to legacy configuration...")
+    
     parser = argparse.ArgumentParser(
         description="Infra CLI: Platform Resource CLI Tool",
         usage="ic <platform|config> <service> <command> [options]"
@@ -569,9 +615,9 @@ def main():
     # ---------------- CloudFlare ----------------
     cf_dns_parser = cf_subparsers.add_parser("dns", help="DNS Record 관련 명령어")
     dns_subparsers = cf_dns_parser.add_subparsers(dest="command", required=True)
-    dns_list_cmd = dns_subparsers.add_parser("list_info", help="DNS Record 목록 조회")
-    dns_list_info.add_arguments(dns_list_cmd)
-    dns_list_cmd.set_defaults(func=dns_list_info.main)
+    dns_info_cmd = dns_subparsers.add_parser("info", help="DNS Record 정보 조회")
+    dns_info.add_arguments(dns_info_cmd)
+    dns_info_cmd.set_defaults(func=dns_info.info)
 
     # ---------------- SSH ----------------
     ssh_info_parser = ssh_subparsers.add_parser("info", help="등록된 SSH 서버의 상세 정보(CPU/Mem/Disk)를 스캔합니다.")

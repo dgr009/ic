@@ -7,18 +7,52 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from azure.identity import DefaultAzureCredential, ClientSecretCredential
 from azure.mgmt.subscription import SubscriptionClient
 from azure.mgmt.resource import ResourceManagementClient
-from dotenv import load_dotenv
+from ic.config.manager import ConfigManager
 
 from common.log import log_info, log_error, log_exception
 
-load_dotenv()
+# Initialize config manager
+_config_manager = ConfigManager()
 
 # Azure 기본 설정
-AZURE_SUBSCRIPTIONS = os.getenv('AZURE_SUBSCRIPTIONS', '').split(',') if os.getenv('AZURE_SUBSCRIPTIONS') else []
-AZURE_LOCATIONS = os.getenv('AZURE_LOCATIONS', 'East US,West US 2,Korea Central,Southeast Asia').split(',')
-AZURE_TENANT_ID = os.getenv('AZURE_TENANT_ID')
-AZURE_CLIENT_ID = os.getenv('AZURE_CLIENT_ID')
-AZURE_CLIENT_SECRET = os.getenv('AZURE_CLIENT_SECRET')
+def _get_azure_config():
+    """Azure 설정을 가져옵니다."""
+    config = _config_manager.get_config()
+    return config.get('azure', {})
+
+def _get_azure_subscriptions():
+    """Azure 구독 목록을 가져옵니다."""
+    azure_config = _get_azure_config()
+    subscriptions = azure_config.get('subscriptions', os.getenv('AZURE_SUBSCRIPTIONS', ''))
+    return subscriptions.split(',') if subscriptions else []
+
+def _get_azure_locations():
+    """Azure 위치 목록을 가져옵니다."""
+    azure_config = _get_azure_config()
+    locations = azure_config.get('locations', os.getenv('AZURE_LOCATIONS', 'East US,West US 2,Korea Central,Southeast Asia'))
+    return locations.split(',')
+
+def _get_azure_tenant_id():
+    """Azure 테넌트 ID를 가져옵니다."""
+    azure_config = _get_azure_config()
+    return azure_config.get('tenant_id', os.getenv('AZURE_TENANT_ID'))
+
+def _get_azure_client_id():
+    """Azure 클라이언트 ID를 가져옵니다."""
+    azure_config = _get_azure_config()
+    return azure_config.get('client_id', os.getenv('AZURE_CLIENT_ID'))
+
+def _get_azure_client_secret():
+    """Azure 클라이언트 시크릿을 가져옵니다."""
+    azure_config = _get_azure_config()
+    return azure_config.get('client_secret', os.getenv('AZURE_CLIENT_SECRET'))
+
+# 호환성을 위한 변수들
+AZURE_SUBSCRIPTIONS = _get_azure_subscriptions()
+AZURE_LOCATIONS = _get_azure_locations()
+AZURE_TENANT_ID = _get_azure_tenant_id()
+AZURE_CLIENT_ID = _get_azure_client_id()
+AZURE_CLIENT_SECRET = _get_azure_client_secret()
 
 def get_azure_credential():
     """Azure 인증 정보를 가져옵니다."""

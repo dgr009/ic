@@ -1,0 +1,46 @@
+[
+  {
+    "subscription_id": "sub-id-dev-1111-2222-3333-4444",
+    "subscription_name": "Azure Dev Subscription",
+    "name": "vnet-dev-koreacentral",
+    "resource_group": "rg-dev-koreacentral",
+    "location": "koreacentral",
+    "address_space": ["10.1.0.0/16"],
+    "subnets": [
+      {
+        "name": "subnet-web",
+        "address_prefix": "10.1.0.0/24",
+        "nsg": "nsg-dev-webtier",
+        "route_table": "rt-dev-webtier"
+      },
+      {
+        "name": "subnet-was",
+        "address_prefix": "10.1.1.0/24",
+        "nsg": "nsg-dev-wastier",
+        "route_table": "rt-dev-wastier"
+      }
+    ]
+  },
+  {
+    "subscription_id": "sub-id-prod-5555-6666-7777-8888",
+    "subscription_name": "Azure Production Subscription",
+    "name": "vnet-prod-koreacentral",
+    "resource_group": "rg-prod-koreacentral",
+    "location": "koreacentral",
+    "address_space": ["10.0.0.0/16"],
+    "subnets": [
+      {
+        "name": "snet-prod-web",
+        "address_prefix": "10.0.0.0/24",
+        "nsg": "nsg-prod-webtier",
+        "route_table": "rt-prod-default"
+      },
+      {
+        "name": "snet-prod-db",
+        "address_prefix": "10.0.2.0/24",
+        "nsg": "nsg-prod-dbtier",
+        "route_table": "rt-prod-default"
+      }
+    ]
+  }
+]

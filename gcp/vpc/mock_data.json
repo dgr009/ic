@@ -1,0 +1,316 @@
+[
+  {
+    "project_id": "my-gcp-project-1",
+    "name": "default",
+    "description": "Default network for the project",
+    "creation_timestamp": "2023-01-15T10:30:00.000-08:00",
+    "self_link": "https://www.googleapis.com/compute/v1/projects/my-gcp-project-1/global/networks/default",
+    "auto_create_subnetworks": true,
+    "routing_mode": "REGIONAL",
+    "mtu": 1460,
+    "labels": {
+      "environment": "production",
+      "team": "infrastructure"
+    },
+    "subnets": [
+      {
+        "name": "default-us-central1",
+        "region": "us-central1",
+        "ip_cidr_range": "10.128.0.0/20",
+        "gateway_address": "10.128.0.1",
+        "description": "Default subnet for us-central1",
+        "creation_timestamp": "2023-01-15T10:30:00.000-08:00",
+        "private_ip_google_access": false,
+        "enable_flow_logs": false,
+        "purpose": "PRIVATE",
+        "role": null,
+        "labels": {},
+        "secondary_ip_ranges": []
+      },
+      {
+        "name": "default-us-east1",
+        "region": "us-east1",
+        "ip_cidr_range": "10.142.0.0/20",
+        "gateway_address": "10.142.0.1",
+        "description": "Default subnet for us-east1",
+        "creation_timestamp": "2023-01-15T10:30:00.000-08:00",
+        "private_ip_google_access": true,
+        "enable_flow_logs": true,
+        "purpose": "PRIVATE",
+        "role": null,
+        "labels": {
+          "subnet-type": "default"
+        },
+        "secondary_ip_ranges": [
+          {
+            "range_name": "pods",
+            "ip_cidr_range": "10.4.0.0/14"
+          }
+        ]
+      }
+    ],
+    "firewall_rules": [
+      {
+        "name": "default-allow-internal",
+        "description": "Allow internal traffic on the default network",
+        "direction": "INGRESS",
+        "priority": 65534,
+        "action": "ALLOW",
+        "disabled": false,
+        "creation_timestamp": "2023-01-15T10:30:00.000-08:00",
+        "labels": {},
+        "source_ranges": ["10.128.0.0/9"],
+        "destination_ranges": [],
+        "source_tags": [],
+        "target_tags": [],
+        "source_service_accounts": [],
+        "target_service_accounts": [],
+        "allowed_rules": [
+          {
+            "ip_protocol": "tcp",
+            "ports": ["0-65535"]
+          },
+          {
+            "ip_protocol": "udp",
+            "ports": ["0-65535"]
+          },
+          {
+            "ip_protocol": "icmp",
+            "ports": []
+          }
+        ],
+        "denied_rules": []
+      },
+      {
+        "name": "default-allow-ssh",
+        "description": "Allow SSH from anywhere",
+        "direction": "INGRESS",
+        "priority": 65534,
+        "action": "ALLOW",
+        "disabled": false,
+        "creation_timestamp": "2023-01-15T10:30:00.000-08:00",
+        "labels": {},
+        "source_ranges": ["0.0.0.0/0"],
+        "destination_ranges": [],
+        "source_tags": [],
+        "target_tags": [],
+        "source_service_accounts": [],
+        "target_service_accounts": [],
+        "allowed_rules": [
+          {
+            "ip_protocol": "tcp",
+            "ports": ["22"]
+          }
+        ],
+        "denied_rules": []
+      }
+    ],
+    "peerings": [],
+    "routes": [],
+    "subnet_count": 2,
+    "firewall_rules_count": 2,
+    "peerings_count": 0
+  },
+  {
+    "project_id": "my-gcp-project-1",
+    "name": "custom-vpc",
+    "description": "Custom VPC for application workloads",
+    "creation_timestamp": "2023-02-01T14:20:00.000-08:00",
+    "self_link": "https://www.googleapis.com/compute/v1/projects/my-gcp-project-1/global/networks/custom-vpc",
+    "auto_create_subnetworks": false,
+    "routing_mode": "GLOBAL",
+    "mtu": 1500,
+    "labels": {
+      "environment": "production",
+      "application": "web-app",
+      "cost-center": "engineering"
+    },
+    "subnets": [
+      {
+        "name": "web-subnet",
+        "region": "us-central1",
+        "ip_cidr_range": "10.0.1.0/24",
+        "gateway_address": "10.0.1.1",
+        "description": "Subnet for web servers",
+        "creation_timestamp": "2023-02-01T14:25:00.000-08:00",
+        "private_ip_google_access": true,
+        "enable_flow_logs": true,
+        "purpose": "PRIVATE",
+        "role": null,
+        "labels": {
+          "tier": "web",
+          "environment": "production"
+        },
+        "secondary_ip_ranges": [
+          {
+            "range_name": "gke-pods",
+            "ip_cidr_range": "10.1.0.0/16"
+          },
+          {
+            "range_name": "gke-services",
+            "ip_cidr_range": "10.2.0.0/20"
+          }
+        ]
+      },
+      {
+        "name": "db-subnet",
+        "region": "us-central1",
+        "ip_cidr_range": "10.0.2.0/24",
+        "gateway_address": "10.0.2.1",
+        "description": "Subnet for database servers",
+        "creation_timestamp": "2023-02-01T14:30:00.000-08:00",
+        "private_ip_google_access": true,
+        "enable_flow_logs": true,
+        "purpose": "PRIVATE",
+        "role": null,
+        "labels": {
+          "tier": "database",
+          "environment": "production"
+        },
+        "secondary_ip_ranges": []
+      }
+    ],
+    "firewall_rules": [
+      {
+        "name": "custom-allow-web",
+        "description": "Allow HTTP and HTTPS traffic",
+        "direction": "INGRESS",
+        "priority": 1000,
+        "action": "ALLOW",
+        "disabled": false,
+        "creation_timestamp": "2023-02-01T14:35:00.000-08:00",
+        "labels": {
+          "tier": "web"
+        },
+        "source_ranges": ["0.0.0.0/0"],
+        "destination_ranges": [],
+        "source_tags": [],
+        "target_tags": ["web-server"],
+        "source_service_accounts": [],
+        "target_service_accounts": [],
+        "allowed_rules": [
+          {
+            "ip_protocol": "tcp",
+            "ports": ["80", "443"]
+          }
+        ],
+        "denied_rules": []
+      },
+      {
+        "name": "custom-allow-db",
+        "description": "Allow database access from web tier",
+        "direction": "INGRESS",
+        "priority": 1100,
+        "action": "ALLOW",
+        "disabled": false,
+        "creation_timestamp": "2023-02-01T14:40:00.000-08:00",
+        "labels": {
+          "tier": "database"
+        },
+        "source_ranges": [],
+        "destination_ranges": [],
+        "source_tags": ["web-server"],
+        "target_tags": ["db-server"],
+        "source_service_accounts": [],
+        "target_service_accounts": [],
+        "allowed_rules": [
+          {
+            "ip_protocol": "tcp",
+            "ports": ["3306", "5432"]
+          }
+        ],
+        "denied_rules": []
+      },
+      {
+        "name": "custom-deny-all",
+        "description": "Deny all other traffic",
+        "direction": "INGRESS",
+        "priority": 65534,
+        "action": "DENY",
+        "disabled": false,
+        "creation_timestamp": "2023-02-01T14:45:00.000-08:00",
+        "labels": {},
+        "source_ranges": ["0.0.0.0/0"],
+        "destination_ranges": [],
+        "source_tags": [],
+        "target_tags": [],
+        "source_service_accounts": [],
+        "target_service_accounts": [],
+        "allowed_rules": [],
+        "denied_rules": [
+          {
+            "ip_protocol": "all",
+            "ports": []
+          }
+        ]
+      }
+    ],
+    "peerings": [
+      {
+        "name": "peer-to-shared-vpc",
+        "network": "projects/shared-services/global/networks/shared-vpc",
+        "state": "ACTIVE",
+        "auto_create_routes": true,
+        "exchange_subnet_routes": true
+      }
+    ],
+    "routes": [],
+    "subnet_count": 2,
+    "firewall_rules_count": 3,
+    "peerings_count": 1
+  },
+  {
+    "project_id": "my-gcp-project-2",
+    "name": "legacy-network",
+    "description": "Legacy network with IPv4 range",
+    "creation_timestamp": "2022-12-01T09:15:00.000-08:00",
+    "self_link": "https://www.googleapis.com/compute/v1/projects/my-gcp-project-2/global/networks/legacy-network",
+    "auto_create_subnetworks": false,
+    "routing_mode": "REGIONAL",
+    "mtu": 1460,
+    "ipv4_range": "10.240.0.0/16",
+    "labels": {
+      "legacy": "true",
+      "migration-candidate": "true"
+    },
+    "subnets": [],
+    "firewall_rules": [
+      {
+        "name": "legacy-allow-internal",
+        "description": "Allow internal traffic on legacy network",
+        "direction": "INGRESS",
+        "priority": 65534,
+        "action": "ALLOW",
+        "disabled": false,
+        "creation_timestamp": "2022-12-01T09:20:00.000-08:00",
+        "labels": {},
+        "source_ranges": ["10.240.0.0/16"],
+        "destination_ranges": [],
+        "source_tags": [],
+        "target_tags": [],
+        "source_service_accounts": [],
+        "target_service_accounts": [],
+        "allowed_rules": [
+          {
+            "ip_protocol": "tcp",
+            "ports": ["0-65535"]
+          },
+          {
+            "ip_protocol": "udp",
+            "ports": ["0-65535"]
+          },
+          {
+            "ip_protocol": "icmp",
+            "ports": []
+          }
+        ],
+        "denied_rules": []
+      }
+    ],
+    "peerings": [],
+    "routes": [],
+    "subnet_count": 0,
+    "firewall_rules_count": 1,
+    "peerings_count": 0
+  }
+]

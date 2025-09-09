@@ -11,9 +11,9 @@ import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from src.ic.config.manager import ConfigManager
-from src.ic.config.security import SecurityManager
-from src.ic.core.logging import ICLogger
+from ic.config.manager import ConfigManager
+from ic.config.security import SecurityManager
+from ic.core.logging import ICLogger
 
 
 class TestCLIIntegration:
@@ -76,7 +76,7 @@ class TestCLIIntegration:
             config_file = Path(temp_dir) / 'config.yaml'
             
             # Test config initialization
-            from src.ic.commands.config import init_config
+            from ic.commands.config import init_config
             
             with patch('src.ic.config.manager.ConfigManager') as mock_manager_class:
                 mock_manager = Mock()
@@ -93,7 +93,7 @@ class TestCLIIntegration:
         config_file = self.create_temp_config_file(self.test_config)
         
         try:
-            from src.ic.commands.config import validate_config
+            from ic.commands.config import validate_config
             
             # Test valid configuration
             errors = validate_config(config_file)
@@ -129,7 +129,7 @@ IC_LOG_LEVEL=DEBUG
                 f.write(env_content)
             
             # Test migration command
-            from src.ic.commands.config import migrate_config
+            from ic.commands.config import migrate_config
             
             yaml_config_file = Path(temp_dir) / 'config.yaml'
             

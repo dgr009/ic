@@ -6,6 +6,7 @@ from typing import Dict, List, Optional, Tuple
 from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
+from ic.config.manager import ConfigManager
 
 console = Console()
 
@@ -16,6 +17,9 @@ class GCPConfigValidator:
         self.errors = []
         self.warnings = []
         self.suggestions = []
+        self.config_manager = ConfigManager()
+        self.config = self.config_manager.get_config()
+        self.gcp_config = self.config.get('gcp', {})
     
     def validate_config(self) -> Tuple[bool, List[str], List[str]]:
         """GCP 설정을 검증하고 오류/경고/제안사항을 반환"""
@@ -46,8 +50,9 @@ class GCPConfigValidator:
     
     def _validate_mcp_config(self):
         """MCP 서버 설정 검증"""
-        mcp_enabled = os.getenv('MCP_GCP_ENABLED', 'false').lower() == 'true'
-        prefer_mcp = os.getenv('GCP_PREFER_MCP', 'true').lower() == 'true'
+        mcp_config = self.config.get('mcp', {})
+        mcp_enabled = str(mcp_config.get('gcp_enabled', os.getenv('MCP_GCP_ENABLED', 'false'))).lower() == 'true'
+        prefer_mcp = str(self.gcp_config.get('prefer_mcp', os.getenv('GCP_PREFER_MCP', 'true'))).lower() == 'true'
         
         if prefer_mcp and not mcp_enabled:
             self.warnings.append(
@@ -56,13 +61,13 @@ class GCPConfigValidator:
             )
         
         if mcp_enabled:
-            endpoint = os.getenv('MCP_GCP_ENDPOINT')
+            endpoint = mcp_config.get('gcp_endpoint', os.getenv('MCP_GCP_ENDPOINT'))
             if not endpoint:
                 self.errors.append(
                     "MCP_GCP_ENDPOINT is required when MCP_GCP_ENABLED=true"
                 )
             
-            auth_method = os.getenv('MCP_GCP_AUTH_METHOD')
+            auth_method = mcp_config.get('gcp_auth_method', os.getenv('MCP_GCP_AUTH_METHOD'))
             if auth_method and auth_method not in ['service_account', 'adc', 'gcloud']:
                 self.errors.append(
                     f"Invalid MCP_GCP_AUTH_METHOD: {auth_method}. "
@@ -71,9 +76,9 @@ class GCPConfigValidator:
     
     def _validate_authentication(self):
         """인증 설정 검증"""
-        service_account_path = os.getenv('GCP_SERVICE_ACCOUNT_KEY_PATH')
-        service_account_key = os.getenv('GCP_SERVICE_ACCOUNT_KEY')
-        google_credentials = os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+        service_account_path = self.gcp_config.get('service_account_key_path', os.getenv('GCP_SERVICE_ACCOUNT_KEY_PATH'))
+        service_account_key = self.gcp_config.get('service_account_key', os.getenv('GCP_SERVICE_ACCOUNT_KEY'))
+        google_credentials = self.gcp_config.get('google_application_credentials', os.getenv('GOOGLE_APPLICATION_CREDENTIALS'))
         
         auth_methods = [service_account_path, service_account_key, google_credentials]
         available_methods = [method for method in auth_methods if method]
@@ -117,8 +122,8 @@ class GCPConfigValidator:
     
     def _validate_project_config(self):
         """프로젝트 설정 검증"""
-        projects = os.getenv('GCP_PROJECTS')
-        default_project = os.getenv('GCP_DEFAULT_PROJECT')
+        projects = self.gcp_config.get('projects', os.getenv('GCP_PROJECTS'))
+        default_project = self.gcp_config.get('default_project', os.getenv('GCP_DEFAULT_PROJECT'))
         
         if projects:
             project_list = [p.strip() for p in projects.split(',')]
@@ -139,8 +144,8 @@ class GCPConfigValidator:
     
     def _validate_regional_config(self):
         """지역 설정 검증"""
-        regions = os.getenv('GCP_REGIONS')
-        zones = os.getenv('GCP_ZONES')
+        regions = self.gcp_config.get('regions', os.getenv('GCP_REGIONS'))
+        zones = self.gcp_config.get('zones', os.getenv('GCP_ZONES'))
         
         if regions:
             region_list = [r.strip() for r in regions.split(',')]
@@ -164,9 +169,9 @@ class GCPConfigValidator:
     
     def _validate_performance_config(self):
         """성능 설정 검증"""
-        max_workers = os.getenv('GCP_MAX_WORKERS', '10')
-        request_timeout = os.getenv('GCP_REQUEST_TIMEOUT', '30')
-        retry_attempts = os.getenv('GCP_RETRY_ATTEMPTS', '3')
+        max_workers = str(self.gcp_config.get('max_workers', os.getenv('GCP_MAX_WORKERS', '10')))
+        request_timeout = str(self.gcp_config.get('request_timeout', os.getenv('GCP_REQUEST_TIMEOUT', '30')))
+        retry_attempts = str(self.gcp_config.get('retry_attempts', os.getenv('GCP_RETRY_ATTEMPTS', '3')))
         
         try:
             workers = int(max_workers)
@@ -212,7 +217,9 @@ class GCPConfigValidator:
         
         disabled_services = []
         for env_var, service_name in service_configs.items():
-            enabled = os.getenv(env_var, 'true').lower() == 'true'
+            # 환경변수 이름을 설정 키로 변환 (GCP_ENABLE_COMPUTE_API -> enable_compute_api)
+            config_key = env_var.lower().replace('gcp_', '').replace('_api', '_api')
+            enabled = str(self.gcp_config.get(config_key, os.getenv(env_var, 'true'))).lower() == 'true'
             if not enabled:
                 disabled_services.append(service_name)
         

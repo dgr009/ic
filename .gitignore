@@ -1,15 +1,32 @@
-# Byte-compiled / optimized / DLL files
+# Configuration files with sensitive data
+.env
+.env.local
+.env.*.local
+config/secrets.yaml
+.kiro
+.cursor
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-.cursor/
-.cursor
-.cursor/*
-.kiro/*
-# C extensions
 *.so
-
-# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -27,11 +44,9 @@ share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
-MANIFEST
+PYTHON
 
 # PyInstaller
-#  Usually these files are written by a python script from a template
-#  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
 
@@ -54,29 +69,19 @@ coverage.xml
 .pytest_cache/
 cover/
 
-# Translations
-*.mo
-*.pot
-
-# Django stuff:
-*.log
-local_settings.py
-db.sqlite3
-db.sqlite3-journal
-
-# Flask stuff:
-instance/
-.webassets-cache
-
-# Scrapy stuff:
-.scrapy
-
-# Sphinx documentation
-docs/_build/
-
-# PyBuilder
-.pybuilder/
-target/
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+ic-new-env/
+*-env/
+venv_test
+tests
+examples
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -86,58 +91,20 @@ profile_default/
 ipython_config.py
 
 # pyenv
-#   For a library or package, you might want to ignore these files since the code is
-#   intended to run in multiple environments; otherwise, check them in:
-# .python-version
+.python-version
 
 # pipenv
-#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
-#   However, in case of collaboration, if having platform-specific dependencies or dependencies
-#   having no cross-platform support, pipenv may install dependencies that don't work, or not
-#   install all needed dependencies.
-#Pipfile.lock
-
-# UV
-#   Similar to Pipfile.lock, it is generally recommended to include uv.lock in version control.
-#   This is especially recommended for binary packages to ensure reproducibility, and is more
-#   commonly ignored for libraries.
-#uv.lock
+Pipfile.lock
 
 # poetry
-#   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
-#   This is especially recommended for binary packages to ensure reproducibility, and is more
-#   commonly ignored for libraries.
-#   https://python-poetry.org/docs/basic-usage/#commit-your-poetrylock-file-to-version-control
-#poetry.lock
+poetry.lock
 
-# pdm
-#   Similar to Pipfile.lock, it is generally recommended to include pdm.lock in version control.
-#pdm.lock
-#   pdm stores project-wide configurations in .pdm.toml, but it is recommended to not include it
-#   in version control.
-#   https://pdm.fming.dev/latest/usage/project/#working-with-version-control
-.pdm.toml
-.pdm-python
-.pdm-build/
-
-# PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
-__pypackages__/
-
-# Celery stuff
+# Celery
 celerybeat-schedule
 celerybeat.pid
 
 # SageMath parsed files
 *.sage.py
-
-# Environments
-.env
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
 
 # Spyder project settings
 .spyderproject
@@ -164,187 +131,54 @@ dmypy.json
 cython_debug/
 
 # PyCharm
-#  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
-#  be found at https://github.com/github/gitignore/blob/main/Global/JetBrains.gitignore
-#  and can be added to the global gitignore or merged into this file.  For a more nuclear
-#  option (not recommended) you can uncomment the following to ignore the entire idea folder.
-#.idea/
+.idea/
 
-# Ruff stuff:
-.ruff_cache/
-
-# PyPI configuration file
-.pypirc
+# AWS credentials
+.aws/
 
 # Logs
 logs/
 *.log
+
+# Temporary files
+tmp/
+temp/
+
+# Local development
+local/
+
+# Test outputs
+test-results/
+
+# Coverage reports
+.coverage
+htmlcov/
+
+# Pytest
+.pytest_cache/
+
+# Node.js (if any)
+node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-**/logs
 
-# OS 시스템 파일
-.DS_Store
-Thumbs.db
+# Package files
+*.tar.gz
+*.zip
 
-# 환경 설정 파일
-.env
-.env.local
-.env.*.local
+# Database
+*.db
+*.sqlite
+*.sqlite3
 
-# node_modules
-node_modules/
-jspm_packages/
+# Cache
+.cache/
 
-# 빌드 결과물
-dist/
-build/
-tmp/
-out/
-coverage/
-
-# IDE/Editor 설정 파일
-.vscode/
-.idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-
-# Dependency 디렉토리
-vendor/
-composer.lock
-
-# Python 관련 파일
-*.py[cod]
-__pycache__/
-*.egg-info/
-.eggs/
-
-# Java 관련 파일
-*.class
-*.jar
-*.war
-*.ear
-
-# MacOS 관련 파일
-*.DS_Store
-
-# 기타 사용자 설정 파일
-*.iml
-*.sublime-project
-*.sublime-workspace
-
-# 임시 파일
-*.swp
-*.bak
-*.tmp
-
-# Docker 관련 파일
-docker-compose.override.yml
-
-# Terraform 관련 파일
-.terraform/
-*.tfstate
-*.tfstate.backup
-
-# Ansible 관련 파일
-*.retry
-
-# IC Configuration - Security
-config.yaml
-config.yml
-.env
-.env.*
-*.key
-*.pem
-**/credentials.json
-**/service-account*.json
-logs/
-.ic/
-
-# AWS credentials and configuration
-.aws/credentials
-aws-key/
-*.pem
-
-# GCP credentials
-gcp-key/
-**/gcp-*.json
-service-account*.json
-*-key.json
-
-# Azure credentials
-.azure/
-*.pfx
-*.p12
-
-# OCI credentials
-.oci/config
-.oci/sessions/
-
-# SSH keys and configuration
-id_rsa*
-*.ppk
-known_hosts
-
-# CloudFlare credentials
-.cloudflare/
-
-# Slack webhooks and tokens
-slack-*.json
-
-# Temporary and backup files
-*.tmp
-*.temp
-*.bak
-*.backup
-*~
-
-# Excel and data files (may contain sensitive info)
-excel/
-backup/
-*.xlsx
-*.xls
-*.csv
-
-# JSON files (may contain credentials)
-*.json
-!package.json
-!package-lock.json
-!pyproject.toml
-!config/schema.json
-!config/default.yaml
-!config/*.example.*
-
-# Specific IC exclusions
-ic.egg-info/
-.ic/
-logs/
-*.log
-
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-
-# Thumbnails
-._*
-
-# Files that might appear in the root of a volume
-.DocumentRevisions-V100
-.fseventsd
-.Spotlight-V100
-.TemporaryItems
-.Trashes
-.VolumeIcon.icns
-.com.apple.timemachine.donotpresent
-
-# Directories potentially created on remote AFP share
-.AppleDB
-.AppleDesktop
-Network Trash Folder
-Temporary Items
-.apdisk
-
+# Local configuration overrides
+local_config.yaml
+local_secrets.yaml
+backup
+backup/*
+activate_new_env.sh
+CHANGELOG.md

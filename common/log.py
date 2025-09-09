@@ -8,7 +8,7 @@ from rich.table import Table, box
 
 # Try to import the new logging system, fallback to old system if not available
 try:
-    from src.ic.core.logging import get_logger
+    from ic.core.logging import get_logger
     NEW_LOGGING_AVAILABLE = True
 except ImportError:
     NEW_LOGGING_AVAILABLE = False
@@ -214,7 +214,7 @@ def init_logging_with_config(config):
     global ic_logger, logger
     
     if NEW_LOGGING_AVAILABLE:
-        from src.ic.core.logging import init_logger
+        from ic.core.logging import init_logger
         ic_logger = init_logger(config)
         logger = ic_logger.get_logger()
         return ic_logger

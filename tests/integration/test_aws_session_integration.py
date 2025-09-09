@@ -14,8 +14,8 @@ from unittest.mock import Mock, patch, MagicMock
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 
-from src.ic.core.session import AWSSessionManager, ProfileInfo
-from src.ic.core.logging import ICLogger
+from ic.core.session import AWSSessionManager, ProfileInfo
+from ic.core.logging import ICLogger
 
 
 class TestAWSSessionIntegration:

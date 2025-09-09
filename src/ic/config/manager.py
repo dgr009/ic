@@ -5,6 +5,7 @@ This module provides configuration loading, validation, and management functiona
 """
 
 import os
+import time
 import yaml
 import json
 import shutil
@@ -14,6 +15,9 @@ from pathlib import Path
 import logging
 
 from .security import SecurityManager
+from .secrets import SecretsManager
+from .external import ExternalConfigLoader
+from .migration import MigrationManager
 
 logger = logging.getLogger(__name__)
 
@@ -23,11 +27,33 @@ class ConfigManager:
     Manages configuration loading and validation for IC.
     """
     
+    
+    # 성능 최적화: 설정 캐시
+    _config_cache = None
+    _cache_timestamp = None
+    _cache_ttl = 300  # 5분 캐시
+    
+    def _is_cache_valid(self):
+        """캐시 유효성 검사"""
+        if self._config_cache is None or self._cache_timestamp is None:
+            return False
+        return (time.time() - self._cache_timestamp) < self._cache_ttl
+    
+    def _update_cache(self, config):
+        """캐시 업데이트"""
+        self._config_cache = config
+        self._cache_timestamp = time.time()
+
     def __init__(self, security_manager: Optional[SecurityManager] = None):
         """Initialize ConfigManager with optional SecurityManager integration."""
         self.config_data: Dict[str, Any] = {}
+        self.secrets_data: Dict[str, Any] = {}
+        self.external_configs: Dict[str, Any] = {}
         self.config_sources: List[str] = []
         self.security_manager = security_manager
+        self.secrets_manager = SecretsManager(self)
+        self.external_loader = ExternalConfigLoader(self)
+        self.migration_manager = MigrationManager(self)
         self._backup_dir = Path.home() / ".ic" / "backups"
     
     def load_config(self, config_paths: Optional[List[Union[str, Path]]] = None) -> Dict[str, Any]:
@@ -67,12 +93,12 @@ class ConfigManager:
             config = self._merge_configs(config, env_config)
             self.config_sources.append("environment")
         
-        # Validate security if SecurityManager is available
+        # Validate security if SecurityManager is available (log to file only)
         if self.security_manager:
             security_warnings = self.security_manager.validate_config_security(config)
             if security_warnings:
                 for warning in security_warnings:
-                    logger.warning(f"Security warning: {warning}")
+                    logger.debug(f"Security warning: {warning}")  # Changed to debug level
         
         self.config_data = config
         return config
@@ -601,4 +627,272 @@ class ConfigManager:
                 logger.debug(f"Removed old backup: {backup_file}")
                 
         except Exception as e:
-            logger.warning(f"Failed to cleanup old backups: {e}")
+            logger.warning(f"Failed to cleanup old backups: {e}")    
+
+    def load_all_configs(self) -> Dict[str, Any]:
+        """
+        Load all configurations including secrets and external configs.
+        
+        Returns:
+            Merged configuration dictionary
+        """
+        # Load base configuration
+        config = self.load_config()
+        
+        # Load secrets configuration
+        secrets = self.load_secrets_config()
+        if secrets:
+            config = self._merge_configs(config, secrets)
+            self.config_sources.append("secrets")
+        
+        # Load external configurations
+        external = self.load_external_configs()
+        if external:
+            self.external_configs = external
+            self.config_sources.append("external")
+        
+        self.config_data = config
+        return config
+    
+    def load_secrets_config(self) -> Dict[str, Any]:
+        """
+        Load secrets configuration using SecretsManager.
+        
+        Returns:
+            Secrets configuration dictionary
+        """
+        secrets_config = self.secrets_manager.load_secrets()
+        self.secrets_data = secrets_config
+        return secrets_config
+    
+    def _load_secrets_from_env(self) -> Dict[str, Any]:
+        """
+        Load sensitive configuration from environment variables.
+        
+        Returns:
+            Environment-based secrets configuration
+        """
+        env_secrets = {}
+        
+        # AWS secrets
+        aws_accounts = os.getenv('AWS_ACCOUNTS')
+        if aws_accounts:
+            self._set_nested_value(env_secrets, ['aws', 'accounts'], 
+                                 [acc.strip() for acc in aws_accounts.split(',') if acc.strip()])
+        
+        # CloudFlare secrets
+        cf_email = os.getenv('CLOUDFLARE_EMAIL')
+        cf_token = os.getenv('CLOUDFLARE_API_TOKEN')
+        cf_accounts = os.getenv('CLOUDFLARE_ACCOUNTS')
+        cf_zones = os.getenv('CLOUDFLARE_ZONES')
+        
+        if any([cf_email, cf_token, cf_accounts, cf_zones]):
+            cf_config = {}
+            if cf_email:
+                cf_config['email'] = cf_email
+            if cf_token:
+                cf_config['api_token'] = cf_token
+            if cf_accounts:
+                cf_config['accounts'] = [acc.strip() for acc in cf_accounts.split(',') if acc.strip()]
+            if cf_zones:
+                cf_config['zones'] = [zone.strip() for zone in cf_zones.split(',') if zone.strip()]
+            env_secrets['cloudflare'] = cf_config
+        
+        # GCP secrets
+        gcp_key_path = os.getenv('GCP_SERVICE_ACCOUNT_KEY_PATH') or os.getenv('GOOGLE_APPLICATION_CREDENTIALS')
+        gcp_projects = os.getenv('GCP_PROJECTS')
+        
+        if gcp_key_path or gcp_projects:
+            gcp_config = {}
+            if gcp_key_path:
+                gcp_config['service_account_key_path'] = gcp_key_path
+            if gcp_projects:
+                gcp_config['projects'] = [proj.strip() for proj in gcp_projects.split(',') if proj.strip()]
+            env_secrets['gcp'] = gcp_config
+        
+        # Azure secrets
+        azure_tenant = os.getenv('AZURE_TENANT_ID')
+        azure_client_id = os.getenv('AZURE_CLIENT_ID')
+        azure_client_secret = os.getenv('AZURE_CLIENT_SECRET')
+        azure_subscriptions = os.getenv('AZURE_SUBSCRIPTIONS')
+        
+        if any([azure_tenant, azure_client_id, azure_client_secret, azure_subscriptions]):
+            azure_config = {}
+            if azure_tenant:
+                azure_config['tenant_id'] = azure_tenant
+            if azure_client_id:
+                azure_config['client_id'] = azure_client_id
+            if azure_client_secret:
+                azure_config['client_secret'] = azure_client_secret
+            if azure_subscriptions:
+                azure_config['subscriptions'] = [sub.strip() for sub in azure_subscriptions.split(',') if sub.strip()]
+            env_secrets['azure'] = azure_config
+        
+        # Slack secrets
+        slack_webhook = os.getenv('SLACK_WEBHOOK_URL')
+        if slack_webhook:
+            env_secrets['slack'] = {'webhook_url': slack_webhook}
+        
+        return env_secrets
+    
+    def load_external_configs(self) -> Dict[str, Any]:
+        """
+        Load external configuration files using ExternalConfigLoader.
+        
+        Returns:
+            External configurations dictionary
+        """
+        external_configs = self.external_loader.load_all_external_configs()
+        self.external_configs = external_configs
+        return external_configs
+    
+    def _load_aws_config(self) -> Dict[str, Any]:
+        """Load AWS configuration from ~/.aws/config and ~/.aws/credentials"""
+        aws_config = {}
+        
+        # Load AWS config file
+        aws_config_path = Path.home() / ".aws" / "config"
+        if aws_config_path.exists():
+            try:
+                import configparser
+                config = configparser.ConfigParser()
+                config.read(aws_config_path)
+                
+                profiles = {}
+                for section_name in config.sections():
+                    if section_name.startswith('profile '):
+                        profile_name = section_name.split('profile ')[1]
+                        profiles[profile_name] = dict(config[section_name])
+                    elif section_name == 'default':
+                        profiles['default'] = dict(config[section_name])
+                
+                if profiles:
+                    aws_config['profiles'] = profiles
+                    
+            except Exception as e:
+                logger.warning(f"Failed to load AWS config: {e}")
+        
+        # Load AWS credentials file
+        aws_creds_path = Path.home() / ".aws" / "credentials"
+        if aws_creds_path.exists():
+            try:
+                import configparser
+                config = configparser.ConfigParser()
+                config.read(aws_creds_path)
+                
+                credentials = {}
+                for section_name in config.sections():
+                    credentials[section_name] = dict(config[section_name])
+                
+                if credentials:
+                    aws_config['credentials'] = credentials
+                    
+            except Exception as e:
+                logger.warning(f"Failed to load AWS credentials: {e}")
+        
+        return aws_config
+    
+    def _load_oci_config(self) -> Dict[str, Any]:
+        """Load OCI configuration from ~/.oci/config"""
+        oci_config = {}
+        
+        oci_config_path = Path.home() / ".oci" / "config"
+        if oci_config_path.exists():
+            try:
+                import configparser
+                config = configparser.ConfigParser()
+                config.read(oci_config_path)
+                
+                profiles = {}
+                for section_name in config.sections():
+                    profiles[section_name] = dict(config[section_name])
+                
+                if profiles:
+                    oci_config['profiles'] = profiles
+                    
+            except Exception as e:
+                logger.warning(f"Failed to load OCI config: {e}")
+        
+        return oci_config
+    
+    def _load_ssh_config(self) -> Dict[str, Any]:
+        """Load SSH configuration from ~/.ssh/config"""
+        ssh_config = {}
+        
+        ssh_config_path = Path.home() / ".ssh" / "config"
+        if ssh_config_path.exists():
+            try:
+                hosts = {}
+                current_host = None
+                
+                with open(ssh_config_path, 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith('#'):
+                            continue
+                        
+                        if line.lower().startswith('host '):
+                            current_host = line.split(' ', 1)[1]
+                            hosts[current_host] = {}
+                        elif current_host and ' ' in line:
+                            key, value = line.split(' ', 1)
+                            hosts[current_host][key.lower()] = value
+                
+                if hosts:
+                    ssh_config['hosts'] = hosts
+                    
+            except Exception as e:
+                logger.warning(f"Failed to load SSH config: {e}")
+        
+        return ssh_config
+    
+    def _load_cloudflare_config(self) -> Dict[str, Any]:
+        """Load CloudFlare configuration if exists"""
+        cf_config = {}
+        
+        # Check for CloudFlare config in various locations
+        possible_paths = [
+            Path.home() / ".cloudflare" / "config",
+            Path.home() / ".cloudflare" / "config.yaml",
+            Path("config") / "cloudflare.yaml"
+        ]
+        
+        for cf_path in possible_paths:
+            if cf_path.exists():
+                try:
+                    if cf_path.suffix.lower() in ['.yaml', '.yml']:
+                        cf_config = self._load_config_file(cf_path)
+                    else:
+                        # Try to parse as simple key=value format
+                        with open(cf_path, 'r') as f:
+                            for line in f:
+                                line = line.strip()
+                                if '=' in line and not line.startswith('#'):
+                                    key, value = line.split('=', 1)
+                                    cf_config[key.strip()] = value.strip()
+                    break
+                except Exception as e:
+                    logger.warning(f"Failed to load CloudFlare config from {cf_path}: {e}")
+        
+        return cf_config
+    
+    def migrate_from_env(self, env_file_path: str = ".env", force: bool = False) -> bool:
+        """
+        Migrate configuration from .env file to YAML format using MigrationManager.
+        
+        Args:
+            env_file_path: Path to the .env file
+            force: Force migration even if YAML files already exist
+            
+        Returns:
+            True if migration was successful
+        """
+        return self.migration_manager.migrate_env_to_yaml(env_file_path, force)
+    
+    def invalidate_cache(self):
+        """캐시를 무효화합니다."""
+        self._config_cache = None
+        self._env_cache = None
+        self._cache_timestamp = 0
+        self._file_timestamps.clear()
+        logger.debug("Configuration cache invalidated")

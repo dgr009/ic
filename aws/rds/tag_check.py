@@ -2,7 +2,6 @@
 
 import os
 import re
-from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from common.log import log_info, log_error, log_exception, log_decorator
 from common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
@@ -10,28 +9,53 @@ from rich.console import Console
 from rich.table import Table
 from common.slack import send_slack_blocks_table_with_color
 
-load_dotenv()
+# 새로운 설정 시스템 import
+try:
+    from ic.config.manager import ConfigManager
+    config_manager = ConfigManager()
+    config = config_manager.get_config()
+except ImportError:
+    # 호환성을 위한 fallback
+    from dotenv import load_dotenv
+    load_dotenv()
+    config = {}
+
 console = Console()
 
-# 기본 하드코딩 + .env 결합 (예시)
-DEFAULT_REQUIRED_KEYS = ["User", "Team", "Environment"]
-DEFAULT_RULES = {
-    "User": r"^.+$",
-    "Team": r"^\d+$",
-    "Environment": r"^(PROD|STG|DEV|TEST|QA)$"
-}
+def get_tag_validation_config():
+    """설정에서 태그 검증 규칙을 가져옵니다."""
+    if config and 'aws' in config and 'tags' in config['aws']:
+        aws_tags = config['aws']['tags']
+        required_keys = aws_tags.get('required', ['User', 'Team', 'Environment'])
+        rules = aws_tags.get('rules', {
+            'User': r'^.+$',
+            'Team': r'^\d+$',
+            'Environment': r'^(PROD|STG|DEV|TEST|QA)$'
+        })
+    else:
+        # Fallback to environment variables
+        DEFAULT_REQUIRED_KEYS = ["User", "Team", "Environment"]
+        DEFAULT_RULES = {
+            "User": r"^.+$",
+            "Team": r"^\d+$",
+            "Environment": r"^(PROD|STG|DEV|TEST|QA)$"
+        }
+        
+        env_required = os.getenv("REQUIRED_TAGS", "")
+        env_required_list = [t.strip() for t in env_required.split(",") if t.strip()]
+        
+        ENV_RULES = {}
+        for k in env_required_list:
+            env_key = f"RULE_{k.upper()}"
+            if env_key in os.environ:
+                ENV_RULES[k] = os.environ[env_key]
+        
+        required_keys = sorted(set(DEFAULT_REQUIRED_KEYS + env_required_list))
+        rules = {**DEFAULT_RULES, **ENV_RULES}
+    
+    return required_keys, rules
 
-env_required = os.getenv("REQUIRED_TAGS", "")
-env_required_list = [t.strip() for t in env_required.split(",") if t.strip()]
-
-ENV_RULES = {}
-for k in env_required_list:
-    env_key = f"RULE_{k.upper()}"
-    if env_key in os.environ:
-        ENV_RULES[k] = os.environ[env_key]
-
-REQUIRED_KEYS = sorted(set(DEFAULT_REQUIRED_KEYS + env_required_list))
-RULES = {**DEFAULT_RULES, **ENV_RULES}
+REQUIRED_KEYS, RULES = get_tag_validation_config()
 
 TABLE_HEADER = ["Account", "Region", "DBIdentifier", "Validation Results"]
 

@@ -1,23 +1,40 @@
 import os
-from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from common.log import log_info, log_error, log_exception, log_decorator
 from common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
 from rich.console import Console
 from rich.table import Table
 
-load_dotenv()
+# 새로운 설정 시스템 import
+try:
+    from ic.config.manager import ConfigManager
+    config_manager = ConfigManager()
+    config = config_manager.get_config()
+except ImportError:
+    # 호환성을 위한 fallback
+    from dotenv import load_dotenv
+    load_dotenv()
+    config = {}
 
 console = Console()
 
-# .env에서 태그 키 가져오기 (공통)
-env_required = os.getenv("REQUIRED_TAGS", "User,Team,Environment")
-env_optional = os.getenv("OPTIONAL_TAGS", "Service,Application")
+# 새로운 설정 시스템에서 태그 키 가져오기
+def get_tag_keys():
+    """설정에서 태그 키를 가져옵니다."""
+    if config and 'aws' in config and 'tags' in config['aws']:
+        aws_tags = config['aws']['tags']
+        required_tags = aws_tags.get('required', ['User', 'Team', 'Environment'])
+        optional_tags = aws_tags.get('optional', ['Service', 'Application'])
+    else:
+        # Fallback to environment variables
+        env_required = os.getenv("REQUIRED_TAGS", "User,Team,Environment")
+        env_optional = os.getenv("OPTIONAL_TAGS", "Service,Application")
+        required_tags = [t.strip() for t in env_required.split(",") if t.strip()]
+        optional_tags = [t.strip() for t in env_optional.split(",") if t.strip()]
+    
+    return required_tags + optional_tags
 
-# 리스트화
-required_tags = [t.strip() for t in env_required.split(",") if t.strip()]
-optional_tags = [t.strip() for t in env_optional.split(",") if t.strip()]
-TAG_KEYS = required_tags + optional_tags
+TAG_KEYS = get_tag_keys()
 
 @log_decorator
 def fetch_instance_tags(account_id, profile_name, region):

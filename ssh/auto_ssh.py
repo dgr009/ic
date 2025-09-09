@@ -12,7 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 import paramiko
 from paramiko.config import SSHConfig
 from tqdm import tqdm
-from dotenv import load_dotenv
+from ic.config.manager import ConfigManager
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.table import Table
@@ -20,13 +20,15 @@ from rich.prompt import Prompt, IntPrompt
 from pathlib import Path
 import logging
 
-def get_env_var(key, default=""):
-    """환경 변수를 가져오고 값에 포함된 주석을 제거합니다."""
-    value = os.getenv(key, default)
-    return str(value).split('#')[0].strip()
+# 설정 관리자 초기화
+_config_manager = ConfigManager()
+_config = _config_manager.load_all_configs()
+_ssh_config = _config.get('ssh', {})
 
-# 환경 변수 로딩
-load_dotenv()
+def get_config_var(key, default=""):
+    """설정에서 값을 가져오고 값에 포함된 주석을 제거합니다."""
+    value = _ssh_config.get(key.lower(), default)
+    return str(value).split('#')[0].strip()
 
 # 콘솔 및 로거 설정
 console = Console()
@@ -43,12 +45,12 @@ logging.basicConfig(
 logger = logging.getLogger("auto-ssh")
 logging.getLogger('paramiko').setLevel(logging.ERROR)
 
-# 환경 변수 설정
-DEFAULT_KEY_DIR = get_env_var("SSH_KEY_DIR", os.path.expanduser("~/aws-key"))
-SSH_CONFIG_FILE = get_env_var("SSH_CONFIG_FILE", os.path.expanduser("~/.ssh/config"))
-SSH_MAX_WORKER = int(get_env_var("SSH_MAX_WORKER", "70"))
-PORT_OPEN_TIMEOUT = float(get_env_var("PORT_OPEN_TIMEOUT", "0.5"))
-SSH_TIMEOUT = float(get_env_var("SSH_TIMEOUT", "3"))
+# SSH 설정
+DEFAULT_KEY_DIR = _ssh_config.get('key_dir', os.path.expanduser("~/aws-key"))
+SSH_CONFIG_FILE = _ssh_config.get('config_file', os.path.expanduser("~/.ssh/config"))
+SSH_MAX_WORKER = int(_ssh_config.get('workers', 70))
+PORT_OPEN_TIMEOUT = float(_ssh_config.get('port_timeout', 0.5))
+SSH_TIMEOUT = float(_ssh_config.get('timeout', 3))
 
 
 from rich.prompt import Prompt, Confirm

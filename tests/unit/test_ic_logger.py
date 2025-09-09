@@ -11,8 +11,8 @@ import pytest
 from pathlib import Path
 from unittest.mock import Mock, patch, mock_open, MagicMock
 
-from src.ic.core.logging import ICLogger, get_logger, init_logger
-from src.ic.config.security import SecurityManager
+from ic.core.logging import ICLogger, get_logger, init_logger
+from ic.config.security import SecurityManager
 
 
 class TestICLogger:

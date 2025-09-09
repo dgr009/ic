@@ -1,0 +1,330 @@
+[
+  {
+    "project_id": "my-gcp-project-1",
+    "name": "production-cluster",
+    "location": "us-central1-a",
+    "location_type": "ZONAL",
+    "status": "RUNNING",
+    "description": "Production GKE cluster",
+    "initial_cluster_version": "1.27.3-gke.100",
+    "current_master_version": "1.27.3-gke.100",
+    "current_node_version": "1.27.3-gke.100",
+    "create_time": "2024-01-15T10:30:00Z",
+    "endpoint": "https://34.123.45.67",
+    "initial_node_count": 3,
+    "current_node_count": 6,
+    "labels": {
+      "environment": "production",
+      "team": "platform"
+    },
+    "node_pools": [
+      {
+        "name": "default-pool",
+        "status": "RUNNING",
+        "initial_node_count": 3,
+        "node_count": 3,
+        "version": "1.27.3-gke.100",
+        "config": {
+          "machine_type": "e2-standard-4",
+          "disk_size_gb": 100,
+          "disk_type": "pd-standard",
+          "image_type": "COS_CONTAINERD",
+          "labels": {
+            "pool": "default"
+          },
+          "tags": ["gke-node"],
+          "preemptible": false,
+          "spot": false,
+          "oauth_scopes": [
+            "https://www.googleapis.com/auth/devstorage.read_only",
+            "https://www.googleapis.com/auth/logging.write",
+            "https://www.googleapis.com/auth/monitoring"
+          ],
+          "service_account": "default",
+          "metadata": {},
+          "local_ssd_count": 0,
+          "boot_disk_kms_key": "",
+          "min_cpu_platform": "",
+          "taints": []
+        },
+        "autoscaling": {
+          "enabled": true,
+          "min_node_count": 1,
+          "max_node_count": 5,
+          "total_min_node_count": 0,
+          "total_max_node_count": 0,
+          "location_policy": "BALANCED"
+        },
+        "management": {
+          "auto_upgrade": true,
+          "auto_repair": true,
+          "upgrade_options": {}
+        },
+        "max_pods_constraint": {
+          "max_pods_per_node": 110
+        },
+        "conditions": [],
+        "locations": ["us-central1-a"]
+      },
+      {
+        "name": "compute-pool",
+        "status": "RUNNING",
+        "initial_node_count": 2,
+        "node_count": 3,
+        "version": "1.27.3-gke.100",
+        "config": {
+          "machine_type": "c2-standard-8",
+          "disk_size_gb": 200,
+          "disk_type": "pd-ssd",
+          "image_type": "COS_CONTAINERD",
+          "labels": {
+            "pool": "compute",
+            "workload": "cpu-intensive"
+          },
+          "tags": ["gke-node", "compute"],
+          "preemptible": false,
+          "spot": true,
+          "oauth_scopes": [
+            "https://www.googleapis.com/auth/cloud-platform"
+          ],
+          "service_account": "compute-sa@my-gcp-project-1.iam.gserviceaccount.com",
+          "metadata": {
+            "disable-legacy-endpoints": "true"
+          },
+          "local_ssd_count": 1,
+          "boot_disk_kms_key": "",
+          "min_cpu_platform": "Intel Cascade Lake",
+          "taints": [
+            {
+              "key": "workload",
+              "value": "compute",
+              "effect": "NO_SCHEDULE"
+            }
+          ]
+        },
+        "autoscaling": {
+          "enabled": true,
+          "min_node_count": 0,
+          "max_node_count": 10,
+          "total_min_node_count": 0,
+          "total_max_node_count": 0,
+          "location_policy": "ANY"
+        },
+        "management": {
+          "auto_upgrade": false,
+          "auto_repair": true,
+          "upgrade_options": {}
+        },
+        "max_pods_constraint": {
+          "max_pods_per_node": 110
+        },
+        "conditions": [],
+        "locations": ["us-central1-a"]
+      }
+    ],
+    "addons_config": {
+      "http_load_balancing": false,
+      "horizontal_pod_autoscaling": false,
+      "kubernetes_dashboard": true,
+      "network_policy_config": false,
+      "istio_config": true,
+      "cloud_run_config": true
+    },
+    "network_config": {
+      "network": "projects/my-gcp-project-1/global/networks/default",
+      "subnetwork": "projects/my-gcp-project-1/regions/us-central1/subnetworks/default",
+      "enable_intra_node_visibility": false,
+      "default_snat_status": {},
+      "enable_l4_ilb_subsetting": false
+    },
+    "network": "projects/my-gcp-project-1/global/networks/default",
+    "subnetwork": "projects/my-gcp-project-1/regions/us-central1/subnetworks/default",
+    "cluster_ipv4_cidr": "10.4.0.0/14",
+    "services_ipv4_cidr": "10.0.0.0/20",
+    "master_auth": {
+      "username": "",
+      "client_certificate_config": {},
+      "cluster_ca_certificate": true
+    },
+    "logging_service": "logging.googleapis.com/kubernetes",
+    "monitoring_service": "monitoring.googleapis.com/kubernetes",
+    "maintenance_policy": {
+      "window": {},
+      "resource_version": ""
+    },
+    "autopilot": {
+      "enabled": false
+    },
+    "master_authorized_networks_enabled": false,
+    "private_cluster": false,
+    "ip_alias_enabled": true,
+    "node_pools_count": 2,
+    "total_nodes": 6
+  },
+  {
+    "project_id": "my-gcp-project-1",
+    "name": "staging-cluster",
+    "location": "us-central1",
+    "location_type": "REGIONAL",
+    "status": "RUNNING",
+    "description": "Staging environment cluster",
+    "initial_cluster_version": "1.26.5-gke.2100",
+    "current_master_version": "1.26.5-gke.2100",
+    "current_node_version": "1.26.5-gke.2100",
+    "create_time": "2024-01-10T14:20:00Z",
+    "endpoint": "https://35.123.45.68",
+    "initial_node_count": 1,
+    "current_node_count": 3,
+    "labels": {
+      "environment": "staging",
+      "team": "development"
+    },
+    "node_pools": [
+      {
+        "name": "default-pool",
+        "status": "RUNNING",
+        "initial_node_count": 1,
+        "node_count": 3,
+        "version": "1.26.5-gke.2100",
+        "config": {
+          "machine_type": "e2-medium",
+          "disk_size_gb": 50,
+          "disk_type": "pd-standard",
+          "image_type": "COS_CONTAINERD",
+          "labels": {
+            "pool": "default"
+          },
+          "tags": ["gke-node"],
+          "preemptible": true,
+          "spot": false,
+          "oauth_scopes": [
+            "https://www.googleapis.com/auth/devstorage.read_only",
+            "https://www.googleapis.com/auth/logging.write",
+            "https://www.googleapis.com/auth/monitoring"
+          ],
+          "service_account": "default",
+          "metadata": {},
+          "local_ssd_count": 0,
+          "boot_disk_kms_key": "",
+          "min_cpu_platform": "",
+          "taints": []
+        },
+        "autoscaling": {
+          "enabled": true,
+          "min_node_count": 1,
+          "max_node_count": 5,
+          "total_min_node_count": 0,
+          "total_max_node_count": 0,
+          "location_policy": "BALANCED"
+        },
+        "management": {
+          "auto_upgrade": true,
+          "auto_repair": true,
+          "upgrade_options": {}
+        },
+        "max_pods_constraint": {
+          "max_pods_per_node": 110
+        },
+        "conditions": [],
+        "locations": ["us-central1-a", "us-central1-b", "us-central1-c"]
+      }
+    ],
+    "addons_config": {
+      "http_load_balancing": false,
+      "horizontal_pod_autoscaling": false,
+      "kubernetes_dashboard": true,
+      "network_policy_config": true,
+      "istio_config": true,
+      "cloud_run_config": true
+    },
+    "network_config": {
+      "network": "projects/my-gcp-project-1/global/networks/staging-vpc",
+      "subnetwork": "projects/my-gcp-project-1/regions/us-central1/subnetworks/staging-subnet",
+      "enable_intra_node_visibility": true,
+      "default_snat_status": {},
+      "enable_l4_ilb_subsetting": false
+    },
+    "network": "projects/my-gcp-project-1/global/networks/staging-vpc",
+    "subnetwork": "projects/my-gcp-project-1/regions/us-central1/subnetworks/staging-subnet",
+    "cluster_ipv4_cidr": "10.8.0.0/14",
+    "services_ipv4_cidr": "10.12.0.0/20",
+    "master_auth": {
+      "username": "",
+      "client_certificate_config": {},
+      "cluster_ca_certificate": true
+    },
+    "logging_service": "logging.googleapis.com/kubernetes",
+    "monitoring_service": "monitoring.googleapis.com/kubernetes",
+    "maintenance_policy": {
+      "window": {},
+      "resource_version": ""
+    },
+    "autopilot": {
+      "enabled": false
+    },
+    "master_authorized_networks_enabled": true,
+    "private_cluster": true,
+    "ip_alias_enabled": true,
+    "node_pools_count": 1,
+    "total_nodes": 3
+  },
+  {
+    "project_id": "my-gcp-project-2",
+    "name": "autopilot-cluster",
+    "location": "us-east1",
+    "location_type": "REGIONAL",
+    "status": "RUNNING",
+    "description": "Autopilot cluster for microservices",
+    "initial_cluster_version": "1.27.8-gke.1067004",
+    "current_master_version": "1.27.8-gke.1067004",
+    "current_node_version": "1.27.8-gke.1067004",
+    "create_time": "2024-02-01T09:15:00Z",
+    "endpoint": "https://34.74.123.45",
+    "initial_node_count": 0,
+    "current_node_count": 0,
+    "labels": {
+      "environment": "production",
+      "team": "microservices",
+      "cluster-type": "autopilot"
+    },
+    "node_pools": [],
+    "addons_config": {
+      "http_load_balancing": false,
+      "horizontal_pod_autoscaling": false,
+      "kubernetes_dashboard": true,
+      "network_policy_config": false,
+      "istio_config": true,
+      "cloud_run_config": false
+    },
+    "network_config": {
+      "network": "projects/my-gcp-project-2/global/networks/prod-vpc",
+      "subnetwork": "projects/my-gcp-project-2/regions/us-east1/subnetworks/prod-subnet",
+      "enable_intra_node_visibility": true,
+      "default_snat_status": {},
+      "enable_l4_ilb_subsetting": true
+    },
+    "network": "projects/my-gcp-project-2/global/networks/prod-vpc",
+    "subnetwork": "projects/my-gcp-project-2/regions/us-east1/subnetworks/prod-subnet",
+    "cluster_ipv4_cidr": "10.16.0.0/14",
+    "services_ipv4_cidr": "10.20.0.0/20",
+    "master_auth": {
+      "username": "",
+      "client_certificate_config": {},
+      "cluster_ca_certificate": true
+    },
+    "logging_service": "logging.googleapis.com/kubernetes",
+    "monitoring_service": "monitoring.googleapis.com/kubernetes",
+    "maintenance_policy": {
+      "window": {},
+      "resource_version": ""
+    },
+    "autopilot": {
+      "enabled": true
+    },
+    "master_authorized_networks_enabled": true,
+    "private_cluster": true,
+    "ip_alias_enabled": true,
+    "node_pools_count": 0,
+    "total_nodes": 0
+  }
+]

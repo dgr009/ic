@@ -64,46 +64,68 @@ setup(
         "Configuration Guide": "https://github.com/dgr009/ic/blob/main/docs/configuration.md",
         "Migration Guide": "https://github.com/dgr009/ic/blob/main/docs/migration.md",
     },
-    packages=find_packages(where="src"),
+    packages=find_packages(where="src") + find_packages(include=["aws*", "azure_module*", "gcp*", "oci_module*", "ssh*", "cf*", "common*", "mcp*"]),
     package_dir={"": "src"},
     package_data={
         "ic": ["config/*.yaml", "config/*.json", "config/examples/*.yaml"],
     },
     install_requires=[
-        "boto3>=1.26.0",
-        "oci>=2.100.0",
-        "requests>=2.28.0",
-        "paramiko>=2.11.0",
-        "rich>=12.0.0",
-        "InquirerPy>=0.3.0",
-        "tqdm>=4.64.0",
-        "python-dotenv>=0.19.0",
-        "python-dateutil>=2.8.0",
-        "kubernetes>=24.0.0",
-        "PyYAML>=6.0",
-        # Azure SDKs
-        "azure-identity>=1.12.0",
-        "azure-mgmt-compute>=29.0.0",
-        "azure-mgmt-network>=22.0.0",
-        "azure-mgmt-containerinstance>=10.0.0",
-        "azure-mgmt-containerservice>=20.0.0",
-        "azure-mgmt-storage>=21.0.0",
-        "azure-mgmt-sql>=4.0.0",
-        "azure-mgmt-rdbms>=10.0.0",
-        "azure-mgmt-eventhub>=10.0.0",
-        "azure-mgmt-resource>=22.0.0",
-        "azure-mgmt-subscription>=3.0.0",
-        "azure-devops>=7.0.0",
+        # Core Cloud SDKs
+        "boto3>=1.40.25",
+        "oci>=2.149.0",
+        "requests>=2.32.0",
+        "kubernetes>=29.0.0",
+        "awscli>=1.42.25",
+        
         # Google Cloud SDKs
-        "google-cloud-compute>=1.11.0",
-        "google-cloud-container>=2.17.0",
-        "google-cloud-storage>=2.7.0",
-        "google-cloud-functions>=1.8.0",
-        "google-cloud-run>=0.9.0",
-        "google-cloud-billing>=1.9.0",
-        "google-auth>=2.16.0",
-        "google-auth-oauthlib>=0.8.0",
-        "google-auth-httplib2>=0.1.0",
+        "google-cloud-compute>=1.36.0",
+        "google-cloud-container>=2.44.0",
+        "google-cloud-storage>=2.18.0",
+        "google-cloud-functions>=1.16.0",
+        "google-cloud-run>=0.11.0",
+        "google-cloud-billing>=1.13.0",
+        "google-cloud-resource-manager>=1.12.0",
+        "google-auth>=2.29.0",
+        "google-auth-oauthlib>=1.2.0",
+        "google-auth-httplib2>=0.2.0",
+        
+        # Azure SDKs
+        "azure-identity>=1.15.0",
+        "azure-mgmt-compute>=30.0.0",
+        "azure-mgmt-network>=24.0.0",
+        "azure-mgmt-containerinstance>=10.1.0",
+        "azure-mgmt-containerservice>=28.0.0",
+        "azure-mgmt-storage>=21.1.0",
+        "azure-mgmt-sql>=3.0.1",
+        "azure-mgmt-rdbms>=10.1.0",
+        "azure-mgmt-eventhub>=10.1.0",
+        "azure-mgmt-resource>=22.0.0",
+        "azure-mgmt-subscription>=3.1.1",
+        
+        # SSH and Network
+        "paramiko>=4.0.0",
+        
+        # CLI User Interface and Output
+        "rich>=14.0.0",
+        "InquirerPy>=0.3.4",
+        "tqdm>=4.67.0",
+        
+        # Configuration and Utilities
+        "python-dotenv>=1.1.0",
+        "python-dateutil>=2.9.0",
+        "PyYAML>=6.0.1",
+        "click>=8.0.4",
+        "docutils>=0.19",
+        "invoke>=2.2.0",
+        
+        # Security and Validation
+        "jsonschema>=4.23.0",
+        "cryptography>=42.0.8",
+        
+        # Additional dependencies for new config system
+        "watchdog>=3.0.0",
+        "cerberus>=1.3.4",
+        "pydantic>=2.0.0",
     ],
     extras_require={
         "dev": [

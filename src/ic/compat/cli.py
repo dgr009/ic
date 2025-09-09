@@ -169,7 +169,7 @@ def check_deprecated_imports():
         if 'common/log.py' in filename or 'common/gather_env.py' in filename:
             warn_deprecated(
                 "importing from common.* modules",
-                "importing from src.ic.compat or using new configuration system",
+                "importing from ic.compat or using new configuration system",
                 "2.0.0"
             )
 
