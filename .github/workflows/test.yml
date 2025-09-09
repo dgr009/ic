@@ -40,6 +40,7 @@ jobs:
       run: |
         python -c "import ic; print('IC package imported successfully')"
         python -c "from ic.config.manager import ConfigManager; print('ConfigManager imported successfully')"
+        python -c "import netifaces; print('netifaces imported successfully')"
     
     - name: Run tests
       run: |

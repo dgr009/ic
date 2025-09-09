@@ -38,6 +38,7 @@ azure-mgmt-subscription==3.1.1    # Azure Subscription management
 
 # SSH and Network
 paramiko==4.0.0                   # SSH client library
+netifaces==0.11.0                 # Network interface information
 
 # CLI User Interface and Output
 rich==14.0.0                      # Rich text and beautiful formatting
