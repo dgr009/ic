@@ -13,9 +13,9 @@ OpenID Connect allows GitHub Actions to authenticate with PyPI without storing l
 1. **Log in to PyPI** (https://pypi.org)
 2. **Go to your account settings** → "Publishing" → "Add a new pending publisher"
 3. **Fill in the details**:
-   - **PyPI Project Name**: `ic-cli` (must match the name in `pyproject.toml`)
-   - **Owner**: Your GitHub username (e.g., `yourusername`)
-   - **Repository name**: `ic-cli`
+   - **PyPI Project Name**: `ic-code` (must match the name in `pyproject.toml`)
+   - **Owner**: `dgr009` (e.g., `yourusername`)
+   - **Repository name**: `ic`
    - **Workflow name**: `publish-to-pypi.yml`
    - **Environment name**: `pypi` (optional but recommended)
 

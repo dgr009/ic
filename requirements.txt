@@ -24,7 +24,7 @@ google-auth-httplib2==0.2.0       # Google HTTP transport for authentication
 
 # Azure SDKs
 azure-identity==1.15.0            # Azure identity and authentication
-azure-mgmt-compute==29.2.0        # Azure Virtual Machines management
+azure-mgmt-compute==29.1.0        # Azure Virtual Machines management
 azure-mgmt-network==24.0.0        # Azure networking management
 azure-mgmt-containerinstance==10.1.0  # Azure Container Instances
 azure-mgmt-containerservice==28.0.0   # Azure Kubernetes Service
