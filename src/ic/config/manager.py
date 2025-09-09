@@ -117,10 +117,17 @@ class ConfigManager:
         if system_config.exists():
             paths.append(system_config)
         
-        # User configuration
-        user_config = Path.home() / "~/.ic" / "config.yaml"
-        if user_config.exists():
-            paths.append(user_config)
+        # User configuration - check for both default.yaml and config.yaml
+        user_config_dir = Path.home() / ".ic" / "config"
+        user_configs = [
+            user_config_dir / "default.yaml",
+            user_config_dir / "config.yaml",
+            Path.home() / ".ic" / "config.yaml"  # Legacy single file location
+        ]
+        for user_config in user_configs:
+            if user_config.exists():
+                paths.append(user_config)
+                break
         
         # Project configuration
         project_configs = [
@@ -160,9 +167,9 @@ class ConfigManager:
         
         # Priority system: check default.yaml first, then secrets.yaml
         config_sources = [
-            Path(".ic/config/default.yaml"),
+            Path.home() / ".ic" / "config" / "default.yaml",
             Path("config/default.yaml"),
-            Path(".ic/config/secrets.yaml"),
+            Path.home() / ".ic" / "config" / "secrets.yaml",
             Path("config/secrets.yaml")
         ]
         
@@ -1068,35 +1075,7 @@ class ConfigManager:
         
         return ssh_config
     
-    def _load_cloudflare_config(self) -> Dict[str, Any]:
-        """Load CloudFlare configuration if exists"""
-        cf_config = {}
-        
-        # Check for CloudFlare config in various locations
-        possible_paths = [
-            Path.home() / ".cloudflare" / "config",
-            Path.home() / ".cloudflare" / "config.yaml",
-            Path("config") / "cloudflare.yaml"
-        ]
-        
-        for cf_path in possible_paths:
-            if cf_path.exists():
-                try:
-                    if cf_path.suffix.lower() in ['.yaml', '.yml']:
-                        cf_config = self._load_config_file(cf_path)
-                    else:
-                        # Try to parse as simple key=value format
-                        with open(cf_path, 'r') as f:
-                            for line in f:
-                                line = line.strip()
-                                if '=' in line and not line.startswith('#'):
-                                    key, value = line.split('=', 1)
-                                    cf_config[key.strip()] = value.strip()
-                    break
-                except Exception as e:
-                    logger.warning(f"Failed to load CloudFlare config from {cf_path}: {e}")
-        
-        return cf_config
+
     
     def migrate_from_env(self, env_file_path: str = ".env", force: bool = False) -> bool:
         """

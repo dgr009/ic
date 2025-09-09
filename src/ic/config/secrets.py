@@ -60,8 +60,8 @@ class SecretsManager:
         
         # Try to load from secrets.yaml file with new path structure
         secrets_paths = [
-            Path("~/.ic/config/secrets.yaml"),  # New preferred location
-            # Path("config/secrets.yaml")       # Legacy location for backward compatibility
+            Path.home() / ".ic" / "config" / "secrets.yaml",  # New preferred location
+            Path("config/secrets.yaml")  # Legacy location for backward compatibility
         ]
         
         secrets = {}
