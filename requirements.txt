@@ -37,7 +37,7 @@ azure-mgmt-subscription==3.1.1    # Azure Subscription management
 # azure-devops - Commented out (only beta versions available)
 
 # SSH and Network
-paramiko==4.0.1                   # SSH client library
+paramiko==4.0.0                   # SSH client library
 
 # CLI User Interface and Output
 rich==14.0.0                      # Rich text and beautiful formatting
