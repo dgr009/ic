@@ -201,7 +201,7 @@ class MyClass:
             'README.md',
             'Dockerfile',
             'requirements.txt',
-            '.env.example',
+
             'script.sh'
         ]
         

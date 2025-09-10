@@ -68,8 +68,8 @@ packaging>=21.0,<25.0              # Version parsing and comparison
 setuptools>=61.0,<71.0            # Package building tools
 
 # Development and Testing (Optional - install with pip install -e .[dev])
-# pytest>=7.0.0,<9.0.0
-# pytest-cov>=4.0.0,<6.0.0
+pytest>=7.0.0,<9.0.0
+pytest-cov>=4.0.0,<6.0.0
 # pytest-mock>=3.10.0,<4.0.0
 # black>=22.0.0,<25.0.0
 # flake8>=5.0.0,<8.0.0
