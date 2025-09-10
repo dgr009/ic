@@ -13,6 +13,7 @@ from rich import box
 from rich.rule import Rule
 
 from common.log import log_info_non_console
+from common.progress_decorator import ManualProgress
 from common.utils import get_env_accounts, get_profiles
 
 load_dotenv()
@@ -180,14 +181,40 @@ def main(args):
     profiles_map = get_profiles()
     name_filter = args.name if hasattr(args, 'name') and args.name else None
 
+    # Calculate total operations for progress tracking
+    valid_accounts = []
+    for acct in accounts:
+        profile_name = profiles_map.get(acct)
+        if not profile_name:
+            log_info_non_console(f"Account {acct} 에 대한 프로파일을 찾을 수 없습니다.")
+            continue
+        valid_accounts.append((acct, profile_name))
+    
+    total_operations = len(valid_accounts)
+    
     all_rows = []
-    with ThreadPoolExecutor() as executor:
-        futures = {
-            executor.submit(fetch_s3_one_account, acct, profiles_map.get(acct), name_filter): acct
-            for acct in accounts if profiles_map.get(acct)
-        }
-        for future in as_completed(futures):
-            all_rows.extend(future.result())
+    with ManualProgress("Collecting S3 buckets across accounts", total=total_operations) as progress:
+        with ThreadPoolExecutor() as executor:
+            futures = {}
+            future_to_info = {}
+            
+            for acct, profile_name in valid_accounts:
+                future = executor.submit(fetch_s3_one_account, acct, profile_name, name_filter)
+                futures[future] = acct
+                future_to_info[future] = acct
+
+            completed = 0
+            for future in as_completed(futures):
+                acct = future_to_info[future]
+                try:
+                    result = future.result()
+                    all_rows.extend(result)
+                    completed += 1
+                    progress.update(f"Processed {acct} - Found {len(result)} S3 buckets", advance=1)
+                except Exception as e:
+                    completed += 1
+                    log_info_non_console(f"Failed to collect S3 data for {acct}: {e}")
+                    progress.update(f"Failed {acct} - {str(e)[:50]}...", advance=1)
 
     print_s3_table(all_rows)
 

@@ -8,6 +8,7 @@ from rich.console import Console
 from rich.table import Table
 from rich import box
 from common.log import log_info_non_console
+from common.progress_decorator import progress_bar, ManualProgress
 from oci_module.common.utils import get_compartments, get_all_subscribed_regions
 
 def add_arguments(parser):
@@ -98,14 +99,25 @@ def fetch_bucket_one_comp(config, region, comp, name_filter):
 def collect_buckets_parallel_fast(config, compartments, region_list, name_filter, console, max_workers=10):
     all_rows = []
     jobs = [(reg, comp) for reg in region_list for comp in compartments]
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        fut_map = {executor.submit(fetch_bucket_one_comp, config, r, c, name_filter): (r,c) for r,c in jobs}
-        for fut in concurrent.futures.as_completed(fut_map):
-            try:
-                chunk = fut.result()
-                all_rows.extend(chunk)
-            except Exception as e:
-                console.print(f"[red]Bucket job failed[/red]: {fut_map[fut]}: {e}")
+    total_jobs = len(jobs)
+    
+    with ManualProgress(f"Collecting object storage buckets from {len(region_list)} regions and {len(compartments)} compartments", total=total_jobs) as progress:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            fut_map = {executor.submit(fetch_bucket_one_comp, config, r, c, name_filter): (r,c) for r,c in jobs}
+            completed = 0
+            
+            for fut in concurrent.futures.as_completed(fut_map):
+                try:
+                    chunk = fut.result()
+                    all_rows.extend(chunk)
+                    completed += 1
+                    region, comp = fut_map[fut]
+                    progress.update(f"Processed {region}/{comp.name} - Found {len(chunk)} buckets", advance=1)
+                except Exception as e:
+                    completed += 1
+                    region, comp = fut_map[fut]
+                    console.print(f"[red]Bucket job failed[/red]: {region}/{comp.name}: {e}")
+                    progress.advance(1)
     return all_rows
 
 def print_object_table(console, buckets):
@@ -146,6 +158,7 @@ def print_object_table(console, buckets):
     
     console.print(table)
 
+@progress_bar("Initializing OCI object storage information collection")
 def main(args):
     console = Console()
     try:

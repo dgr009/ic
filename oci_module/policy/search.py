@@ -17,6 +17,7 @@ from rich.tree import Tree
 from rich.prompt import Prompt
 
 from common.log import log_info, log_error, log_exception, console
+from common.progress_decorator import progress_bar, ManualProgress
 
 # Initialize config manager
 _config_manager = ConfigManager()
@@ -49,6 +50,7 @@ def load_config_from_env(config_path=None, profile="DEFAULT"):
         raise RuntimeError(f"❌ OCI config를 불러오는 데 실패했습니다: {e}")
 
 
+@progress_bar("Loading OCI users and groups")
 def select_user_or_group(config):
     """사용자 또는 그룹 선택"""
     identity = oci.identity.IdentityClient(config)
@@ -123,49 +125,59 @@ def list_related_policies(selected_name, config, show_empty_compartments=False):
         
         policy_found = False
         
-        for compartment in compartments:
-            try:
-                policies = identity.list_policies(compartment.id).data
-                if not policies and not show_empty_compartments:
-                    continue
+        with ManualProgress(f"Searching policies across {len(compartments)} compartments", total=len(compartments)) as progress:
+            for i, compartment in enumerate(compartments):
+                try:
+                    policies = identity.list_policies(compartment.id).data
+                    if not policies and not show_empty_compartments:
+                        progress.update(f"Skipped {compartment.name} (no policies)", advance=1)
+                        continue
+                        
+                    compartment_branch = None
+                    compartment_has_matching_policies = False
+                    matching_policies_count = 0
                     
-                compartment_branch = None
-                compartment_has_matching_policies = False
-                
-                for policy in policies:
-                    matched_statements = []
-                    for statement in policy.statements:
-                        if is_user:
-                            # 사용자의 경우 그룹 멤버십을 통해 정책 확인
-                            if any(re.search(rf"\bGROUP {re.escape(group_name)}\b", statement) 
-                                  for group_name in user_group_names):
-                                matched_statements.append(statement)
-                        else:
-                            # 그룹의 경우 직접 정책 확인
-                            group_name = selected_value
-                            if re.search(rf"\bGROUP {re.escape(group_name)}\b", statement):
-                                matched_statements.append(statement)
-                    
-                    if matched_statements:
-                        # 매칭되는 정책이 있을 때만 compartment branch 생성
+                    for policy in policies:
+                        matched_statements = []
+                        for statement in policy.statements:
+                            if is_user:
+                                # 사용자의 경우 그룹 멤버십을 통해 정책 확인
+                                if any(re.search(rf"\bGROUP {re.escape(group_name)}\b", statement) 
+                                      for group_name in user_group_names):
+                                    matched_statements.append(statement)
+                            else:
+                                # 그룹의 경우 직접 정책 확인
+                                group_name = selected_value
+                                if re.search(rf"\bGROUP {re.escape(group_name)}\b", statement):
+                                    matched_statements.append(statement)
+                        
+                        if matched_statements:
+                            # 매칭되는 정책이 있을 때만 compartment branch 생성
+                            if compartment_branch is None:
+                                compartment_branch = tree.add(f"[blue]Compartment: {compartment.name}[/blue]")
+                            
+                            policy_branch = compartment_branch.add(f"[dark_orange]Policy: {policy.name}[/dark_orange]")
+                            for statement in matched_statements:
+                                policy_branch.add(f"[bold white]{statement}[/bold white]")
+                            compartment_has_matching_policies = True
+                            matching_policies_count += 1
+                            policy_found = True
+                            
+                    # show_empty가 true이고 정책이 있지만 매칭되는 게 없으면 빈 compartment 표시
+                    if show_empty_compartments and policies and not compartment_has_matching_policies:
                         if compartment_branch is None:
                             compartment_branch = tree.add(f"[blue]Compartment: {compartment.name}[/blue]")
-                        
-                        policy_branch = compartment_branch.add(f"[dark_orange]Policy: {policy.name}[/dark_orange]")
-                        for statement in matched_statements:
-                            policy_branch.add(f"[bold white]{statement}[/bold white]")
-                        compartment_has_matching_policies = True
-                        policy_found = True
-                        
-                # show_empty가 true이고 정책이 있지만 매칭되는 게 없으면 빈 compartment 표시
-                if show_empty_compartments and policies and not compartment_has_matching_policies:
-                    if compartment_branch is None:
-                        compartment_branch = tree.add(f"[blue]Compartment: {compartment.name}[/blue]")
-                    compartment_branch.add("[dim](No matching policies)[/dim]")
-                     
-            except Exception as e:
-                log_error(f"컴파트먼트 {compartment.name} 정책 조회 실패: {e}")
-                continue
+                        compartment_branch.add("[dim](No matching policies)[/dim]")
+                    
+                    if matching_policies_count > 0:
+                        progress.update(f"Processed {compartment.name} - Found {matching_policies_count} matching policies", advance=1)
+                    else:
+                        progress.update(f"Processed {compartment.name} - No matches", advance=1)
+                         
+                except Exception as e:
+                    log_error(f"컴파트먼트 {compartment.name} 정책 조회 실패: {e}")
+                    progress.update(f"Failed to process {compartment.name}", advance=1)
+                    continue
                 
         if not policy_found:
             tree.add("[yellow]⚠️  관련된 정책을 찾을 수 없습니다.[/yellow]")
@@ -182,6 +194,7 @@ def list_related_policies(selected_name, config, show_empty_compartments=False):
         raise
 
 
+@progress_bar("Initializing OCI policy search")
 def main(args):
     """OCI 정책 검색 메인 함수"""
     try:

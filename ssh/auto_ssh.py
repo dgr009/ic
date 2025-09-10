@@ -32,17 +32,11 @@ def get_config_var(key, default=""):
 
 # 콘솔 및 로거 설정
 console = Console()
-os.makedirs("logs", exist_ok=True)
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-    handlers=[
-        RichHandler(rich_tracebacks=True),
-        logging.FileHandler("logs/auto_ssh.log", mode='a', encoding='utf-8')
-    ]
-)
-logger = logging.getLogger("auto-ssh")
+# IC 로거 시스템 사용
+from ic.core.logging import ICLogger
+_ic_logger = ICLogger(_config)
+logger = _ic_logger.get_logger()
 logging.getLogger('paramiko').setLevel(logging.ERROR)
 
 # SSH 설정

@@ -13,6 +13,7 @@ from rich import box
 from InquirerPy import inquirer
 
 from common.log import log_info_non_console, log_error
+from common.progress_decorator import progress_bar, spinner
 from common.utils import (
     get_env_accounts,
     get_profiles,
@@ -23,6 +24,7 @@ from common.utils import (
 load_dotenv()
 console = Console()
 
+@progress_bar("Fetching EKS cluster list")
 def fetch_eks_clusters(account_id, profile_name, region_name, cluster_name_filter=None):
     """EKS 클러스터 목록을 조회합니다."""
     log_info_non_console(f"EKS 클러스터 목록 조회: Account={account_id}, Region={region_name}")
@@ -59,6 +61,7 @@ def fetch_eks_clusters(account_id, profile_name, region_name, cluster_name_filte
         log_error(f"EKS 클러스터 목록 조회 실패: Account={account_id}, Region={region_name}, Error={e}")
         return []
 
+@spinner("Updating kubeconfig")
 def update_kubeconfig(cluster_name, region_name, profile_name=None):
     """kubeconfig를 업데이트합니다."""
     try:
@@ -136,6 +139,7 @@ def display_cluster_table(clusters):
     
     console.print(table)
 
+@progress_bar("Processing EKS kubeconfig update")
 def main(args):
     """메인 함수"""
     # 기본 리전 설정 (서울)

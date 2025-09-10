@@ -14,6 +14,7 @@ from rich.table import Table
 from rich import box
 
 from common.log import log_info_non_console, log_error
+from common.progress_decorator import ManualProgress
 from common.utils import (
     get_env_accounts,
     get_profiles,
@@ -150,28 +151,49 @@ def main(args):
     regions = args.regions.split(",") if args.regions else DEFINED_REGIONS
     profiles_map = get_profiles()
     
+    # Filter out accounts without valid profiles
+    valid_accounts = []
+    for acct in accounts:
+        profile_name = profiles_map.get(acct)
+        if profile_name:
+            valid_accounts.append((acct, profile_name))
+        else:
+            log_info_non_console(f"Account {acct}에 대한 프로파일을 찾을 수 없습니다.")
+    
+    total_operations = len(valid_accounts) * len(regions)
     all_stages = []
     
-    with ThreadPoolExecutor() as executor:
-        futures = []
-        for acct in accounts:
-            profile_name = profiles_map.get(acct)
-            if not profile_name:
-                log_info_non_console(f"Account {acct}에 대한 프로파일을 찾을 수 없습니다.")
-                continue
-            for reg in regions:
-                futures.append(executor.submit(
-                    fetch_pipeline_build_stages, 
-                    acct, 
-                    profile_name, 
-                    reg, 
-                    args.pipeline_name
-                ))
-        
-        for future in as_completed(futures):
-            result = future.result()
-            if result:
-                all_stages.extend(result)
+    with ManualProgress(f"Collecting CodePipeline build stages for '{args.pipeline_name}' across accounts and regions", total=total_operations) as progress:
+        with ThreadPoolExecutor() as executor:
+            futures = []
+            future_to_info = {}
+            
+            for acct, profile_name in valid_accounts:
+                for reg in regions:
+                    future = executor.submit(
+                        fetch_pipeline_build_stages, 
+                        acct, 
+                        profile_name, 
+                        reg, 
+                        args.pipeline_name
+                    )
+                    futures.append(future)
+                    future_to_info[future] = (acct, reg)
+            
+            completed = 0
+            for future in as_completed(futures):
+                acct, reg = future_to_info[future]
+                try:
+                    result = future.result()
+                    if result:
+                        all_stages.extend(result)
+                    completed += 1
+                    stage_count = len(result) if result else 0
+                    progress.update(f"Processed {acct}/{reg} - Found {stage_count} build stages", advance=1)
+                except Exception as e:
+                    completed += 1
+                    log_info_non_console(f"Failed to collect CodePipeline build data for {acct}/{reg}: {e}")
+                    progress.update(f"Failed {acct}/{reg} - {str(e)[:50]}...", advance=1)
     
     # 출력 형식에 따라 결과 출력
     if args.output in ['json', 'yaml']:

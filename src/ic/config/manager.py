@@ -520,7 +520,7 @@ class ConfigManager:
             "logging": {
                 "console_level": "ERROR",
                 "file_level": "INFO",
-                "file_path": "logs/ic_{date}.log",
+                "file_path": "~/.ic/logs/ic_{date}.log",
                 "max_files": 30,
                 "format": "%(asctime)s [%(levelname)s] - %(message)s",
                 "mask_sensitive": True,

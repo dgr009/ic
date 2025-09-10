@@ -10,6 +10,7 @@ from rich import box
 from rich.rule import Rule
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from common.progress_decorator import progress_bar, ManualProgress
 from oci_module.common.utils import get_all_subscribed_regions, get_compartments
 
 def add_arguments(parser):
@@ -58,6 +59,7 @@ def resolve_network_entity(network_client, entity_id):
         return entity_id
 
 
+@progress_bar("Collecting VCN and subnet information from compartment")
 def fetch_vcn_one_comp(config, region, comp, name_filter):
     """
     하나의 컴파트먼트에서 VCN 및 관련 리소스 정보를 가져옵니다.
@@ -120,6 +122,7 @@ def fetch_vcn_one_comp(config, region, comp, name_filter):
     return vcn_rows
 
 
+@progress_bar("Collecting VCN information across compartments and regions")
 def collect_vcn_parallel_fast(config, compartments, region_list, name_filter, console, max_workers=20):
     """
     ThreadPoolExecutor를 사용하여 여러 리전과 컴파트먼트에서 VCN 정보를 병렬로 수집합니다.
@@ -207,6 +210,7 @@ def print_vcn_table(console, vcn_rows):
         
     console.print(table)
 
+@progress_bar("OCI VCN Information Collection")
 def main(args):
     """
     OCI VCN 정보 조회 메인 함수

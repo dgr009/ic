@@ -182,3 +182,31 @@ backup
 backup/*
 activate_new_env.sh
 CHANGELOG.md
+# IC Configuration - Security
+config.yml
+*.key
+*.pem
+**/credentials.json
+**/service-account*.json
+.aws/credentials
+aws-key/
+# GCP credentials
+gcp-key/
+**/gcp-*.json
+service-account*.json
+*-key.json
+# Azure credentials
+.azure/
+*.pfx
+*.p12
+# OCI credentials
+.oci/config
+.oci/sessions/
+# SSH keys
+id_rsa*
+*.ppk
+# CloudFlare credentials
+.cloudflare/
+*.tmp
+*.temp
+*.bak

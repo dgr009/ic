@@ -6,6 +6,7 @@ import re
 from rich.console import Console
 from rich.table import Table
 from rich import box
+from common.progress_decorator import progress_bar, ManualProgress
 from oci_module.common.utils import get_compartments
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -77,18 +78,29 @@ def add_arguments(parser):
 def collect_policies(identity_client, compartments, name_filter=None):
     all_policies = []
     console = Console()
-    for comp in compartments:
-        try:
-            policies = identity_client.list_policies(comp.id).data
-            for p in policies:
-                if not name_filter or name_filter.lower() in p.name.lower():
-                    all_policies.append({"compartment_name": comp.name, "policy_name": p.name, "statements": p.statements, "id": p.id})
-        except oci.exceptions.ServiceError as e:
-            if e.status == 404: # Not Found (some compartments like managed paas)
-                continue
-            console.print(f"[yellow]Service error listing policies in compartment '{comp.name}' ({comp.id}): {e}[/yellow]")
-        except Exception as e:
-            console.print(f"[yellow]Could not list policies in compartment '{comp.name}' ({comp.id}): {e}[/yellow]")
+    
+    with ManualProgress(f"Collecting IAM policies from {len(compartments)} compartments", total=len(compartments)) as progress:
+        for i, comp in enumerate(compartments):
+            try:
+                policies = identity_client.list_policies(comp.id).data
+                matching_policies = []
+                for p in policies:
+                    if not name_filter or name_filter.lower() in p.name.lower():
+                        all_policies.append({"compartment_name": comp.name, "policy_name": p.name, "statements": p.statements, "id": p.id})
+                        matching_policies.append(p.name)
+                
+                progress.update(f"Processed {comp.name} - Found {len(matching_policies)} policies", advance=1)
+                
+            except oci.exceptions.ServiceError as e:
+                if e.status == 404: # Not Found (some compartments like managed paas)
+                    progress.update(f"Skipped {comp.name} (not accessible)", advance=1)
+                    continue
+                console.print(f"[yellow]Service error listing policies in compartment '{comp.name}' ({comp.id}): {e}[/yellow]")
+                progress.advance(1)
+            except Exception as e:
+                console.print(f"[yellow]Could not list policies in compartment '{comp.name}' ({comp.id}): {e}[/yellow]")
+                progress.advance(1)
+    
     return all_policies
 
 def print_policy_table(console, policy_rows, show_details):
@@ -153,6 +165,7 @@ def print_policy_table(console, policy_rows, show_details):
     console.print(table)
 
 
+@progress_bar("Initializing OCI IAM policy information collection")
 def main(args):
     console = Console()
     try:

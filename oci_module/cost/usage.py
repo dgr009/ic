@@ -6,6 +6,7 @@ from rich.console import Console
 from rich.table import Table
 from rich import box
 from datetime import datetime, timedelta
+from common.progress_decorator import progress_bar, ManualProgress
 
 def add_arguments(parser):
     parser.add_argument("--cost-start", default=None, help="비용 조회 시작 (YYYY-MM-DD)")
@@ -29,32 +30,47 @@ def get_date_range(start_str, end_str):
         end_date   = datetime(now.year, now.month, now.day) + timedelta(days=1)
     return start_date, end_date
 
+@progress_bar("Fetching cost data from OCI Usage API")
 def get_compartment_costs(usage_client, tenancy_ocid, start_time, end_time, console):
-    details = oci.usage_api.models.RequestSummarizedUsagesDetails(
-        tenant_id=tenancy_ocid,
-        time_usage_started=start_time,
-        time_usage_ended=end_time,
-        granularity="DAILY",
-        group_by=["compartmentName", "service"],
-        query_type="COST",
-        compartment_depth=6
-    )
-    cost_data={}
-    currency_cd = "USD"   
-    try:
-        resp = usage_client.request_summarized_usages(details)
-        items = resp.data.items or []
-        if items:
-            currency_cd = items[0].currency or currency_cd
-        for it in items:
-            cname= it.compartment_name or "(root)"
-            sname= it.service or "(UnknownService)"
-            cval = float(it.computed_amount or 0.0)
-            cost_data.setdefault(cname, {})
-            cost_data[cname].setdefault(sname, 0.0)
-            cost_data[cname][sname]+= cval
-    except Exception as e:
-        console.print(f"[yellow][WARN][/yellow] Cost API 실패: {e}")
+    with ManualProgress("Preparing cost analysis request", total=3) as progress:
+        # Step 1: Prepare request details
+        progress.update("Preparing API request parameters")
+        details = oci.usage_api.models.RequestSummarizedUsagesDetails(
+            tenant_id=tenancy_ocid,
+            time_usage_started=start_time,
+            time_usage_ended=end_time,
+            granularity="DAILY",
+            group_by=["compartmentName", "service"],
+            query_type="COST",
+            compartment_depth=6
+        )
+        progress.advance(1)
+        
+        # Step 2: Execute API call
+        progress.update("Calling OCI Usage API")
+        cost_data={}
+        currency_cd = "USD"   
+        try:
+            resp = usage_client.request_summarized_usages(details)
+            items = resp.data.items or []
+            progress.advance(1)
+            
+            # Step 3: Process response data
+            progress.update(f"Processing {len(items)} cost records")
+            if items:
+                currency_cd = items[0].currency or currency_cd
+            for it in items:
+                cname= it.compartment_name or "(root)"
+                sname= it.service or "(UnknownService)"
+                cval = float(it.computed_amount or 0.0)
+                cost_data.setdefault(cname, {})
+                cost_data[cname].setdefault(sname, 0.0)
+                cost_data[cname][sname]+= cval
+            progress.advance(1)
+            
+        except Exception as e:
+            console.print(f"[yellow][WARN][/yellow] Cost API 실패: {e}")
+    
     return cost_data, currency_cd
 
 def print_cost_table(cost_rows, console, start_time, end_time, currency_cd):
@@ -96,18 +112,35 @@ def print_cost_table(cost_rows, console, start_time, end_time, currency_cd):
     console.print(tbl)
 
 
+@progress_bar("Analyzing OCI cost usage")
 def main(args):
     console = Console()
-    try:
-        config = oci.config.from_file("~/.oci/config", "DEFAULT")
-        usage_client = oci.usage_api.UsageapiClient(config)
-    except Exception as e:
-        console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]"); sys.exit(1)
-
-    start_date, end_date = get_date_range(args.cost_start, args.cost_end)
-    cost_data, currency_cd = get_compartment_costs(usage_client, config["tenancy"], start_date, end_date, console)
     
-    if cost_data:
-        print_cost_table(cost_data, console, start_date, end_date, currency_cd)
-    else:
-        console.print("(No Cost Data)") 
+    with ManualProgress("Initializing OCI cost analysis", total=4) as progress:
+        # Step 1: Load OCI configuration
+        progress.update("Loading OCI configuration")
+        try:
+            config = oci.config.from_file("~/.oci/config", "DEFAULT")
+            usage_client = oci.usage_api.UsageapiClient(config)
+        except Exception as e:
+            console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]")
+            sys.exit(1)
+        progress.advance(1)
+
+        # Step 2: Parse date range
+        progress.update("Parsing date range parameters")
+        start_date, end_date = get_date_range(args.cost_start, args.cost_end)
+        progress.advance(1)
+        
+        # Step 3: Fetch cost data (this will show its own progress)
+        progress.update("Fetching cost data from OCI")
+        cost_data, currency_cd = get_compartment_costs(usage_client, config["tenancy"], start_date, end_date, console)
+        progress.advance(1)
+        
+        # Step 4: Display results
+        progress.update("Generating cost report")
+        if cost_data:
+            print_cost_table(cost_data, console, start_date, end_date, currency_cd)
+        else:
+            console.print("(No Cost Data)")
+        progress.advance(1) 

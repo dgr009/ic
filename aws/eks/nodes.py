@@ -15,6 +15,7 @@ from rich import box
 from rich.rule import Rule
 
 from common.log import log_info_non_console, log_error
+from common.progress_decorator import progress_bar
 from common.utils import (
     get_env_accounts,
     get_profiles,
@@ -25,6 +26,7 @@ from common.utils import (
 load_dotenv()
 console = Console()
 
+@progress_bar("Fetching EKS node information")
 def fetch_eks_nodes_info(account_id, profile_name, region_name, cluster_name_filter=None):
     """EKS 노드 정보를 수집합니다."""
     log_info_non_console(f"EKS 노드 정보 수집 시작: Account={account_id}, Region={region_name}")
@@ -249,6 +251,7 @@ def format_datetime(dt):
         return dt.strftime('%Y-%m-%d %H:%M:%S UTC')
     return '-'
 
+@progress_bar("Processing EKS node discovery across accounts and regions")
 def main(args):
     """메인 함수"""
     accounts = args.account.split(",") if args.account else get_env_accounts()

@@ -11,7 +11,7 @@ import sys
 import yaml
 import json
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -210,43 +210,65 @@ class ConfigCommands:
         Args:
             args: Command line arguments
         """
-        output_path = Path(args.output)
+        # Create ~/.ic/config directory structure
+        config_dir = Path.home() / ".ic" / "config"
+        config_dir.mkdir(parents=True, exist_ok=True)
         
-        # Check if file exists and not forcing
-        if output_path.exists() and not args.force:
-            if not Confirm.ask(f"Configuration file {output_path} already exists. Overwrite?"):
+        # Determine output paths
+        if args.output == "ic.yaml":  # Default case
+            default_config_path = config_dir / "default.yaml"
+            secrets_config_path = config_dir / "secrets.yaml"
+            secrets_example_path = config_dir / "secrets.yaml.example"
+        else:
+            # Custom output path - use as specified but still in ~/.ic/config
+            default_config_path = config_dir / args.output
+            secrets_config_path = config_dir / f"secrets_{Path(args.output).stem}.yaml"
+            secrets_example_path = config_dir / f"secrets_{Path(args.output).stem}.yaml.example"
+        
+        # Check if files exist and not forcing
+        if (default_config_path.exists() or secrets_config_path.exists()) and not args.force:
+            if not Confirm.ask(f"Configuration files already exist in {config_dir}. Overwrite?"):
                 self.console.print("❌ Configuration initialization cancelled.")
                 return
         
         self.console.print(f"🚀 Initializing IC configuration with template: {args.template}")
         
-        # Get template configuration
-        template_config = self._get_template_config(args.template)
+        # Get template configurations (separated into default and secrets)
+        default_config, secrets_config, secrets_example = self._get_separated_template_config(args.template)
         
         # Interactive configuration if not minimal
         if args.template != "minimal":
-            template_config = self._interactive_config_setup(template_config, args.template)
+            default_config, secrets_config, secrets_example = self._interactive_separated_config_setup(
+                default_config, secrets_config, secrets_example, args.template
+            )
         
         try:
-            # Save configuration
-            self.config_manager.save_config(output_path, template_config)
+            # Save default configuration (non-sensitive)
+            with open(default_config_path, 'w') as f:
+                yaml.dump(default_config, f, default_flow_style=False, indent=2, sort_keys=False)
             
-            # Create .env.example if it doesn't exist
-            env_example_path = Path(".env.example")
-            if not env_example_path.exists():
-                self._create_env_example(env_example_path, args.template)
+            # Save secrets example file
+            with open(secrets_example_path, 'w') as f:
+                yaml.dump(secrets_example, f, default_flow_style=False, indent=2, sort_keys=False)
+            
+            # Create backup if secrets.yaml already exists
+            backup_path = None
+            if secrets_config_path.exists():
+                backup_path = config_dir / f"secrets_backup_{int(Path().stat().st_mtime)}.yaml"
+                secrets_config_path.rename(backup_path)
             
             # Update .gitignore
             self._update_gitignore()
             
             self.console.print(Panel(
                 f"✅ Configuration initialized successfully!\n\n"
-                f"📁 Configuration file: {output_path}\n"
-                f"📄 Environment example: .env.example\n"
-                f"🔒 .gitignore updated for security\n\n"
+                f"📁 Default config: {default_config_path}\n"
+                f"📄 Secrets example: {secrets_example_path}\n"
+                f"🔒 .gitignore updated for security\n"
+                f"{f'💾 Backup created: {backup_path}' if backup_path else ''}\n\n"
                 f"Next steps:\n"
-                f"1. Review and customize {output_path}\n"
-                f"2. Set up environment variables (see .env.example)\n"
+                f"1. Copy secrets example to secrets.yaml: cp {secrets_example_path} {secrets_config_path}\n"
+                f"2. Edit {secrets_config_path} with your actual credentials\n"
                 f"3. Run 'ic config validate' to verify setup",
                 title="Configuration Initialized",
                 border_style="green"
@@ -322,11 +344,24 @@ class ConfigCommands:
             try:
                 # Load and validate configuration
                 config_data = self.config_manager._load_config_file(config_file)
-                errors = self.config_manager.validate_config(config_data)
                 
-                # Security validation if requested
+                # Determine file type and validate accordingly
+                is_secrets_file = 'secrets' in config_file.name
+                is_default_file = 'default' in config_file.name
+                
+                if is_secrets_file:
+                    # Secrets files only need basic structure validation
+                    errors = self._validate_secrets_config(config_data)
+                elif is_default_file:
+                    # Default files need full structure validation
+                    errors = self._validate_default_config(config_data)
+                else:
+                    # Legacy files - use full validation
+                    errors = self.config_manager.validate_config(config_data)
+                
+                # Security validation - always run but with different expectations
                 security_warnings = []
-                if args.security:
+                if args.security or not is_secrets_file:  # Always check security for non-secrets files
                     security_warnings = self.security_manager.validate_config_security(config_data)
                 
                 # Display results
@@ -365,9 +400,24 @@ class ConfigCommands:
         Args:
             args: Command line arguments
         """
+
         try:
-            # Load configuration with enhanced error handling
-            config = self._load_config_with_validation()
+            # Load configuration
+            self.config_manager.load_config()
+            config = self.config_manager.get_config()
+            
+            # Also load secrets if available
+            secrets_path = Path.home() / ".ic" / "config" / "secrets.yaml"
+            if secrets_path.exists():
+                try:
+                    with open(secrets_path, 'r') as f:
+                        secrets = yaml.safe_load(f) or {}
+                    # Merge secrets into config for display
+                    if 'secrets' not in config:
+                        config['secrets'] = {}
+                    config['secrets'].update(secrets)
+                except Exception as e:
+                    self.console.print(f"⚠️  Warning: Could not load secrets: {e}")
             
             # Mask sensitive data if requested
             if args.mask_sensitive:
@@ -631,6 +681,10 @@ class ConfigCommands:
         
         # Check common config file locations
         possible_paths = [
+            # New standard locations
+            Path.home() / ".ic" / "config" / "default.yaml",
+            Path.home() / ".ic" / "config" / "secrets.yaml",
+            # Legacy locations for backward compatibility
             Path("ic.yaml"),
             Path("ic.yml"),
             Path(".ic/config.yaml"),
@@ -786,6 +840,79 @@ class ConfigCommands:
                 return f"{value[:4]}{'*' * (len(value) - 8)}{value[-4:]}"
             else:
                 return "*" * len(value)
+    
+    def _display_config_table(self, config: Dict[str, Any]) -> None:
+        """Display configuration in table format."""
+        table = Table(title="Configuration")
+        table.add_column("Key", style="cyan")
+        table.add_column("Value", style="green")
+        table.add_column("Type", style="yellow")
+        
+        def add_rows(data: Dict[str, Any], prefix: str = ""):
+            for key, value in data.items():
+                full_key = f"{prefix}.{key}" if prefix else key
+                
+                if isinstance(value, dict):
+                    add_rows(value, full_key)
+                elif isinstance(value, list):
+                    table.add_row(full_key, f"[{len(value)} items]", "list")
+                else:
+                    table.add_row(full_key, str(value), type(value).__name__)
+        
+        add_rows(config)
+        self.console.print(table)
+    
+    def _suggest_similar_keys(self, key_path: str) -> None:
+        """Suggest similar configuration keys."""
+        try:
+            config = self.config_manager.get_config()
+            all_keys = self._get_all_keys(config)
+            
+            # Simple similarity check
+            similar_keys = [k for k in all_keys if key_path.lower() in k.lower() or k.lower() in key_path.lower()]
+            
+            if similar_keys:
+                self.console.print("💡 Did you mean one of these?")
+                for key in similar_keys[:5]:  # Show max 5 suggestions
+                    self.console.print(f"  • {key}")
+        except Exception:
+            pass  # Ignore errors in suggestions
+    
+    def _get_all_keys(self, data: Dict[str, Any], prefix: str = "") -> List[str]:
+        """Get all configuration keys recursively."""
+        keys = []
+        for key, value in data.items():
+            full_key = f"{prefix}.{key}" if prefix else key
+            keys.append(full_key)
+            if isinstance(value, dict):
+                keys.extend(self._get_all_keys(value, full_key))
+        return keys
+    
+    def _handle_missing_config_error(self, error: FileNotFoundError) -> None:
+        """Handle missing configuration file error."""
+        self.console.print("❌ Configuration file not found.")
+        self.console.print("💡 Try running 'ic config init' to create a configuration file.")
+        sys.exit(1)
+    
+    def _handle_yaml_error(self, error: yaml.YAMLError) -> None:
+        """Handle YAML parsing error."""
+        self.console.print(f"❌ Configuration file has invalid YAML syntax: {error}")
+        self.console.print("💡 Check your configuration file for syntax errors.")
+        sys.exit(1)
+    
+    def _handle_permission_error(self, error: PermissionError) -> None:
+        """Handle permission error."""
+        self.console.print(f"❌ Permission denied accessing configuration: {error}")
+        self.console.print("💡 Check file permissions or run with appropriate privileges.")
+        sys.exit(1)
+    
+    def _suggest_config_troubleshooting(self) -> None:
+        """Suggest configuration troubleshooting steps."""
+        self.console.print("\n💡 Troubleshooting suggestions:")
+        self.console.print("  • Check if configuration files exist")
+        self.console.print("  • Verify YAML syntax with 'ic config validate'")
+        self.console.print("  • Run 'ic config init' to create a new configuration")
+        self.console.print("  • Check file permissions")
         
         # Check for AWS access key pattern (AKIA...)
         if value.startswith('AKIA') and len(value) == 20:
@@ -916,6 +1043,374 @@ class ConfigCommands:
         self.console.print("  3. Check YAML syntax with an online validator")
         self.console.print("  4. Review the documentation for configuration format")
         self.console.print("  5. Try 'ic config init' to create a fresh configuration")
+    
+    def _get_separated_template_config(self, template: str) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+        """
+        Get configuration template separated into default config, secrets config, and secrets example.
+        Based on real production configuration files.
+        
+        Returns:
+            Tuple of (default_config, secrets_config, secrets_example)
+        """
+        # Base default configuration (non-sensitive) - based on real config
+        default_config = {
+            "version": "2.0",
+            "logging": {
+                "console_level": "ERROR",
+                "file_level": "INFO", 
+                "file_path": "~/.ic/logs/ic_{date}.log",
+                "max_files": 30,
+                "format": "%(asctime)s [%(levelname)s] - %(message)s",
+                "mask_sensitive": True
+            },
+            "security": {
+                "sensitive_keys": [
+                    "password", "passwd", "pwd", "token", "access_token", "refresh_token",
+                    "auth_token", "key", "api_key", "access_key", "secret_key", "private_key",
+                    "secret", "client_secret", "webhook_secret", "webhook_url", "webhook",
+                    "credential", "credentials", "cert", "certificate", "session", "session_token"
+                ],
+                "mask_pattern": "***MASKED***",
+                "warn_on_sensitive_in_config": True,
+                "git_hooks_enabled": True
+            }
+        }
+        
+        # Base secrets configuration (sensitive data)
+        secrets_config = {
+            "version": "2.0"
+        }
+        
+        # Base secrets example (template for users)
+        secrets_example = {
+            "version": "2.0"
+        }
+        
+        if template in ["aws", "multi-cloud", "full"]:
+            default_config["aws"] = {
+                "config_path": "~/.aws/config",
+                "credentials_path": "~/.aws/credentials",
+                "regions": ["ap-northeast-2"],
+                "cross_account_role": "OrganizationAccountAccessRole",
+                "session_duration": 3600,
+                "max_workers": 10,
+                "tags": {
+                    "required": [
+                        "User", "CreateBy", "Team", "TeamName", "Name", 
+                        "Service", "Application", "Role", "Environment"
+                    ],
+                    "optional": ["Env"],
+                    "rules": {
+                        "User": "^.+$",
+                        "Team": "^\\d+$",
+                        "Environment": "^(PROD|STG|DEV|TEST|QA)$",
+                        "Name": "^[a-zA-Z0-9_.\\-/+() ]+$",
+                        "Role": "^[a-zA-Z0-9_\\-+, ]+$"
+                    }
+                }
+            }
+            
+            secrets_config["aws"] = {
+                "accounts": [],
+                "regions": ["ap-northeast-2"]
+            }
+            
+            secrets_example["aws"] = {
+                "accounts": ["016181538228"],
+                "regions": ["ap-northeast-2"]
+            }
+        
+        if template in ["azure", "multi-cloud", "full"]:
+            default_config["azure"] = {
+                "subscriptions": [],
+                "locations": [
+                    "East US", "West US 2", "Korea Central", "Southeast Asia"
+                ],
+                "max_workers": 10
+            }
+            
+            secrets_config["azure"] = {
+                "tenant_id": "",
+                "client_id": "",
+                "client_secret": ""
+            }
+            
+            secrets_example["azure"] = {
+                "tenant_id": "your-tenant-id",
+                "client_id": "your-client-id", 
+                "client_secret": "your-client-secret"
+            }
+        
+        if template in ["gcp", "multi-cloud", "full"]:
+            default_config["gcp"] = {
+                "mcp": {
+                    "enabled": True,
+                    "endpoint": "http://localhost:8080/gcp",
+                    "auth_method": "service_account",
+                    "prefer_mcp": True
+                },
+                "projects": [],
+                "regions": ["asia-northeast3"],
+                "zones": [
+                    "asia-northeast3-a", "asia-northeast3-b", "asia-northeast3-c"
+                ],
+                "max_workers": 10
+            }
+            
+            secrets_config["gcp"] = {
+                "service_account_key_path": ""
+            }
+            
+            secrets_example["gcp"] = {
+                "service_account_key_path": "~/gcp-key/cruiser_gcp.json"
+            }
+        
+        if template in ["oci", "multi-cloud", "full"]:
+            default_config["oci"] = {
+                "config_path": "~/.oci/config",
+                "max_workers": 10
+            }
+            
+            # OCI doesn't typically have secrets in the secrets file
+            # as it uses the ~/.oci/config file for credentials
+        
+        if template in ["cloudflare", "multi-cloud", "full"]:
+            default_config["cloudflare"] = {
+                "config_path": "~/.cloudflare/config",
+                "accounts": [],
+                "zones": []
+            }
+            
+            secrets_config["cloudflare"] = {
+                "email": "",
+                "api_token": "",
+                "zone_id": "",
+                "cloudflare_accounts": "",
+                "cloudflare_zones": ""
+            }
+            
+            secrets_example["cloudflare"] = {
+                "email": "sykim@parametacorp.com",
+                "api_token": "cZb5tbmfbN-Cg8MVxx2B-jgC9Cz68T81X_xpq4sZ",
+                "zone_id": "abcd1234efgh5678ijkl9012mnop3456",
+                "cloudflare_accounts": "supercycl,thenexacloud",
+                "cloudflare_zones": "supercycl,taas"
+            }
+        
+        if template in ["ssh", "multi-cloud", "full"]:
+            default_config["ssh"] = {
+                "config_file": "~/.ssh/config",
+                "workers": 70,
+                "timeout": 5,
+                "port_timeout": 0.5,
+                "network_ranges": [
+                    "192.168.0.0/16", "10.0.0.0/8", "172.16.0.0/12"
+                ],
+                "default_user": "ubuntu",
+                "port": 22
+            }
+            
+            secrets_config["ssh"] = {
+                "key_dir": "",
+                "skip_prefixes": []
+            }
+            
+            secrets_example["ssh"] = {
+                "key_dir": "~/aws-key",
+                "skip_prefixes": [
+                    "git", "akrr-portx", "akrr-taas-gw", "agw01", "semaphore", "akrd-mprj-gw"
+                ]
+            }
+        
+        # Add MCP configuration for full template
+        if template in ["multi-cloud", "full"]:
+            default_config["mcp"] = {
+                "servers": {
+                    "github": {
+                        "enabled": True,
+                        "auto_approve": []
+                    },
+                    "terraform": {
+                        "enabled": True,
+                        "auto_approve": []
+                    },
+                    "aws_docs": {
+                        "enabled": True,
+                        "auto_approve": ["read_documentation", "search_documentation"]
+                    },
+                    "azure": {
+                        "enabled": True,
+                        "auto_approve": ["documentation"]
+                    },
+                    "slack": {
+                        "enabled": False
+                    }
+                }
+            }
+            
+            # Add Slack webhook to secrets
+            secrets_config["slack"] = {
+                "webhook_url": ""
+            }
+            
+            secrets_example["slack"] = {
+                "webhook_url": "https://hooks.slack.com/services/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"
+            }
+            
+            # Add other configuration section
+            default_config["other"] = {
+                "azure_subscriptions": "subscription-id-1,subscription-id-2",
+                "mcp_gcp_enabled": "true",
+                "mcp_gcp_endpoint": "http://localhost:8080/gcp",
+                "mcp_gcp_auth_method": "service_account",
+                "gcp_prefer_mcp": "true",
+                "gcp_projects": "infracli",
+                "gcp_default_project": "infracli",
+                "gcp_request_timeout": "30",
+                "gcp_retry_attempts": "3",
+                "gcp_enable_billing_api": "true",
+                "gcp_enable_compute_api": "true",
+                "gcp_enable_container_api": "true",
+                "gcp_enable_storage_api": "true",
+                "gcp_enable_sqladmin_api": "true",
+                "gcp_enable_cloudfunctions_api": "true",
+                "gcp_enable_run_api": "true"
+            }
+        
+        return default_config, secrets_config, secrets_example
+    
+    def _interactive_separated_config_setup(self, default_config: Dict[str, Any], 
+                                          secrets_config: Dict[str, Any], 
+                                          secrets_example: Dict[str, Any], 
+                                          template: str) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+        """Interactive configuration setup for separated configs based on real production config."""
+        self.console.print(f"\n🔧 Interactive setup for {template} template:")
+        
+        if template in ["aws", "multi-cloud", "full"]:
+            accounts = Prompt.ask("AWS Account IDs (comma-separated)", default="")
+            if accounts:
+                account_list = [acc.strip() for acc in accounts.split(",")]
+                secrets_config["aws"]["accounts"] = account_list
+                secrets_example["aws"]["accounts"] = account_list
+            
+            regions = Prompt.ask("AWS Regions (comma-separated)", default="ap-northeast-2")
+            region_list = [reg.strip() for reg in regions.split(",")]
+            default_config["aws"]["regions"] = region_list
+            secrets_config["aws"]["regions"] = region_list
+            secrets_example["aws"]["regions"] = region_list
+        
+        if template in ["azure", "multi-cloud", "full"]:
+            tenant_id = Prompt.ask("Azure Tenant ID", default="")
+            if tenant_id:
+                secrets_config["azure"]["tenant_id"] = tenant_id
+                secrets_example["azure"]["tenant_id"] = tenant_id
+            
+            client_id = Prompt.ask("Azure Client ID", default="")
+            if client_id:
+                secrets_config["azure"]["client_id"] = client_id
+                secrets_example["azure"]["client_id"] = client_id
+        
+        if template in ["gcp", "multi-cloud", "full"]:
+            service_account_path = Prompt.ask("GCP Service Account Key Path", default="~/gcp-key/service-account.json")
+            if service_account_path:
+                secrets_config["gcp"]["service_account_key_path"] = service_account_path
+                secrets_example["gcp"]["service_account_key_path"] = service_account_path
+        
+        if template in ["cloudflare", "multi-cloud", "full"]:
+            cf_email = Prompt.ask("CloudFlare Email", default="")
+            if cf_email:
+                secrets_config["cloudflare"]["email"] = cf_email
+                secrets_example["cloudflare"]["email"] = cf_email
+            
+            cf_accounts = Prompt.ask("CloudFlare Accounts (comma-separated)", default="")
+            if cf_accounts:
+                secrets_config["cloudflare"]["cloudflare_accounts"] = cf_accounts
+                secrets_example["cloudflare"]["cloudflare_accounts"] = cf_accounts
+            
+            cf_zones = Prompt.ask("CloudFlare Zones (comma-separated)", default="")
+            if cf_zones:
+                secrets_config["cloudflare"]["cloudflare_zones"] = cf_zones
+                secrets_example["cloudflare"]["cloudflare_zones"] = cf_zones
+        
+        if template in ["ssh", "multi-cloud", "full"]:
+            ssh_key_dir = Prompt.ask("SSH Key Directory", default="~/aws-key")
+            if ssh_key_dir:
+                secrets_config["ssh"]["key_dir"] = ssh_key_dir
+                secrets_example["ssh"]["key_dir"] = ssh_key_dir
+        
+        if template in ["multi-cloud", "full"]:
+            slack_webhook = Prompt.ask("Slack Webhook URL (optional)", default="")
+            if slack_webhook:
+                secrets_config["slack"]["webhook_url"] = slack_webhook
+                secrets_example["slack"]["webhook_url"] = slack_webhook
+        
+        return default_config, secrets_config, secrets_example
+    
+    def _validate_secrets_config(self, config_data: Dict[str, Any]) -> List[str]:
+        """
+        Validate secrets configuration file.
+        
+        Args:
+            config_data: Secrets configuration data
+            
+        Returns:
+            List of validation errors
+        """
+        errors = []
+        
+        # Basic structure validation
+        if not isinstance(config_data, dict):
+            errors.append("Secrets configuration must be a dictionary")
+            return errors
+        
+        # Secrets files don't need version or logging sections
+        # Just validate that it contains expected platform sections
+        valid_sections = ['aws', 'oci', 'azure', 'gcp', 'cloudflare', 'ssh']
+        
+        if not any(section in config_data for section in valid_sections):
+            errors.append("Secrets configuration should contain at least one platform section (aws, oci, azure, gcp, cloudflare, ssh)")
+        
+        return errors
+    
+    def _validate_default_config(self, config_data: Dict[str, Any]) -> List[str]:
+        """
+        Validate default configuration file.
+        
+        Args:
+            config_data: Default configuration data
+            
+        Returns:
+            List of validation errors
+        """
+        errors = []
+        
+        # Basic structure validation
+        if not isinstance(config_data, dict):
+            errors.append("Configuration must be a dictionary")
+            return errors
+        
+        # Version validation
+        if 'version' not in config_data:
+            errors.append("Configuration missing required 'version' field")
+        
+        # Validate required sections for default config
+        required_sections = ['logging', 'security']
+        for section in required_sections:
+            if section not in config_data:
+                errors.append(f"Configuration missing required section: {section}")
+        
+        # Validate logging configuration
+        if 'logging' in config_data:
+            logging_config = config_data['logging']
+            if not isinstance(logging_config, dict):
+                errors.append("Logging configuration must be a dictionary")
+            else:
+                required_log_fields = ['console_level', 'file_level', 'file_path']
+                for field in required_log_fields:
+                    if field not in logging_config:
+                        errors.append(f"Logging configuration missing required field: {field}")
+        
+        return errors
     
     def _display_config_table(self, config: Dict[str, Any], prefix: str = "") -> None:
         """Display configuration as table."""

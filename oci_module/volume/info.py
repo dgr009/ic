@@ -10,6 +10,7 @@ from rich.console import Console
 from rich.table import Table
 from rich import box
 from common.log import log_info_non_console
+from common.progress_decorator import progress_bar, ManualProgress
 from oci_module.common.utils import get_all_subscribed_regions, get_compartments
 
 def add_arguments(parser):
@@ -83,15 +84,25 @@ def collect_volumes_parallel_fast(config, compartments, region_list, name_filter
     log_info_non_console("collect_volumes_parallel_fast start")
     all_boot, all_block, jobs = [], [], [(reg, comp) for reg in region_list for comp in compartments]
     
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        fut_map = {executor.submit(fetch_volume_one_comp, config, r, c, name_filter): (r, c) for r, c in jobs}
-        for fut in concurrent.futures.as_completed(fut_map):
-            try:
-                b_rows, blk_rows = fut.result()
-                all_boot.extend(b_rows)
-                all_block.extend(blk_rows)
-            except Exception as e:
-                console.print(f"[red]Volume job failed[/red]: {fut_map[fut]}: {e}")
+    total_jobs = len(jobs)
+    with ManualProgress(f"Collecting volumes from {len(region_list)} regions and {len(compartments)} compartments", total=total_jobs) as progress:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            fut_map = {executor.submit(fetch_volume_one_comp, config, r, c, name_filter): (r, c) for r, c in jobs}
+            completed = 0
+            
+            for fut in concurrent.futures.as_completed(fut_map):
+                try:
+                    b_rows, blk_rows = fut.result()
+                    all_boot.extend(b_rows)
+                    all_block.extend(blk_rows)
+                    completed += 1
+                    region, comp = fut_map[fut]
+                    progress.update(f"Processed {region}/{comp.name} - Found {len(b_rows)} boot + {len(blk_rows)} block volumes", advance=1)
+                except Exception as e:
+                    completed += 1
+                    region, comp = fut_map[fut]
+                    console.print(f"[red]Volume job failed[/red]: {region}/{comp.name}: {e}")
+                    progress.advance(1)
                 
     elapsed = time.time() - start_ts
     log_info_non_console(f"collect_volumes_parallel_fast complete ({elapsed:.2f}s)")
@@ -123,6 +134,7 @@ def print_volume_table(console, rows, title):
         table.add_row(row["compartment_name"], row["region"], row["volume_name"], row["state"], str(row["size_gb"]), row["vpu"], row["attached"])
     console.print(table)
 
+@progress_bar("Initializing OCI volume information collection")
 def main(args):
     console = Console()
     try:

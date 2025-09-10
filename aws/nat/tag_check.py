@@ -5,6 +5,7 @@ import os
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from common.log import log_info, log_error, log_exception, log_decorator
+from common.progress_decorator import ManualProgress
 from common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
 from rich.console import Console
 from rich.table import Table
@@ -93,29 +94,45 @@ def check_all_nat_tags(args):
     table_data = []
     found_issues = False
 
-    futures = []
-    with ThreadPoolExecutor() as executor:
-        for account_id in accounts:
-            profile_name = profiles.get(account_id)
-            if not profile_name:
-                log_error(f"Account {account_id} not found in profiles")
-                continue
+    # Filter out accounts without valid profiles
+    valid_accounts = []
+    for account_id in accounts:
+        profile_name = profiles.get(account_id)
+        if profile_name:
+            valid_accounts.append((account_id, profile_name))
+        else:
+            log_error(f"Account {account_id} not found in profiles")
+    
+    total_operations = len(valid_accounts) * len(regions)
+    
+    with ManualProgress("Validating NAT Gateway tags across accounts and regions", total=total_operations) as progress:
+        with ThreadPoolExecutor() as executor:
+            futures = []
+            future_to_info = {}
+            
+            for account_id, profile_name in valid_accounts:
+                for region in regions:
+                    future = executor.submit(fetch_and_validate_nat_tags, account_id, profile_name, region)
+                    futures.append(future)
+                    future_to_info[future] = (account_id, region)
 
-            for region in regions:
-                futures.append(
-                    executor.submit(fetch_and_validate_nat_tags, account_id, profile_name, region)
-                )
-
-        for f in as_completed(futures):
-            try:
-                results = f.result()
-                if results:
-                    found_issues = True
-                    for row in results:
-                        table.add_row(*row)
-                        table_data.append(row)
-            except Exception as e:
-                log_exception(e)
+            completed = 0
+            for future in as_completed(futures):
+                account_id, region = future_to_info[future]
+                try:
+                    results = future.result()
+                    if results:
+                        found_issues = True
+                        for row in results:
+                            table.add_row(*row)
+                            table_data.append(row)
+                    completed += 1
+                    issues_count = len(results) if results else 0
+                    progress.update(f"Processed {account_id}/{region} - Found {issues_count} tag issues", advance=1)
+                except Exception as e:
+                    completed += 1
+                    log_exception(e)
+                    progress.update(f"Failed {account_id}/{region} - {str(e)[:50]}...", advance=1)
 
     if found_issues:
         log_info("NAT Gateway 태그 유효성 검사 결과 (이슈 있음):")

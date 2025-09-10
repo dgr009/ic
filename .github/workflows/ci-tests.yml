@@ -1,0 +1,59 @@
+name: CI/CD Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9, 3.10, 3.11, 3.12]
+
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest pytest-cov
+    
+    - name: Check dependencies and imports
+      run: |
+        python tests/run_ci_tests.py --check-only
+    
+    - name: Run CI-safe tests
+      run: |
+        python tests/run_ci_tests.py --verbose --coverage
+    
+    - name: Run basic functionality tests
+      run: |
+        python -m pytest tests/test_basic.py -v -m ci_safe
+    
+    - name: Run configuration tests
+      run: |
+        python -m pytest tests/test_ci_configuration.py -v
+    
+    - name: Run progress decorator tests
+      run: |
+        python -m pytest tests/test_progress_decorator_thread_safety.py -v
+    
+    - name: Test CLI parsing without config
+      run: |
+        python -m pytest tests/test_ci_cd_infrastructure.py::TestConfigurationIndependentFunctionality -v
+    
+    - name: Upload coverage reports
+      if: matrix.python-version == '3.11'
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        fail_ci_if_error: false

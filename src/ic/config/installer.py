@@ -135,7 +135,7 @@ class DefaultConfigGenerator:
                 'level': 'INFO',
                 'file_level': 'DEBUG',
                 'format': '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                'file_path': 'logs/ic.log'
+                'file_path': '~/.ic/logs/ic_{date}.log'
             },
             'security': {
                 'mask_sensitive_data': True,
@@ -243,7 +243,7 @@ logging:
   level: INFO              # Console log level: DEBUG, INFO, WARNING, ERROR
   file_level: DEBUG        # File log level (more detailed than console)
   format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-  file_path: 'logs/ic.log' # Log file location
+  file_path: '~/.ic/logs/ic_{date}.log' # Log file location
 
 # Security settings
 security:

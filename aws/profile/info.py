@@ -274,7 +274,7 @@ class ProfileTableRenderer:
         table.add_column("Source", style="yellow")
         table.add_column("Role Name", style="blue")
         table.add_column("Credential", style="magenta")
-        table.add_column("Region", style="red")
+        table.add_column("Region", style="white")
         
         for profile in profiles:
             # Format credential status with colors

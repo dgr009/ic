@@ -12,6 +12,7 @@ from rich.tree import Tree
 from rich.rule import Rule
 from rich import box
 from common.log import log_info_non_console
+from common.progress_decorator import progress_bar, ManualProgress
 from oci_module.common.utils import get_all_subscribed_regions, get_compartments
 
 # ###############################################################################
@@ -26,6 +27,7 @@ def add_arguments(parser):
 ###############################################################################
 # LB 정보 수집
 ###############################################################################
+@progress_bar("Collecting load balancers from compartment")
 def fetch_lb_one_comp(config, region, comp, name_filter):
     console = Console()
     results = []
@@ -151,6 +153,7 @@ def fetch_lb_one_comp(config, region, comp, name_filter):
             results.extend(fut.result())
     return results
 
+@progress_bar("Collecting load balancers across compartments and regions")
 def collect_lb_parallel_fast(config, compartments, region_list, name_filter, console, max_workers=20):
     start_ts = time.time()
     log_info_non_console("collect_lb_parallel_fast start")
@@ -341,6 +344,7 @@ def print_lb_table(console, lb_rows):
 ###############################################################################
 # main
 ###############################################################################
+@progress_bar("OCI Load Balancer Information Collection")
 def main(args):
     console = Console()
     try:

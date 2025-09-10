@@ -9,14 +9,22 @@ import paramiko
 # paramiko.util.log_to_file("ssh_paramiko_debug.log")
 
 from ic.config.manager import ConfigManager
+from ic.core.logging import ICLogger
 from rich.table import Table
-from common.log import log_info,log_error,log_exception,console
+from rich.console import Console
+from common.progress_decorator import concurrent_progress, ManualProgress
+
+console = Console()
 # -----------------------------------------------------------------------------
 # 설정 관리자 초기화
 # -----------------------------------------------------------------------------
 _config_manager = ConfigManager()
 _config = _config_manager.load_all_configs()
 _ssh_config = _config.get('ssh', {})
+
+# IC 로거 시스템 사용
+_ic_logger = ICLogger(_config)
+logger = _ic_logger.get_logger()
 
 SSH_CONFIG_FILE = _ssh_config.get('config_file', "~/.ssh/config")
 SSH_TIMEOUT = int(_ssh_config.get('timeout', 5))
@@ -80,7 +88,7 @@ class ServerInfoRetriever:
             private_key = paramiko.RSAKey(filename=self.private_key_path)
         except Exception:
             # log_exception(key_exc)
-            log_error(
+            logger.error(
                 f"[KEY-ERROR] {self.hostname}:{self.port} - 키 로드 실패 ({self.private_key_path})"
             )
             return None
@@ -129,7 +137,7 @@ class ServerInfoRetriever:
         except Exception as e:
             # 상세 로그 남김 (호스트, 커맨드, 예외)
             # log_exception(e)
-            log_error(
+            logger.error(
                 f"[CMD-FAIL] {self.hostname}:{self.port} - '{command}' 실행 실패: {e}"
             )
             return None
@@ -196,7 +204,7 @@ def parse_ssh_config() -> list:
         with open(config_path, 'r', encoding='utf-8') as f:
             ssh_config.parse(f)
     except FileNotFoundError:
-        log_exception(f".ssh/config 파일을 찾을 수 없음: {config_path}")
+        logger.exception(f".ssh/config 파일을 찾을 수 없음: {config_path}")
         console.print(f"[bold red]에러:[/bold red] .ssh/config 파일을 찾을 수 없습니다: {config_path}")
         return servers
 
@@ -234,8 +242,8 @@ def parse_ssh_config() -> list:
 
     total_hosts = len(list(ssh_config.get_hostnames())) - 1  # '*' 제외
     excluded_hosts = total_hosts - len(servers)
-    log_info(f"ssh_config 파싱 완료 (총 {len(servers)}개 호스트, 제외 {excluded_hosts}개)")
-    log_info(f"Skip prefixes: {SSH_SKIP_PREFIXES}")
+    console.print(f"[cyan]ssh_config 파싱 완료:[/cyan] [green]{len(servers)}개 호스트,[/green] [red]제외 {excluded_hosts}개)[/red]")
+    console.print(f"[cyan]Skip prefixes:[/cyan] {SSH_SKIP_PREFIXES}")
     return servers
 
 # -----------------------------------------------------------------------------
@@ -245,21 +253,49 @@ def fetch_server_info(cfg: dict):
     """
     단일 서버 정보 수집 → (servername, hostname, ip_output, df_root, df_app, df_data, cpu_num, cpu_out, mem_out)
     """
-    retriever = ServerInfoRetriever(
-        cfg["hostname"],
-        cfg["username"],
-        cfg["private_key_path"],
-        cfg["port"]
-    )
-    # log_info(f"[{cfg['servername']}] 장치 정보 수집 시작")
-    device_info = retriever.get_device_info()
-    # log_info(f"[{cfg['servername']}] 장치 정보 수집 완료")
-    retriever.close_connection()
+    try:
+        retriever = ServerInfoRetriever(
+            cfg["hostname"],
+            cfg["username"],
+            cfg["private_key_path"],
+            cfg["port"]
+        )
+        # log_info(f"[{cfg['servername']}] 장치 정보 수집 시작")
+        device_info = retriever.get_device_info()
+        # log_info(f"[{cfg['servername']}] 장치 정보 수집 완료")
+        retriever.close_connection()
 
-    if device_info is None:
-        # log_error(
-        #     f"[FETCH-FAIL] {cfg['servername']} ({cfg['hostname']}) - 장치 정보 수집 실패"
-        # )
+        if device_info is None:
+            # log_error(
+            #     f"[FETCH-FAIL] {cfg['servername']} ({cfg['hostname']}) - 장치 정보 수집 실패"
+            # )
+            return (
+                cfg["servername"],
+                cfg["hostname"],
+                "Connection Fail",
+                "N/A",
+                "N/A",
+                "N/A",
+                "N/A",
+                "N/A",
+                "N/A",
+            )
+        else:
+            df_root, df_app, df_data, cpu_num, cpu_out, mem_out, ip_out = device_info
+            return (
+                cfg['servername'],
+                cfg['hostname'],
+                ip_out,
+                df_root,
+                df_app,
+                df_data,
+                cpu_num,
+                cpu_out,
+                mem_out
+            )
+    except Exception as e:
+        # Handle any unexpected errors during server info collection
+        logger.error(f"[FETCH-ERROR] {cfg['servername']} ({cfg['hostname']}) - Unexpected error: {e}")
         return (
             cfg["servername"],
             cfg["hostname"],
@@ -271,19 +307,46 @@ def fetch_server_info(cfg: dict):
             "N/A",
             "N/A",
         )
-    else:
-        df_root, df_app, df_data, cpu_num, cpu_out, mem_out, ip_out = device_info
-        return (
-            cfg['servername'],
-            cfg['hostname'],
-            ip_out,
-            df_root,
-            df_app,
-            df_data,
-            cpu_num,
-            cpu_out,
-            mem_out
-        )
+
+
+@concurrent_progress("Collecting SSH server information", max_workers=MAX_WORKER)
+def collect_all_server_info(server_configs: list) -> list:
+    """
+    Collect information from all servers using concurrent execution with progress tracking.
+    
+    Args:
+        server_configs: List of server configuration dictionaries
+        
+    Returns:
+        List of server information tuples
+    """
+    results = []
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKER) as executor:
+        # Submit all tasks
+        future_to_server = {
+            executor.submit(fetch_server_info, config): config 
+            for config in server_configs
+        }
+        
+        # Process completed tasks
+        for future in concurrent.futures.as_completed(future_to_server):
+            try:
+                result = future.result()
+                results.append(result)
+            except Exception as e:
+                cfg = future_to_server[future]
+                logger.exception(e)
+                console.print(f"[bold red]에러:[/bold red] {cfg['servername']} 처리 중 오류: {e}")
+                # Add failed result to maintain consistency
+                results.append((
+                    cfg["servername"],
+                    cfg["hostname"],
+                    "Connection Fail",
+                    "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"
+                ))
+    
+    return results
 
 # -----------------------------------------------------------------------------
 # 결과 파싱
@@ -454,10 +517,12 @@ def display_server_info(results: list, headers: list) -> None:
 # main
 # -----------------------------------------------------------------------------
 def main(args) -> None:
+    import time
+    
     # log_info("server_info 스크립트 시작")
     server_configs = parse_ssh_config()
     if not server_configs:
-        log_error("서버 설정이 비어있어 종료합니다.")
+        logger.error("서버 설정이 비어있어 종료합니다.")
         return
 
     # "Memory"로 헤더 변경
@@ -477,19 +542,29 @@ def main(args) -> None:
         "Mem %"
     ]
 
-    results = []
-    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKER) as executor:
-        future_to_server = {
-            executor.submit(fetch_server_info, config): config for config in server_configs
-        }
-        for future in concurrent.futures.as_completed(future_to_server):
-            try:
-                res = future.result()
-                results.append(res)
-            except Exception as e:
-                cfg = future_to_server[future]
-                log_exception(e)
-                console.print(f"[bold red]에러:[/bold red] {cfg['servername']} 처리 중 오류: {e}")
+    total_servers = len(server_configs)
+    start_time = time.time()
+    
+    # Use the new progress decorator system for concurrent server information collection
+    console.print(f"[cyan]Starting collection from {total_servers} servers...[/cyan]")
+    
+    try:
+        results = collect_all_server_info(server_configs)
+        
+        # Calculate processing time
+        processing_time = time.time() - start_time
+        
+        # Count successful vs failed connections
+        failed_count = sum(1 for result in results if result[2] == "Connection Fail")
+        success_count = total_servers - failed_count
+        
+        console.print(f"[green]✓ Collection completed in {processing_time:.2f}s[/green]")
+        console.print(f"[cyan]Results:[/cyan] [green]{success_count} successful[/green], [red]{failed_count} failed[/red]")
+        
+    except Exception as e:
+        logger.exception(f"Error during server information collection: {e}")
+        console.print(f"[bold red]에러:[/bold red] 서버 정보 수집 중 예기치 못한 오류가 발생했습니다: {e}")
+        return
 
     display_server_info(results, headers)
     # log_info("server_info 스크립트 완료")

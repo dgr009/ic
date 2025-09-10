@@ -70,6 +70,7 @@ class TestCLIIntegration:
         temp_file.close()
         return temp_file.name
     
+    @pytest.mark.requires_config
     def test_config_command_integration(self):
         """Test configuration management CLI commands."""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -78,7 +79,7 @@ class TestCLIIntegration:
             # Test config initialization
             from ic.commands.config import init_config
             
-            with patch('src.ic.config.manager.ConfigManager') as mock_manager_class:
+            with patch('ic.config.manager.ConfigManager') as mock_manager_class:
                 mock_manager = Mock()
                 mock_manager_class.return_value = mock_manager
                 
@@ -397,6 +398,7 @@ AZURE_SUBSCRIPTION_ID=sub-12345
         finally:
             os.unlink(config_file)
     
+    @pytest.mark.requires_credentials
     def test_aws_profile_command_integration(self):
         """Test AWS profile info command integration."""
         with patch('aws.profile.info.ProfileInfoCollector') as mock_collector_class:
@@ -429,7 +431,7 @@ AZURE_SUBSCRIPTION_ID=sub-12345
                 mock_collector.collect_profile_info.return_value = mock_profiles
                 
                 # Test command execution
-                from src.ic.cli import create_parser
+                from ic.cli import create_parser
                 parser = create_parser()
                 args = parser.parse_args(['aws', 'profile', 'info'])
                 
@@ -443,6 +445,7 @@ AZURE_SUBSCRIPTION_ID=sub-12345
                 mock_collector.collect_profile_info.assert_called_once()
                 mock_renderer.render_profiles.assert_called_once_with(mock_profiles)
     
+    @pytest.mark.requires_credentials
     def test_aws_cloudfront_command_integration(self):
         """Test AWS CloudFront info command integration."""
         with patch('aws.cloudfront.info.CloudFrontCollector') as mock_collector_class:
@@ -467,7 +470,7 @@ AZURE_SUBSCRIPTION_ID=sub-12345
                 mock_collector.collect_distributions.return_value = mock_distributions
                 
                 # Test command execution
-                from src.ic.cli import create_parser
+                from ic.cli import create_parser
                 parser = create_parser()
                 args = parser.parse_args(['aws', 'cloudfront', 'info'])
                 
@@ -481,6 +484,7 @@ AZURE_SUBSCRIPTION_ID=sub-12345
                 mock_collector.collect_distributions.assert_called_once()
                 mock_renderer.render_distributions.assert_called_once_with(mock_distributions)
     
+    @pytest.mark.requires_credentials
     def test_oci_compartment_command_integration(self):
         """Test OCI compartment tree command integration."""
         with patch('oci.config.from_file') as mock_config_from_file:
@@ -522,7 +526,7 @@ AZURE_SUBSCRIPTION_ID=sub-12345
                         mock_builder.build_compartment_tree.return_value = mock_tree_data
                         
                         # Test command execution
-                        from src.ic.cli import create_parser
+                        from ic.cli import create_parser
                         parser = create_parser()
                         args = parser.parse_args(['oci', 'compartment', 'tree'])
                         

@@ -10,6 +10,7 @@ from rich.tree import Tree
 from rich.rule import Rule
 from rich import box
 from common.log import log_info_non_console
+from common.progress_decorator import ManualProgress
 from common.utils import get_profiles, create_session
 
 def add_arguments(parser):
@@ -149,17 +150,31 @@ def collect_sg_parallel_fast(profiles, account_filter, region_list, name_filter,
         for region in region_list:
             jobs.append((profile_name, account_id, region))
     
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        fut_map = {
-            executor.submit(fetch_sg_one_account_region, profile, account, region, name_filter): (profile, account, region)
-            for profile, account, region in jobs
-        }
-        
-        for fut in concurrent.futures.as_completed(fut_map):
-            try:
-                all_rows.extend(fut.result())
-            except Exception as e:
-                console.print(f"[red]SG Job failed[/red]: {fut_map[fut]}: {e}")
+    total_operations = len(jobs)
+    
+    with ManualProgress("Collecting Security Group information across accounts and regions", total=total_operations) as progress:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = []
+            future_to_info = {}
+            
+            for profile, account, region in jobs:
+                future = executor.submit(fetch_sg_one_account_region, profile, account, region, name_filter)
+                futures.append(future)
+                future_to_info[future] = (account, region)
+            
+            completed = 0
+            for future in concurrent.futures.as_completed(futures):
+                account, region = future_to_info[future]
+                try:
+                    result = future.result()
+                    all_rows.extend(result)
+                    completed += 1
+                    sg_count = len(set(row['sg_name'] for row in result))
+                    progress.update(f"Processed {account}/{region} - Found {sg_count} Security Groups", advance=1)
+                except Exception as e:
+                    completed += 1
+                    log_info_non_console(f"Failed to collect SG data for {account}/{region}: {e}")
+                    progress.update(f"Failed {account}/{region} - {str(e)[:50]}...", advance=1)
     
     elapsed = time.time() - start_ts
     log_info_non_console(f"collect_sg_parallel_fast complete ({elapsed:.2f}s)")

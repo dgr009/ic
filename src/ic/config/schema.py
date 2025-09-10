@@ -464,7 +464,7 @@ class ConfigValidator:
         logging_config = LoggingConfig(
             console_level=logging_data.get('console_level', 'ERROR'),
             file_level=logging_data.get('file_level', 'INFO'),
-            file_path=logging_data.get('file_path', 'logs/ic_{date}.log'),
+            file_path=logging_data.get('file_path', '~/.ic/logs/ic_{date}.log'),
             max_files=logging_data.get('max_files', 30),
             format=logging_data.get('format', '%(asctime)s [%(levelname)s] - %(message)s'),
             mask_sensitive=logging_data.get('mask_sensitive', True),

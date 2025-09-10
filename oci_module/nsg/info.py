@@ -10,6 +10,7 @@ from rich.tree import Tree
 from rich.rule import Rule
 from rich import box
 from common.log import log_info_non_console
+from common.progress_decorator import progress_bar, ManualProgress
 from oci_module.common.utils import get_all_subscribed_regions, get_compartments
 
 def add_arguments(parser):
@@ -18,6 +19,7 @@ def add_arguments(parser):
     parser.add_argument("--regions","-r", default=None, help="조회할 리전(,) 예: ap-seoul-1,us-ashburn-1")
     parser.add_argument("--output", default="table", choices=["tree", "table"], help="출력 형식 선택 (기본: table)")
 
+@progress_bar("Collecting network security groups from compartment")
 def fetch_nsg_one_comp(config, region, comp, name_filter):
     console = Console()
     results = []
@@ -62,6 +64,7 @@ def fetch_nsg_one_comp(config, region, comp, name_filter):
                 results.append({"region": region, "compartment_name": comp.name, "nsg_name": nsg.display_name, "desc": rule.description or "-", "proto": proto_str, "port_range": port_range, "source": source_str})
     return results
 
+@progress_bar("Collecting network security groups across compartments and regions")
 def collect_nsg_parallel_fast(config, compartments, region_list, name_filter, console, max_workers=20):
     start_ts = time.time()
     log_info_non_console("collect_nsg_parallel_fast start")
@@ -182,6 +185,7 @@ def print_nsg_table(console, nsg_rows):
         t.add_row(comp_display, region_display, nsg_display, row["port_range"], row["source"], row["desc"], row["proto"])
     console.print(t)
 
+@progress_bar("OCI Network Security Group Information Collection")
 def main(args):
     console = Console()
     try:

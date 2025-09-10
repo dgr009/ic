@@ -13,6 +13,7 @@ from rich import box
 from rich.rule import Rule
 
 from common.log import log_info_non_console
+from common.progress_decorator import ManualProgress
 from common.utils import (
     get_env_accounts,
     get_profiles,
@@ -45,7 +46,11 @@ def fetch_ec2_one_account_region(account_id, profile_name, region_name, name_fil
     all_instances = []
     try:
         paginator = ec2_client.get_paginator("describe_instances")
+        page_count = 0
         for page in paginator.paginate():
+            page_count += 1
+            log_info_non_console(f"Processing page {page_count} for {account_id}/{region_name}")
+            
             for rsv in page["Reservations"]:
                 for inst in rsv["Instances"]:
                     if inst['State']['Name'] == 'terminated':
@@ -56,6 +61,8 @@ def fetch_ec2_one_account_region(account_id, profile_name, region_name, name_fil
                     if name_filter and name_filter not in (inst_name or ''):
                         continue
                     all_instances.append(inst)
+        
+        log_info_non_console(f"Found {len(all_instances)} instances across {page_count} pages for {account_id}/{region_name}")
     except Exception as e:
         log_info_non_console(f"EC2 인스턴스 목록 조회 실패: {e}")
         return []
@@ -63,16 +70,20 @@ def fetch_ec2_one_account_region(account_id, profile_name, region_name, name_fil
     if not all_instances:
         return []
 
+    # Collect resource IDs for batch lookups
     subnet_ids = {inst["SubnetId"] for inst in all_instances if "SubnetId" in inst}
     sg_ids = {sgi["GroupId"] for inst in all_instances for sgi in inst.get("SecurityGroups", [])}
     volume_ids = {bdm["Ebs"]["VolumeId"] for inst in all_instances for bdm in inst.get("BlockDeviceMappings", []) if "Ebs" in bdm and "VolumeId" in bdm["Ebs"]}
     instance_types = {inst["InstanceType"] for inst in all_instances if "InstanceType" in inst}
+    
+    log_info_non_console(f"Collecting resource details: {len(subnet_ids)} subnets, {len(sg_ids)} security groups, {len(volume_ids)} volumes, {len(instance_types)} instance types")
 
-    def get_resource_map(resource_ids, describe_func, result_key, id_key, value_key):
+    def get_resource_map(resource_ids, describe_func, result_key, id_key, value_key, resource_type):
         resource_map = {}
         if not resource_ids:
             return resource_map
         try:
+            log_info_non_console(f"Fetching {len(resource_ids)} {resource_type} details for {account_id}/{region_name}")
             response = describe_func(**{f"{id_key}s": list(resource_ids)})
             for item in response[result_key]:
                 name = item.get(value_key)
@@ -81,31 +92,36 @@ def fetch_ec2_one_account_region(account_id, profile_name, region_name, name_fil
                 elif not name:
                     name = item[id_key]
                 resource_map[item[id_key]] = name
+            log_info_non_console(f"Successfully fetched {len(resource_map)} {resource_type} details")
         except Exception as e:
             log_info_non_console(f"{result_key} 정보 조회 실패: {e}")
         return resource_map
 
-    subnet_map = get_resource_map(subnet_ids, ec2_client.describe_subnets, "Subnets", "SubnetId", "Tags")
-    sg_map = get_resource_map(sg_ids, ec2_client.describe_security_groups, "SecurityGroups", "GroupId", "GroupName")
+    subnet_map = get_resource_map(subnet_ids, ec2_client.describe_subnets, "Subnets", "SubnetId", "Tags", "subnets")
+    sg_map = get_resource_map(sg_ids, ec2_client.describe_security_groups, "SecurityGroups", "GroupId", "GroupName", "security groups")
     
     volume_map = {}
     if volume_ids:
         try:
+            log_info_non_console(f"Fetching {len(volume_ids)} volume details for {account_id}/{region_name}")
             vol_resp = ec2_client.describe_volumes(VolumeIds=list(volume_ids))
             for v in vol_resp["Volumes"]:
                 volume_map[v["VolumeId"]] = v["Size"]
+            log_info_non_console(f"Successfully fetched {len(volume_map)} volume details")
         except Exception as e:
             log_info_non_console(f"Volume 정보 조회 실패: {e}")
 
     insttype_map = {}
     if instance_types:
         try:
+            log_info_non_console(f"Fetching {len(instance_types)} instance type details for {account_id}/{region_name}")
             itype_resp = ec2_client.describe_instance_types(InstanceTypes=list(instance_types))
             for tinfo in itype_resp["InstanceTypes"]:
                 itype = tinfo["InstanceType"]
                 vcpu = tinfo["VCpuInfo"]["DefaultVCpus"]
                 mem_gb = int(tinfo["MemoryInfo"]["SizeInMiB"] / 1024.0)
                 insttype_map[itype] = (vcpu, mem_gb)
+            log_info_non_console(f"Successfully fetched {len(insttype_map)} instance type details")
         except Exception as e:
             log_info_non_console(f"InstanceType 정보 조회 실패: {e}")
 
@@ -194,19 +210,41 @@ def main(args):
     profiles_map = get_profiles()
     name_filter = args.name.lower() if hasattr(args, 'name') and args.name else None
 
+    # Calculate total operations for progress tracking
+    valid_accounts = []
+    for acct in accounts:
+        profile_name = profiles_map.get(acct)
+        if not profile_name:
+            log_info_non_console(f"Account {acct} 에 대한 프로파일을 찾을 수 없습니다.")
+            continue
+        valid_accounts.append((acct, profile_name))
+    
+    total_operations = len(valid_accounts) * len(regions)
+    
     all_rows = []
-    with ThreadPoolExecutor() as executor:
-        futures = []
-        for acct in accounts:
-            profile_name = profiles_map.get(acct)
-            if not profile_name:
-                log_info_non_console(f"Account {acct} 에 대한 프로파일을 찾을 수 없습니다.")
-                continue
-            for reg in regions:
-                futures.append(executor.submit(fetch_ec2_one_account_region, acct, profile_name, reg, name_filter))
+    with ManualProgress("Collecting EC2 instances across accounts and regions", total=total_operations) as progress:
+        with ThreadPoolExecutor() as executor:
+            futures = []
+            future_to_info = {}
+            
+            for acct, profile_name in valid_accounts:
+                for reg in regions:
+                    future = executor.submit(fetch_ec2_one_account_region, acct, profile_name, reg, name_filter)
+                    futures.append(future)
+                    future_to_info[future] = (acct, reg)
 
-        for future in as_completed(futures):
-            all_rows.extend(future.result())
+            completed = 0
+            for future in as_completed(futures):
+                acct, reg = future_to_info[future]
+                try:
+                    result = future.result()
+                    all_rows.extend(result)
+                    completed += 1
+                    progress.update(f"Processed {acct}/{reg} - Found {len(result)} instances", advance=1)
+                except Exception as e:
+                    completed += 1
+                    log_info_non_console(f"Failed to collect EC2 data for {acct}/{reg}: {e}")
+                    progress.update(f"Failed {acct}/{reg} - {str(e)[:50]}...", advance=1)
 
     print_ec2_table(all_rows, args.verbose)
 

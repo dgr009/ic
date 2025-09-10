@@ -96,6 +96,20 @@ class SecurityManager:
         if not isinstance(value, str) or len(value) < 10:
             return False
         
+        # Check for safe patterns first (these are NOT secrets)
+        safe_patterns = [
+            r'^[A-Za-z][A-Za-z0-9]*Role$',  # AWS role names like OrganizationAccountAccessRole
+            r'^[A-Za-z][A-Za-z0-9]*Profile$',  # Profile names
+            r'^[a-z0-9-]+\.[a-z]{2,}$',    # Domain names
+            r'^/[a-zA-Z0-9/_-]+$',          # File paths
+            r'^~[a-zA-Z0-9/_.-]*$',         # Home directory paths
+            r'^[A-Za-z][A-Za-z0-9]*Service$',  # Service names
+        ]
+        
+        # If it matches a safe pattern, it's not a secret
+        if any(re.match(pattern, value) for pattern in safe_patterns):
+            return False
+        
         # Check for common secret patterns
         secret_patterns = [
             r'^[A-Za-z0-9+/]{40,}={0,2}$',  # Base64-like
@@ -121,10 +135,29 @@ class SecurityManager:
         """
         warnings = []
         
+        # Safe configuration keys that should not trigger warnings
+        safe_keys = {
+            'cross_account_role', 'role', 'role_name', 'default', 'profile',
+            'key_dir', 'config_file', 'service_account_key_path', 'project_id',
+            'subscription_id', 'tenant_id', 'client_id', 'compartments',
+            'config_path', 'credentials_path', 'file_path', 'log_path',
+            'endpoint', 'auth_method', 'session_duration', 'timeout',
+            'max_workers', 'workers', 'port_timeout', 'port', 'default_user',
+            'console_level', 'file_level', 'max_files', 'format',
+            'mask_pattern', 'warn_on_sensitive_in_config', 'git_hooks_enabled',
+            'enabled', 'prefer_mcp', 'auto_approve'
+        }
+        
         def check_node(data: Any, path: str = "") -> None:
             if isinstance(data, dict):
                 for key, value in data.items():
                     current_path = f"{path}.{key}" if path else key
+                    
+                    # Skip safe configuration keys
+                    if key in safe_keys:
+                        check_node(value, current_path)
+                        continue
+                    
                     if self._is_sensitive_key(key) and isinstance(value, str) and value:
                         if not self._is_placeholder_value(value):
                             warnings.append(
@@ -135,7 +168,8 @@ class SecurityManager:
             elif isinstance(data, list):
                 for i, item in enumerate(data):
                     check_node(item, f"{path}[{i}]")
-            elif isinstance(data, str) and self._looks_like_secret(data):
+            elif isinstance(data, str) and self._looks_like_secret(data) and len(data) > 20:
+                # Only flag strings that look like actual secrets (longer than 20 chars)
                 warnings.append(
                     f"Potential secret found at '{path}'. "
                     f"Consider using environment variables instead."

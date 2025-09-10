@@ -16,6 +16,7 @@ from rich.table import Table
 from rich import box
 
 from common.log import log_info_non_console, log_error
+from common.progress_decorator import progress_bar, spinner
 from common.utils import (
     get_env_accounts,
     get_profiles,
@@ -26,6 +27,7 @@ from common.utils import (
 load_dotenv()
 console = Console()
 
+@spinner("Getting EKS cluster information")
 def get_eks_cluster_info(session, region_name, cluster_name):
     """EKS 클러스터 정보를 가져옵니다."""
     try:
@@ -36,6 +38,7 @@ def get_eks_cluster_info(session, region_name, cluster_name):
         log_error(f"EKS 클러스터 정보 조회 실패: {cluster_name}, Error={e}")
         return None
 
+@spinner("Creating temporary kubeconfig")
 def create_kubeconfig(cluster_info, session, region_name):
     """임시 kubeconfig 파일을 생성합니다."""
     try:
@@ -89,6 +92,7 @@ def create_kubeconfig(cluster_info, session, region_name):
         log_error(f"kubeconfig 생성 실패: {e}")
         return None
 
+@progress_bar("Fetching EKS pod information via kubectl")
 def fetch_pods_info(account_id, profile_name, region_name, cluster_name_filter=None, namespace_filter=None):
     """EKS 클러스터의 파드 정보를 수집합니다."""
     log_info_non_console(f"EKS 파드 정보 수집 시작: Account={account_id}, Region={region_name}")
@@ -371,6 +375,7 @@ def format_age(created_at):
     except Exception:
         return '-'
 
+@progress_bar("Processing EKS pod discovery across accounts and regions")
 def main(args):
     """메인 함수"""
     accounts = args.account.split(",") if args.account else get_env_accounts()

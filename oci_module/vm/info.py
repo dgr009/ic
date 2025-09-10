@@ -12,6 +12,7 @@ from rich.table import Table
 from rich import box
 from rich.rule import Rule
 from common.log import log_info_non_console
+from common.progress_decorator import progress_bar, ManualProgress
 from oci_module.common.utils import get_all_subscribed_regions, get_compartments
 
 # ###############################################################################
@@ -28,6 +29,7 @@ def add_arguments(parser):
 ###############################################################################
 # 인스턴스 정보 수집
 ###############################################################################
+@progress_bar("Collecting instances from compartment")
 def fetch_instances_one_comp(config, region, comp, name_filter):
     console = Console()
     results = []
@@ -51,6 +53,9 @@ def fetch_instances_one_comp(config, region, comp, name_filter):
         return results
 
     valid_insts = [i for i in insts if i.lifecycle_state != "TERMINATED" and (not name_filter or name_filter in i.display_name.lower())]
+
+    if not valid_insts:
+        return results
 
     def process_instance(inst):
         start_ts = time.time()
@@ -116,7 +121,6 @@ def fetch_instances_one_comp(config, region, comp, name_filter):
             if created_by == '-':
                 created_by = inst.defined_tags.get('Oracle-Tags', {}).get('CreatedBy', '-')
 
-
             row_data = {
                 "compartment_name": comp.name, "region": region, "ad": ad_val, "fault_domain": fault_domain,
                 "instance_name": inst.display_name, "state_colored": state_colored, "subnet": subnet_str, "nsg": nsg_str,
@@ -130,26 +134,46 @@ def fetch_instances_one_comp(config, region, comp, name_filter):
             console.print(f"[red]Instance processing failed[/red]: {inst.display_name} : {e}")
             return None
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as inst_executor:
-        futs = [inst_executor.submit(process_instance, inst) for inst in valid_insts]
-        for fut in concurrent.futures.as_completed(futs):
-            if data := fut.result():
-                results.append(data)
+    # Use manual progress for detailed instance processing tracking
+    with ManualProgress(f"Processing {len(valid_insts)} instances in {comp.name} ({region})", total=len(valid_insts)) as progress:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=20) as inst_executor:
+            futs = [inst_executor.submit(process_instance, inst) for inst in valid_insts]
+            completed = 0
+            for fut in concurrent.futures.as_completed(futs):
+                if data := fut.result():
+                    results.append(data)
+                completed += 1
+                progress.update(f"Processed {completed}/{len(valid_insts)} instances", advance=1)
+    
     return results
 
+@progress_bar("Collecting instances across compartments and regions")
 def collect_instances_parallel_fast(config, compartments, region_list, name_filter, console, max_workers=20):
     start_ts = time.time()
     log_info_non_console("collect_instances_parallel_fast start")
     all_rows = []
     jobs = [(reg, comp) for reg in region_list for comp in compartments]
+    
+    if not jobs:
+        return all_rows
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        fut_map = {executor.submit(fetch_instances_one_comp, config, r, c, name_filter): (r, c) for r, c in jobs}
-        for fut in concurrent.futures.as_completed(fut_map):
-            try:
-                all_rows.extend(fut.result())
-            except Exception as e:
-                console.print(f"[red]Job failed[/red] {fut_map[fut]} : {e}")
+    # Use manual progress for detailed compartment/region traversal tracking
+    with ManualProgress(f"Processing {len(jobs)} compartment-region combinations", total=len(jobs)) as progress:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            fut_map = {executor.submit(fetch_instances_one_comp, config, r, c, name_filter): (r, c) for r, c in jobs}
+            completed = 0
+            
+            for fut in concurrent.futures.as_completed(fut_map):
+                region, comp = fut_map[fut]
+                try:
+                    result = fut.result()
+                    all_rows.extend(result)
+                    completed += 1
+                    progress.update(f"Completed {comp.name} in {region} - Found {len(result)} instances", advance=1)
+                except Exception as e:
+                    completed += 1
+                    progress.update(f"Failed {comp.name} in {region} - {str(e)}", advance=1)
+                    console.print(f"[red]Job failed[/red] {comp.name} in {region}: {e}")
     
     elapsed = time.time() - start_ts
     log_info_non_console(f"collect_instances_parallel_fast complete ({elapsed:.2f}s)")
@@ -215,29 +239,42 @@ def print_instance_table(console, inst_rows, verbose):
 ###############################################################################
 # main
 ###############################################################################
+@progress_bar("OCI VM Information Collection")
 def main(args):
     console = Console()
     name_filter = args.name.lower() if args.name else None
     compartment_filter = args.compartment.lower() if args.compartment else None
 
-    try:
-        config = oci.config.from_file("~/.oci/config", "DEFAULT")
-        identity_client = oci.identity.IdentityClient(config)
-    except Exception as e:
-        console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]")
-        sys.exit(1)
+    # Use manual progress for initialization and setup
+    with ManualProgress("Initializing OCI configuration and discovering resources", total=4) as progress:
+        try:
+            progress.update("Loading OCI configuration", advance=1)
+            config = oci.config.from_file("~/.oci/config", "DEFAULT")
+            identity_client = oci.identity.IdentityClient(config)
+        except Exception as e:
+            console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]")
+            sys.exit(1)
 
-    if args.regions:
-        subscribed = get_all_subscribed_regions(identity_client, config["tenancy"])
-        region_list = [r.strip() for r in args.regions.split(',') if r.strip() and r in subscribed]
-        if not region_list:
-            console.print("[red]유효한 리전이 없어 종료합니다[/red]")
-            sys.exit(0)
-    else:
-        region_list = get_all_subscribed_regions(identity_client, config["tenancy"])
+        progress.update("Discovering available regions", advance=1)
+        if args.regions:
+            subscribed = get_all_subscribed_regions(identity_client, config["tenancy"])
+            region_list = [r.strip() for r in args.regions.split(',') if r.strip() and r in subscribed]
+            if not region_list:
+                console.print("[red]유효한 리전이 없어 종료합니다[/red]")
+                sys.exit(0)
+        else:
+            region_list = get_all_subscribed_regions(identity_client, config["tenancy"])
 
-    compartments = get_compartments(identity_client, config["tenancy"], compartment_filter, console)
+        progress.update("Discovering compartments", advance=1)
+        compartments = get_compartments(identity_client, config["tenancy"], compartment_filter, console)
+        
+        progress.update(f"Found {len(compartments)} compartments and {len(region_list)} regions", advance=1)
+
+    # Collect instance information with progress tracking
     inst_rows = collect_instances_parallel_fast(config, compartments, region_list, name_filter, console)
+    
+    # Display results
+    console.print(f"\n[bold green]Collection complete![/bold green] Found {len(inst_rows)} instances.")
     print_instance_table(console, inst_rows, args.verbose)
 
 if __name__ == '__main__':

@@ -4,21 +4,145 @@ import argparse
 import sys
 import warnings
 
+class DevelopmentStatusHelpFormatter(argparse.RawDescriptionHelpFormatter):
+    """Custom help formatter that adds development status warnings."""
+    
+    def __init__(self, platform_name, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.platform_name = platform_name
+    
+    def format_help(self):
+        help_text = super().format_help()
+        
+        # Add development status warning at the beginning
+        warning_text = (
+            f"\n⚠️  DEVELOPMENT STATUS WARNING:\n"
+            f"   {self.platform_name} features are currently in development.\n"
+            f"   While usable, they may contain bugs or incomplete functionality.\n"
+            f"   Please report any issues you encounter.\n\n"
+        )
+        
+        # Insert warning after the usage line
+        lines = help_text.split('\n')
+        usage_line_idx = -1
+        for i, line in enumerate(lines):
+            if line.startswith('usage:'):
+                usage_line_idx = i
+                break
+        
+        if usage_line_idx >= 0:
+            # Insert warning after usage line and any following empty lines
+            insert_idx = usage_line_idx + 1
+            while insert_idx < len(lines) and lines[insert_idx].strip() == '':
+                insert_idx += 1
+            
+            lines.insert(insert_idx, warning_text)
+        else:
+            # Fallback: add at the beginning
+            lines.insert(0, warning_text)
+        
+        return '\n'.join(lines)
+
 # Silence all logging except ERROR messages
-from .core.silence_logging import silence_all_logging
-silence_all_logging()
+try:
+    from .core.silence_logging import silence_all_logging
+    silence_all_logging()
+except ImportError:
+    # Handle case when run directly
+    import sys
+    from pathlib import Path
+    
+    # Add src directory to path for direct execution
+    src_dir = Path(__file__).parent.parent
+    if str(src_dir) not in sys.path:
+        sys.path.insert(0, str(src_dir))
+    
+    try:
+        from ic.core.silence_logging import silence_all_logging
+        silence_all_logging()
+    except ImportError:
+        # If silence_logging is not available, continue without it
+        pass
+
+# Dependency validation
+def validate_core_dependencies():
+    """
+    Validate core dependencies and provide helpful error messages.
+    
+    Returns:
+        bool: True if all core dependencies are available
+    """
+    try:
+        try:
+            from .core.dependency_validator import DependencyValidator
+        except ImportError:
+            # Handle case when run directly
+            from ic.core.dependency_validator import DependencyValidator
+        
+        validator = DependencyValidator()
+        
+        # Check Python version first
+        if not validator.validate_python_version():
+            print("❌ Python version compatibility issue detected.")
+            print(f"   IC CLI requires Python 3.9-3.12 (current: {sys.version_info.major}.{sys.version_info.minor})")
+            return False
+        
+        # Check core dependencies
+        core_ok = validator.validate_core_dependencies()
+        
+        if not core_ok:
+            print("❌ Missing or incompatible dependencies detected:")
+            
+            if validator.missing_dependencies:
+                print(f"\n   Missing packages ({len(validator.missing_dependencies)}):")
+                for package in validator.missing_dependencies:
+                    print(f"     - {package}")
+            
+            if validator.incompatible_dependencies:
+                print(f"\n   Incompatible packages ({len(validator.incompatible_dependencies)}):")
+                for package in validator.incompatible_dependencies:
+                    print(f"     - {package}")
+            
+            install_cmd = validator.generate_installation_command()
+            if install_cmd:
+                print(f"\n💡 To fix these issues, run:")
+                print(f"   {install_cmd}")
+            else:
+                print(f"\n💡 To fix these issues, run:")
+                print(f"   pip install -r requirements.txt")
+            
+            print(f"\n📖 For more help, see: https://github.com/dgr009/ic#installation")
+            return False
+            
+        return True
+        
+    except ImportError:
+        # Dependency validator itself is missing - this means core dependencies are not installed
+        print("❌ IC CLI core dependencies are not installed.")
+        print("\n💡 To install dependencies, run:")
+        print("   pip install -r requirements.txt")
+        print("\n📖 For installation help, see: https://github.com/dgr009/ic#installation")
+        return False
+    except Exception as e:
+        # Unexpected error during validation
+        print(f"⚠️  Warning: Could not validate dependencies: {e}")
+        return True  # Continue anyway
 
 # Set up compatibility layer first
-from .compat.cli import setup_cli_compatibility, wrap_command_function, ensure_env_compatibility
-from .compat.common import log_error, log_env_short, log_args_short, gather_env_for_command
+try:
+    from .compat.cli import setup_cli_compatibility, wrap_command_function, ensure_env_compatibility
+    from .config.manager import ConfigManager
+    from .config.security import SecurityManager
+    from .core.logging import init_logger
+except ImportError:
+    # Handle case when run directly
+    from ic.compat.cli import setup_cli_compatibility, wrap_command_function, ensure_env_compatibility
+    from ic.config.manager import ConfigManager
+    from ic.config.security import SecurityManager
+    from ic.core.logging import init_logger
 
 # Initialize compatibility layer
 setup_cli_compatibility()
-
-# Initialize new configuration system
-from .config.manager import ConfigManager
-from .config.security import SecurityManager
-from .core.logging import init_logger
 
 # Global configuration manager instance
 _config_manager = None
@@ -93,8 +217,8 @@ from oci_module.volume import add_arguments as volume_add_args, main as volume_m
 from oci_module.policy import add_arguments as policy_add_args, main as policy_main
 from oci_module.policy import search as oci_policy_search
 from oci_module.obj import add_arguments as obj_add_args, main as obj_main
-from oci_module.cost import usage_add_arguments as cost_usage_add_args, usage_main as cost_usage_main
-from oci_module.cost import credit_add_arguments as cost_credit_add_args, credit_main as cost_credit_main
+from oci_module.cost.usage import add_arguments as cost_usage_add_args, main as cost_usage_main
+from oci_module.cost.credit import add_arguments as cost_credit_add_args, main as cost_credit_main
 from oci_module.vcn import info as vcn_info
 from oci_module.compartment.info import CompartmentTreeBuilder, CompartmentTreeRenderer
 from ssh import auto_ssh, server_info
@@ -251,6 +375,10 @@ def gcp_monitor_health_command(args):
 
 def main():
     """IC CLI 엔트리 포인트"""
+    # Validate core dependencies first
+    if not validate_core_dependencies():
+        sys.exit(1)
+    
     # Initialize configuration system early
     try:
         config_manager = get_config_manager()
@@ -259,8 +387,13 @@ def main():
         print("Falling back to legacy configuration...")
     
     parser = argparse.ArgumentParser(
-        description="Infra CLI: Platform Resource CLI Tool",
-        usage="ic <platform|config> <service> <command> [options]"
+        description="Infra CLI: Platform Resource CLI Tool\n\n"
+                   "⚠️  Development Status:\n"
+                   "   • Azure: In development - usable but may contain bugs\n"
+                   "   • GCP: In development - usable but may contain bugs\n"
+                   "   • AWS, OCI, CloudFlare, SSH: Production ready",
+        usage="ic <platform|config> <service> <command> [options]",
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
     platform_subparsers = parser.add_subparsers(
         dest="platform",
@@ -269,14 +402,25 @@ def main():
     )
     
     # Add config commands
-    from .commands.config import ConfigCommands
+    try:
+        from .commands.config import ConfigCommands
+    except ImportError:
+        from ic.commands.config import ConfigCommands
     config_commands = ConfigCommands()
     config_commands.add_subparsers(platform_subparsers)
     
     aws_parser = platform_subparsers.add_parser("aws", help="AWS 관련 명령어")
     oci_parser = platform_subparsers.add_parser("oci", help="OCI 관련 명령어")
-    azure_parser = platform_subparsers.add_parser("azure", help="Azure 관련 명령어")
-    gcp_parser = platform_subparsers.add_parser("gcp", help="GCP 관련 명령어")
+    azure_parser = platform_subparsers.add_parser(
+        "azure", 
+        help="Azure 관련 명령어 (개발 중 - 버그 가능성 있음)",
+        formatter_class=lambda prog: DevelopmentStatusHelpFormatter("Azure", prog)
+    )
+    gcp_parser = platform_subparsers.add_parser(
+        "gcp", 
+        help="GCP 관련 명령어 (개발 중 - 버그 가능성 있음)",
+        formatter_class=lambda prog: DevelopmentStatusHelpFormatter("GCP", prog)
+    )
     cf_parser = platform_subparsers.add_parser("cf", help="CloudFlare 관련 명령어")
     ssh_parser = platform_subparsers.add_parser("ssh", help="SSH 관련 명령어")
 
@@ -602,10 +746,10 @@ def main():
                 console.print("  • Try running with --debug flag for more details")
             sys.exit(1)
     
-    def handle_oci_compartment_tree(args):
-        """Handle OCI compartment tree command."""
+    def handle_oci_compartment_info(args):
+        """Handle OCI compartment info command."""
         import time
-        start_time = time.time()
+        # start_time = time.time()
         
         try:
             import oci
@@ -616,7 +760,7 @@ def main():
             builder = CompartmentTreeBuilder()
             renderer = CompartmentTreeRenderer()
             
-            console.print("🔍 Building OCI compartment tree...")
+            # console.print("🔍 Building OCI compartment tree...")
             
             # Set up OCI configuration
             config_file = getattr(args, 'config_file', None)
@@ -661,8 +805,8 @@ def main():
             renderer.render_tree(tree_data)
             
             # Display execution time
-            execution_time = time.time() - start_time
-            console.print(f"\n⏱️  Command completed in {execution_time:.2f} seconds")
+            # execution_time = time.time() - start_time
+            # console.print(f"\n⏱️  Command completed in {execution_time:.2f} seconds")
             
         except ImportError as e:
             from rich.console import Console
@@ -1045,12 +1189,13 @@ def main():
     cost_credit_p.set_defaults(func=cost_credit_main)
 
     # OCI Compartment 관련 명령어
-    compartment_parser = oci_subparsers.add_parser("compartment", help="OCI Compartment 계층 구조 조회")
-    compartment_sub = compartment_parser.add_subparsers(dest="command", required=True)
-    compartment_tree_p = compartment_sub.add_parser("tree", help="Compartment 계층 구조를 트리 형태로 표시")
-    compartment_tree_p.add_argument("--config-file", help="OCI 설정 파일 경로")
-    compartment_tree_p.add_argument("--profile", help="사용할 OCI 프로파일", default="DEFAULT")
-    compartment_tree_p.set_defaults(func=handle_oci_compartment_tree)
+    # OCI comp (compartment) command
+    comp_parser = oci_subparsers.add_parser("comp", help="OCI Compartment 정보 조회")
+    comp_sub = comp_parser.add_subparsers(dest="command", required=True)
+    comp_info_p = comp_sub.add_parser("info", help="Compartment 계층 구조를 트리 형태로 표시")
+    comp_info_p.add_argument("--config-file", help="OCI 설정 파일 경로")
+    comp_info_p.add_argument("--profile", help="사용할 OCI 프로파일", default="DEFAULT")
+    comp_info_p.set_defaults(func=handle_oci_compartment_info)
 
     # 인수 처리
     process_and_execute_commands(parser)
@@ -1082,7 +1227,18 @@ def process_and_execute_commands(parser):
                     print(f"--- Skipping service '{service}' due to an error or invalid arguments ---")
                     has_error = True
                 except Exception as e:
-                    log_error(f"Error processing service '{service}': {e}")
+                    # Initialize IC logger for error logging
+                    try:
+                        config_manager = get_config_manager()
+                        config = config_manager.get_config()
+                        try:
+                            from .core.logging import ICLogger
+                        except ImportError:
+                            from ic.core.logging import ICLogger
+                        ic_logger = ICLogger(config)
+                        ic_logger.log_error(f"Error processing service '{service}': {e}")
+                    except:
+                        print(f"ERROR: Error processing service '{service}': {e}")
                     has_error = True
             
             if has_error:
@@ -1095,11 +1251,28 @@ def process_and_execute_commands(parser):
         except SystemExit:
             sys.exit(0)
         except Exception as e:
-            log_error(f"명령어 실행 중 오류 발생: {e}")
+            # Initialize IC logger for error logging
+            try:
+                config_manager = get_config_manager()
+                config = config_manager.get_config()
+                try:
+                    from .core.logging import ICLogger
+                except ImportError:
+                    from ic.core.logging import ICLogger
+                ic_logger = ICLogger(config)
+                ic_logger.log_error(f"명령어 실행 중 오류 발생: {e}")
+            except:
+                print(f"ERROR: 명령어 실행 중 오류 발생: {e}")
             sys.exit(1)
 
 def execute_single_command(args):
     """파싱된 인수를 기반으로 실제 단일 명령을 실행합니다."""
+    # Handle config commands specially (they don't have 'service' attribute)
+    if args.platform == 'config':
+        if hasattr(args, 'func'):
+            args.func(args)
+        return
+    
     if not hasattr(args, 'service') or not args.service:
         return
 
@@ -1108,21 +1281,44 @@ def execute_single_command(args):
     elif args.platform == "oci" and args.service == "info":
         args.command = "none"
 
-    log_args_short(args)
-    env_used = gather_env_for_command(args.platform, args.service, args.command)
-    if env_used:
-        log_env_short(env_used)
+    # Use new IC logger system
+    config_manager = get_config_manager()
+    config = config_manager.get_config()
+    
+    # Initialize IC logger with config
+    try:
+        from .core.logging import ICLogger
+    except ImportError:
+        from ic.core.logging import ICLogger
+    ic_logger = ICLogger(config)
+    
+    # Log arguments using new system
+    ic_logger.log_args(args)
+    
+    # Log relevant configuration if needed (optional)
+    if hasattr(args, 'debug') and args.debug:
+        platform_config = config.get(args.platform, {})
+        if platform_config:
+            config_str = str(platform_config)[:100] + "..." if len(str(platform_config)) > 100 else str(platform_config)
+            ic_logger.log_info_file_only(f"{args.platform}_config: {config_str}")
 
-    if hasattr(args, 'func'):
+    # Handle config commands specially
+    if args.platform == 'config':
+        if hasattr(args, 'func'):
+            args.func(args)
+        else:
+            log_error(f"Config command not specified. Use 'ic config --help' for available commands.")
+            raise ValueError("No config function to execute")
+    elif hasattr(args, 'func'):
         # Add consistent error handling for GCP services
         if args.platform == 'gcp':
             try:
                 args.func(args)
             except ImportError as e:
-                log_error(f"GCP service '{args.service}' dependencies not available: {e}")
+                ic_logger.log_error(f"GCP service '{args.service}' dependencies not available: {e}")
                 raise
             except Exception as e:
-                log_error(f"GCP service '{args.service}' execution failed: {e}")
+                ic_logger.log_error(f"GCP service '{args.service}' execution failed: {e}")
                 raise
         else:
             args.func(args)

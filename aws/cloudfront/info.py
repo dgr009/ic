@@ -11,6 +11,7 @@ from rich.console import Console
 from rich.table import Table
 from botocore.exceptions import ClientError, NoCredentialsError
 
+from common.progress_decorator import ManualProgress
 import boto3
 
 
@@ -30,29 +31,14 @@ class CloudFrontCollector:
         Returns:
             List of distribution information dictionaries
         """
-        from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
         import time
         
         distributions = []
+        total_accounts = len(account_profiles)
         
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TaskProgressColumn(),
-            console=self.console
-        ) as progress:
-            
-            # Create main task
-            main_task = progress.add_task(
-                f"Collecting CloudFront distributions from {len(account_profiles)} account(s)...",
-                total=len(account_profiles)
-            )
-            
+        with ManualProgress(f"Collecting CloudFront distributions from {total_accounts} account(s)", total=total_accounts) as progress:
+            completed = 0
             for account_name, profile_name in account_profiles.items():
-                # Update task description
-                progress.update(main_task, description=f"Processing account: {account_name}")
-                
                 start_time = time.time()
                 try:
                     session = boto3.Session(profile_name=profile_name)
@@ -61,16 +47,15 @@ class CloudFrontCollector:
                     
                     # Calculate processing time
                     processing_time = time.time() - start_time
-                    progress.console.print(
-                        f"✅ {account_name}: Found {len(account_distributions)} distributions "
-                        f"({processing_time:.2f}s)"
+                    completed += 1
+                    progress.update(
+                        f"Processed {account_name} - Found {len(account_distributions)} distributions ({processing_time:.2f}s)",
+                        advance=1
                     )
                     
                 except Exception as e:
-                    progress.console.print(f"❌ Failed to collect CloudFront data for {account_name}: {e}")
-                
-                # Advance progress
-                progress.advance(main_task)
+                    completed += 1
+                    progress.update(f"Failed {account_name} - {str(e)[:50]}...", advance=1)
         
         return distributions
     
