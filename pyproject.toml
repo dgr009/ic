@@ -108,5 +108,8 @@ markers = [
     "integration: Integration tests", 
     "performance: Performance tests",
     "security: Security tests",
-    "slow: Slow running tests"
+    "slow: Slow running tests",
+    "ci_safe: Tests safe to run in CI environment",
+    "requires_config: Tests that require configuration files",
+    "requires_credentials: Tests that require live credentials"
 ]

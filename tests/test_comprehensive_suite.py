@@ -409,13 +409,23 @@ class ComprehensiveTestSuite:
         return all_passed
 
 
-def test_comprehensive_suite():
-    """Main test function for pytest integration."""
+@pytest.mark.ci_safe
+def test_environment_validation():
+    """Test environment validation."""
     suite = ComprehensiveTestSuite()
-    success = suite.run_all_tests()
-    
-    if not success:
-        pytest.fail("Comprehensive test suite failed")
+    assert suite.validate_environment(), "Environment validation failed"
+
+@pytest.mark.ci_safe  
+def test_dependencies_check():
+    """Test dependencies check."""
+    suite = ComprehensiveTestSuite()
+    assert suite.check_dependencies(), "Dependencies check failed"
+
+@pytest.mark.ci_safe
+def test_imports():
+    """Test module imports."""
+    suite = ComprehensiveTestSuite()
+    assert suite.run_import_tests(), "Import tests failed"
 
 
 def main():

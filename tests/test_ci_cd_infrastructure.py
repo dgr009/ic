@@ -612,16 +612,29 @@ class TestCIEnvironmentCompatibility:
         
         # Test version-specific features
         if python_version >= (3, 10):
-            # Test match statement (Python 3.10+)
-            def test_match():
-                value = "test"
-                match value:
-                    case "test":
-                        return True
-                    case _:
-                        return False
-            
-            assert test_match() is True
+            # Test match statement (Python 3.10+) using exec to avoid parsing issues in 3.9
+            match_code = '''
+def test_match():
+    value = "test"
+    match value:
+        case "test":
+            return True
+        case _:
+            return False
+result = test_match()
+'''
+            local_vars = {}
+            exec(match_code, {}, local_vars)
+            assert local_vars['result'] is True
+        
+        # Test that all our modules can be imported in current Python version
+        try:
+            from ic.config.manager import ConfigManager
+            from ic.config.security import SecurityManager
+            from ic.core.logging import ICLogger
+            from common.progress_decorator import ProgressBarDecorator
+        except ImportError as e:
+            pytest.fail(f"Failed to import core modules in Python {python_version}: {e}")
     
     def test_dependency_imports_in_ci(self):
         """Test that all required dependencies can be imported in CI."""

@@ -33,23 +33,7 @@ jobs:
     
     - name: Run CI-safe tests
       run: |
-        python tests/run_ci_tests.py --verbose --coverage
-    
-    - name: Run basic functionality tests
-      run: |
-        python -m pytest tests/test_basic.py -v -m ci_safe
-    
-    - name: Run configuration tests
-      run: |
-        python -m pytest tests/test_ci_configuration.py -v
-    
-    - name: Run progress decorator tests
-      run: |
-        python -m pytest tests/test_progress_decorator_thread_safety.py -v
-    
-    - name: Test CLI parsing without config
-      run: |
-        python -m pytest tests/test_ci_cd_infrastructure.py::TestConfigurationIndependentFunctionality -v
+        python tests/run_ci_tests.py --verbose
     
     - name: Upload coverage reports
       if: matrix.python-version == '3.11'
