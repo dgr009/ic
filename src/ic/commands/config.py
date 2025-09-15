@@ -1116,7 +1116,7 @@ class ConfigCommands:
             }
             
             secrets_example["aws"] = {
-                "accounts": ["016181538228"],
+                "accounts": ["00000000000"],
                 "regions": ["ap-northeast-2"]
             }
         
@@ -1190,11 +1190,11 @@ class ConfigCommands:
             }
             
             secrets_example["cloudflare"] = {
-                "email": "sykim@parametacorp.com",
-                "api_token": "cZb5tbmfbN-Cg8MVxx2B-jgC9Cz68T81X_xpq4sZ",
-                "zone_id": "abcd1234efgh5678ijkl9012mnop3456",
-                "cloudflare_accounts": "supercycl,thenexacloud",
-                "cloudflare_zones": "supercycl,taas"
+                "email": "",
+                "api_token": "",
+                "zone_id": "",
+                "cloudflare_accounts": "",
+                "cloudflare_zones": ""
             }
         
         if template in ["ssh", "multi-cloud", "full"]:
@@ -1216,9 +1216,9 @@ class ConfigCommands:
             }
             
             secrets_example["ssh"] = {
-                "key_dir": "~/aws-key",
+                "key_dir": "~/.ssh",
                 "skip_prefixes": [
-                    "git", "akrr-portx", "akrr-taas-gw", "agw01", "semaphore", "akrd-mprj-gw"
+                    "git", "prod""
                 ]
             }
         
@@ -1254,7 +1254,7 @@ class ConfigCommands:
             }
             
             secrets_example["slack"] = {
-                "webhook_url": "https://hooks.slack.com/services/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"
+                "webhook_url": "https://hooks.slack.com/services/web-hook"
             }
             
             # Add other configuration section
