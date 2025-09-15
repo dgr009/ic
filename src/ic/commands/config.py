@@ -1218,7 +1218,7 @@ class ConfigCommands:
             secrets_example["ssh"] = {
                 "key_dir": "~/.ssh",
                 "skip_prefixes": [
-                    "git", "prod""
+                    "git", "prod"
                 ]
             }
         
