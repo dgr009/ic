@@ -43,7 +43,7 @@ password = pypi-[여기에-실제-토큰-입력]
 ```toml
 [project]
 name = "ic"
-version = "1.0.0"
+version = "1.0.7"
 description = "Multi-cloud infrastructure resource management CLI tool"
 authors = [
     {name = "SangYun Kim", email = "cruiser594@gmail.com"}
