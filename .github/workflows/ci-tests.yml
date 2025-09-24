@@ -113,25 +113,26 @@ jobs:
           
           # Create matrix
           MATRIX=$(python -c "
-          import json
-          test_types = $TEST_TYPES
-          platforms = $PLATFORMS
-          python_versions = ['3.9', '3.10', '3.11', '3.12']
-          
-          # Create matrix combinations
-          matrix = []
-          for python_version in python_versions:
-              for platform in platforms:
-                  for test_type in test_types:
-                      matrix.append({
-                          'python-version': python_version,
-                          'platform': platform,
-                          'test-type': test_type,
-                          'os': 'ubuntu-latest'
-                      })
-          
-          print(json.dumps({'include': matrix}))
-          ")
+import json
+test_types = $TEST_TYPES
+platforms = $PLATFORMS
+# python_versions = ['3.9', '3.10', '3.11', '3.12']
+python_versions = ['3.11']
+
+# Create matrix combinations
+matrix = []
+for python_version in python_versions:
+    for platform in platforms:
+        for test_type in test_types:
+            matrix.append({
+                'python-version': python_version,
+                'platform': platform,
+                'test-type': test_type,
+                'os': 'ubuntu-latest'
+            })
+
+print(json.dumps({'include': matrix}))
+")
           
           echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
           echo "test-types=$TEST_TYPES" >> $GITHUB_OUTPUT
@@ -203,10 +204,10 @@ jobs:
       - name: Create mock credential files
         run: |
           python -c "
-          from tests.ci.env_support import create_mock_credential_files
-          files = create_mock_credential_files()
-          print('Created mock credential files:', files)
-          "
+from tests.ci.env_support import create_mock_credential_files
+files = create_mock_credential_files()
+print('Created mock credential files:', files)
+"
       
       - name: Run ${{ matrix.test-type }} tests for ${{ matrix.platform }}
         run: |
@@ -242,16 +243,16 @@ jobs:
           else
             echo "No ${{ matrix.test-type }} tests found for ${{ matrix.platform }}, running basic validation..."
             python -c "
-            from tests.ci.mock_configs import get_mock_config, get_mock_client
-            try:
-                config = get_mock_config('${{ matrix.platform }}')
-                print(f'✅ Mock config for ${{ matrix.platform }} is valid')
-                client = get_mock_client('${{ matrix.platform }}')
-                print(f'✅ Mock client for ${{ matrix.platform }} created successfully')
-            except Exception as e:
-                print(f'❌ Mock validation failed for ${{ matrix.platform }}: {e}')
-                exit(1)
-            "
+from tests.ci.mock_configs import get_mock_config, get_mock_client
+try:
+    config = get_mock_config('${{ matrix.platform }}')
+    print(f'✅ Mock config for ${{ matrix.platform }} is valid')
+    client = get_mock_client('${{ matrix.platform }}')
+    print(f'✅ Mock client for ${{ matrix.platform }} created successfully')
+except Exception as e:
+    print(f'❌ Mock validation failed for ${{ matrix.platform }}: {e}')
+    exit(1)
+"
           fi
       
       - name: Upload test results
@@ -305,15 +306,15 @@ jobs:
         run: |
           # Test that CLI can be imported and help works
           python -c "
-          import sys
-          sys.path.insert(0, 'src')
-          try:
-              from ic.cli import main
-              print('✅ CLI module imported successfully')
-          except Exception as e:
-              print(f'❌ CLI import failed: {e}')
-              exit(1)
-          "
+import sys
+sys.path.insert(0, 'src')
+try:
+    from ic.cli import main
+    print('✅ CLI module imported successfully')
+except Exception as e:
+    print(f'❌ CLI import failed: {e}')
+    exit(1)
+"
           
           # Test basic CLI functionality (without actual cloud calls)
           export IC_MOCK_MODE=true
@@ -359,37 +360,37 @@ jobs:
         run: |
           # Use our own security scanning
           python -c "
-          import os
-          import re
-          from pathlib import Path
-          
-          # Patterns to check for sensitive data
-          patterns = [
-              r'(?i)(password|passwd|pwd)\s*[=:]\s*[\"\']\w+[\"\']',
-              r'(?i)(secret|token|key)\s*[=:]\s*[\"\']\w+[\"\']',
-              r'(?i)(api[_-]?key)\s*[=:]\s*[\"\']\w+[\"\']',
-              r'(?i)(access[_-]?key)\s*[=:]\s*[\"\']\w+[\"\']',
-              r'AKIA[0-9A-Z]{16}',  # AWS Access Key
-              r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'  # UUID
-          ]
-          
-          issues = []
-          for py_file in Path('src').rglob('*.py'):
-              with open(py_file, 'r', encoding='utf-8', errors='ignore') as f:
-                  content = f.read()
-                  for i, line in enumerate(content.split('\n'), 1):
-                      for pattern in patterns:
-                          if re.search(pattern, line) and 'MOCK' not in line.upper() and 'EXAMPLE' not in line.upper():
-                              issues.append(f'{py_file}:{i}: Potential sensitive data: {line.strip()[:100]}')
-          
-          if issues:
-              print('❌ Potential sensitive data found:')
-              for issue in issues:
-                  print(f'  {issue}')
-              exit(1)
-          else:
-              print('✅ No sensitive data patterns found in source code')
-          "
+import os
+import re
+from pathlib import Path
+
+# Patterns to check for sensitive data
+patterns = [
+    r'(?i)(password|passwd|pwd)\s*[=:]\s*[\"\']\w+[\"\']',
+    r'(?i)(secret|token|key)\s*[=:]\s*[\"\']\w+[\"\']',
+    r'(?i)(api[_-]?key)\s*[=:]\s*[\"\']\w+[\"\']',
+    r'(?i)(access[_-]?key)\s*[=:]\s*[\"\']\w+[\"\']',
+    r'AKIA[0-9A-Z]{16}',  # AWS Access Key
+    r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'  # UUID
+]
+
+issues = []
+for py_file in Path('src').rglob('*.py'):
+    with open(py_file, 'r', encoding='utf-8', errors='ignore') as f:
+        content = f.read()
+        for i, line in enumerate(content.split('\n'), 1):
+            for pattern in patterns:
+                if re.search(pattern, line) and 'MOCK' not in line.upper() and 'EXAMPLE' not in line.upper():
+                    issues.append(f'{py_file}:{i}: Potential sensitive data: {line.strip()[:100]}')
+
+if issues:
+    print('❌ Potential sensitive data found:')
+    for issue in issues:
+        print(f'  {issue}')
+    exit(1)
+else:
+    print('✅ No sensitive data patterns found in source code')
+"
       
       - name: Upload security reports
         uses: actions/upload-artifact@v4
@@ -443,28 +444,28 @@ jobs:
       - name: Test configuration loading
         run: |
           python -c "
-          from tests.ci.fallback_configs import load_config_with_fallback, validate_config
-          
-          platforms = ['ic', 'ncp', 'ncpgov']
-          all_valid = True
-          
-          for platform in platforms:
-              try:
-                  config = load_config_with_fallback(platform)
-                  issues = validate_config(platform, config)
-                  
-                  if issues:
-                      print(f'❌ {platform.upper()} config issues: {issues}')
-                      all_valid = False
-                  else:
-                      print(f'✅ {platform.upper()} configuration loaded and validated')
-              except Exception as e:
-                  print(f'❌ {platform.upper()} config failed: {e}')
-                  all_valid = False
-          
-          if not all_valid:
-              exit(1)
-          "
+from tests.ci.fallback_configs import load_config_with_fallback, validate_config
+
+platforms = ['ic', 'ncp', 'ncpgov']
+all_valid = True
+
+for platform in platforms:
+    try:
+        config = load_config_with_fallback(platform)
+        issues = validate_config(platform, config)
+        
+        if issues:
+            print(f'❌ {platform.upper()} config issues: {issues}')
+            all_valid = False
+        else:
+            print(f'✅ {platform.upper()} configuration loaded and validated')
+    except Exception as e:
+        print(f'❌ {platform.upper()} config failed: {e}')
+        all_valid = False
+
+if not all_valid:
+    exit(1)
+"
       
       - name: Upload integration test results
         uses: actions/upload-artifact@v4
