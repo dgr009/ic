@@ -114,9 +114,9 @@ jobs:
           # Create matrix
           cat > /tmp/matrix_gen.py << 'EOF'
           import json
-          import os
-          test_types = eval(os.environ['TEST_TYPES'])
-          platforms = eval(os.environ['PLATFORMS'])
+          import sys
+          test_types = eval(sys.argv[1])
+          platforms = eval(sys.argv[2])
           python_versions = ['3.11']
 
           matrix = []
@@ -132,7 +132,7 @@ jobs:
 
           print(json.dumps({'include': matrix}))
           EOF
-          MATRIX=$(python /tmp/matrix_gen.py)
+          MATRIX=$(python /tmp/matrix_gen.py "$TEST_TYPES" "$PLATFORMS")
           
           echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
           echo "test-types=$TEST_TYPES" >> $GITHUB_OUTPUT
