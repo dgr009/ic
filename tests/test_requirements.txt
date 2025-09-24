@@ -1,0 +1,67 @@
+# Test Dependencies for IC CLI Tool
+# Core testing framework
+pytest>=7.4.0
+pytest-cov>=4.1.0
+pytest-xdist>=3.3.1
+pytest-mock>=3.11.1
+pytest-asyncio>=0.21.1
+pytest-timeout>=2.1.0
+
+# Test utilities
+mock>=5.1.0
+responses>=0.23.3
+httpretty>=1.1.4
+freezegun>=1.2.2
+factory-boy>=3.3.0
+
+# Performance testing
+pytest-benchmark>=4.0.0
+memory-profiler>=0.61.0
+
+# Security testing
+bandit>=1.7.5
+safety>=2.3.5
+
+# Code quality
+flake8>=6.0.0
+black>=23.7.0
+isort>=5.12.0
+mypy>=1.5.1
+
+# Coverage and reporting
+coverage>=7.3.0
+pytest-html>=3.2.0
+pytest-json-report>=1.5.0
+
+# Mock data and fixtures
+faker>=19.6.2
+pyyaml>=6.0.1
+
+# Platform-specific test dependencies
+boto3>=1.28.0  # AWS testing
+azure-identity>=1.14.0  # Azure testing
+google-auth>=2.23.0  # GCP testing
+oci>=2.112.0  # OCI testing
+
+# HTTP and API testing
+requests-mock>=1.11.0
+aioresponses>=0.7.4
+
+# Database testing (if needed)
+sqlalchemy>=2.0.0
+alembic>=1.12.0
+
+# Logging and debugging
+colorlog>=6.7.0
+rich>=13.5.2
+
+# Configuration testing
+jsonschema>=4.19.0
+cerberus>=1.3.5
+
+# Parallel testing
+pytest-parallel>=0.1.1
+pytest-forked>=1.6.0
+
+# Test data management
+testfixtures>=7.2.0

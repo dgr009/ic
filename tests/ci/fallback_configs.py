@@ -235,20 +235,24 @@ class FallbackConfigurationLoader:
     
     def load_ic_config(self) -> Dict[str, Any]:
         """Load IC configuration with fallback strategy."""
-        # Try to load from files first
+        # Start with default configuration
+        config = self.env_loader.load_ic_config_from_env()
+        
+        # Try to load from files and merge
         config_paths = self.path_resolver.resolve_ic_config_paths()
         
         if config_paths:
             try:
-                config = self._load_yaml_config(config_paths[0])
+                file_config = self._load_yaml_config(config_paths[0])
+                # Merge file config into default config (file config takes precedence)
+                config = self._merge_configs(config, file_config)
                 self.logger.info(f"Loaded IC config from file: {config_paths[0]}")
-                return config
             except Exception as e:
                 self.logger.warning(f"Failed to load IC config from file: {e}")
+        else:
+            self.logger.info("Using environment variable fallback for IC config")
         
-        # Fallback to environment variables
-        self.logger.info("Using environment variable fallback for IC config")
-        return self.env_loader.load_ic_config_from_env()
+        return config
     
     def load_ncp_config(self) -> Dict[str, Any]:
         """Load NCP configuration with fallback strategy."""
@@ -299,6 +303,20 @@ class FallbackConfigurationLoader:
             raise ValueError(f"Invalid YAML in configuration file {config_path}: {e}")
         except Exception as e:
             raise RuntimeError(f"Failed to read configuration file {config_path}: {e}")
+    
+    def _merge_configs(self, base_config: Dict[str, Any], override_config: Dict[str, Any]) -> Dict[str, Any]:
+        """Merge two configuration dictionaries, with override taking precedence."""
+        merged = base_config.copy()
+        
+        for key, value in override_config.items():
+            if key in merged and isinstance(merged[key], dict) and isinstance(value, dict):
+                # Recursively merge nested dictionaries
+                merged[key] = self._merge_configs(merged[key], value)
+            else:
+                # Override takes precedence
+                merged[key] = value
+        
+        return merged
 
 
 class DefaultConfigurationProvider:
@@ -416,8 +434,10 @@ class ConfigurationValidator:
         for platform in ['aws', 'azure', 'gcp', 'oci']:
             if platform in config:
                 platform_config = config[platform]
-                if 'regions' not in platform_config or not platform_config['regions']:
-                    issues.append(f"Platform {platform} missing or empty regions list")
+                # Check for regions or locations (Azure uses locations)
+                region_key = 'locations' if platform == 'azure' else 'regions'
+                if region_key not in platform_config or not platform_config[region_key]:
+                    issues.append(f"Platform {platform} missing or empty {region_key} list")
         
         return issues
     
