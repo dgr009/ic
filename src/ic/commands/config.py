@@ -936,8 +936,10 @@ class ConfigCommands:
                 self.console.print("💡 Did you mean one of these?")
                 for key in similar_keys[:5]:  # Show max 5 suggestions
                     self.console.print(f"  • {key}")
-        except Exception:
-            pass  # Ignore errors in suggestions
+        except Exception as e:
+            # Log error but don't fail the operation
+            import logging
+            logging.getLogger(__name__).debug(f"Error generating suggestions: {e}")
     
     def _get_all_keys(self, data: Dict[str, Any], prefix: str = "") -> List[str]:
         """Get all configuration keys recursively."""
@@ -1083,8 +1085,10 @@ class ConfigCommands:
                 self.console.print("\n💡 Did you mean one of these?")
                 for key in similar_keys[:5]:  # Show max 5 suggestions
                     self.console.print(f"  • {key}")
-        except:
-            pass  # Ignore errors in suggestion generation
+        except Exception as e:
+            # Log error but don't fail the operation
+            import logging
+            logging.getLogger(__name__).debug(f"Error generating suggestions: {e}")
     
     def _get_all_config_keys(self, config: Dict[str, Any], prefix: str = "") -> List[str]:
         """Get all configuration keys in dot notation."""

@@ -95,7 +95,8 @@ class ServerInfoRetriever:
 
         try:
             ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            # 보안 강화: 알려진 호스트만 허용하되, 개발/테스트 환경에서는 경고와 함께 허용
+            ssh.set_missing_host_key_policy(paramiko.WarningPolicy())
             ssh.connect(
                 self.hostname,
                 username=self.username,

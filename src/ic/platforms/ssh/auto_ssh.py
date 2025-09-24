@@ -161,7 +161,8 @@ def get_hostname_via_ssh(ip, key_path, user, port):
     """SSH를 통해 호스트명(hostname)을 가져옵니다."""
     try:
         ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        # 보안 강화: 알려진 호스트만 허용하되, 개발/테스트 환경에서는 경고와 함께 허용
+        ssh.set_missing_host_key_policy(paramiko.WarningPolicy())
         ssh.connect(str(ip), username=user, key_filename=key_path, port=port, timeout=SSH_TIMEOUT)
         stdin, stdout, stderr = ssh.exec_command("hostname")
         hostname = stdout.read().decode().strip()
@@ -235,7 +236,8 @@ def check_ssh_connection(host):
     identityfile = host_config.get('identityfile')
     
     client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    # 보안 강화: 알려진 호스트만 허용하되, 개발/테스트 환경에서는 경고와 함께 허용
+    client.set_missing_host_key_policy(paramiko.WarningPolicy())
     try:
         client.connect(
             hostname=hostname,

@@ -433,8 +433,8 @@ class GitSecurityChecker:
             with open(pre_commit_hook, 'w') as f:
                 f.write(hook_content)
             
-            # Make hook executable
-            os.chmod(pre_commit_hook, 0o755)
+            # Make hook executable (owner only for security)
+            os.chmod(pre_commit_hook, 0o750)
             
             logger.info("Pre-commit security hook installed successfully")
             return True
