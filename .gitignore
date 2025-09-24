@@ -69,6 +69,9 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+analysis_output/
+test-results-ncp-unit.xml
+coverage-ncp-unit.xml
 
 # Virtual environments
 .env
@@ -82,6 +85,7 @@ ic-new-env/
 *-env/
 venv_test
 examples
+examples/
 
 # Jupyter Notebook
 .ipynb_checkpoints
@@ -182,6 +186,9 @@ backup
 backup/*
 activate_new_env.sh
 CHANGELOG.md
+
+# Local-only documentation (internal, historical, development notes)
+.local-docs/
 # IC Configuration - Security
 config.yml
 *.key
@@ -210,3 +217,19 @@ id_rsa*
 *.tmp
 *.temp
 *.bak
+
+# Test result files (XML, JSON reports)
+coverage-*.xml
+test-results-*.xml
+*-validation-report.json
+*-validation-report.md
+task_*_validation_report.txt
+
+# Temporary shell scripts
+activate_*.sh
+
+# Old test files and reports
+tests/run_*.py
+tests/validate_*.py
+tests/*_SUMMARY.md
+tests/*_IMPLEMENTATION_SUMMARY.md

@@ -1,453 +1,146 @@
-# GCP Services Integration - Comprehensive Test Suite
+# IC CLI Test Suite
 
-This directory contains a comprehensive test suite for the GCP services integration, covering unit tests, integration tests, and performance tests.
+## 📁 테스트 구조 (정리됨 - 2025.09.24)
 
-## Test Structure
+### 핵심 테스트 디렉토리
 
+#### `platforms/` - 플랫폼별 테스트
 ```
-tests/
-├── README.md                          # This file
-├── test_requirements.txt              # Testing dependencies
-├── test_config.py                     # Test configuration and utilities
-├── test_runner.py                     # Main test runner
-├── run_tests.py                       # Test execution script
-│
-├── Unit Tests/
-├── test_gcp_utils.py                  # GCP utilities tests
-├── test_mcp_gcp_connector.py          # MCP connector tests
-├── test_gcp_compute.py                # Compute Engine tests
-├── test_gcp_vpc.py                    # VPC Networks tests
-├── test_gcp_gke.py                    # Google Kubernetes Engine tests
-├── test_gcp_sql.py                    # Cloud SQL tests
-├── test_gcp_mock_data.py              # Mock data generators
-│
-├── integration/                       # Integration tests
-├── test_gcp_integration.py            # Real API integration tests
-├── integration_config.py              # Integration test configuration
-├── cleanup_test_resources.py          # Resource cleanup utility
-│
-└── performance/                       # Performance tests
-    ├── test_gcp_performance.py        # Performance and load tests
-    └── benchmark_runner.py            # Benchmarking utility
+platforms/
+├── aws/           # AWS 서비스 테스트
+├── azure/         # Azure 서비스 테스트  
+├── gcp/           # GCP 서비스 테스트
+├── ncp/           # NCP 서비스 테스트
+│   ├── ec2/
+│   │   ├── unit/           # 단위 테스트
+│   │   ├── integration/    # 통합 테스트
+│   │   └── performance/    # 성능 테스트
+│   └── s3/
+├── ncpgov/        # NCP Government 테스트
+└── oci/           # OCI 서비스 테스트
 ```
 
-## Test Categories
+#### `validation/` - 검증 테스트 (최신)
+- `end_to_end_cli_validation.py` - CLI 전체 검증
+- `ci_cd_pipeline_validation.py` - CI/CD 파이프라인 검증
+- `security_performance_validation.py` - 보안 및 성능 검증
+- `run_all_validations.py` - 모든 검증 실행
 
-### 1. Unit Tests
+#### `security/` - 보안 테스트
+- `test_basic_security.py` - 기본 보안 테스트
+- `test_configuration_security.py` - 설정 보안 테스트
+- `test_credential_handling.py` - 자격증명 처리 테스트
+- `test_git_security_hooks.py` - Git 보안 훅 테스트
+- `test_sensitive_data_masking.py` - 민감 데이터 마스킹 테스트
 
-Unit tests validate individual components in isolation using mocks and test data.
+#### `integration/` - 통합 테스트 (정리됨)
+- `test_basic_integration.py` - 기본 통합 테스트
+- `test_cli_integration.py` - CLI 통합 테스트
+- `test_config_migration.py` - 설정 마이그레이션 테스트
+- `test_ncp_service_integration.py` - NCP 서비스 통합 테스트
+- `test_security_cli_integration.py` - 보안 CLI 통합 테스트
 
-**Coverage:**
-- ✅ GCP authentication flows (service account, ADC, gcloud)
-- ✅ Project discovery and management
-- ✅ Resource collection and filtering
-- ✅ MCP connector functionality and fallback mechanisms
-- ✅ All GCP service modules (Compute, VPC, GKE, SQL, etc.)
-- ✅ Output formatting (JSON, YAML, table, tree)
-- ✅ Error handling and retry logic
+#### `unit/` - 단위 테스트 (정리됨)
+- `test_config_manager.py` - 설정 관리자 테스트
+- `test_ncp_client.py` - NCP 클라이언트 테스트
+- `test_ncpgov_client.py` - NCP Gov 클라이언트 테스트
+- `test_security_manager.py` - 보안 관리자 테스트
+- `test_ic_logger.py` - 로거 테스트
 
-**Key Features:**
-- Mock GCP API responses for consistent testing
-- Comprehensive error scenario testing
-- Authentication method validation
-- MCP integration testing with fallback verification
+#### `ci/` - CI/CD 테스트
+- `run_ci_tests.py` - CI 테스트 실행기
+- `environment.py` - CI 환경 설정
+- `mock_configs.py` - 모의 설정
+- `fallback_configs.py` - 대체 설정
 
-### 2. Integration Tests
+#### `performance/` - 성능 테스트
+- `test_ncp_performance.py` - NCP 성능 테스트
+- `test_gcp_performance.py` - GCP 성능 테스트
+- `benchmark_runner.py` - 벤치마크 실행기
 
-Integration tests validate end-to-end functionality with real GCP APIs.
+### 핵심 실행 파일들
 
-**Coverage:**
-- ✅ Real GCP API authentication
-- ✅ Project access validation
-- ✅ MCP server integration (when available)
-- ✅ Service data collection from real APIs
-- ✅ Cross-service consistency validation
-- ✅ Output formatting with real data
-- ✅ Performance characteristics with real APIs
+#### `comprehensive_test_runner.py`
+모든 테스트를 종합적으로 실행하는 메인 테스트 러너
 
-**Configuration:**
-- Requires `GCP_INTEGRATION_TEST_PROJECT` environment variable
-- Optional: `GCP_INTEGRATION_TEST_REGION`, `GCP_INTEGRATION_TEST_ZONE`
-- Enable with `RUN_GCP_INTEGRATION_TESTS=true`
+#### `platform_test_runner.py`
+플랫폼별 테스트를 실행하는 고급 테스트 러너
 
-**Safety Features:**
-- Automatic resource cleanup
-- Test resource labeling
-- Dry-run mode for cleanup operations
-- Configurable test timeouts
+#### `Makefile`
+테스트 빌드 및 실행을 위한 Make 파일
 
-### 3. Performance Tests
+## 🚀 테스트 실행 방법
 
-Performance tests validate scalability, concurrency, and resource usage.
-
-**Coverage:**
-- ✅ Authentication performance
-- ✅ Data collection scalability
-- ✅ Parallel processing efficiency
-- ✅ Memory usage optimization
-- ✅ Output formatting performance
-- ✅ Rate limiting and retry behavior
-- ✅ High concurrency stress testing
-- ✅ MCP vs direct API performance comparison
-
-**Metrics:**
-- Response times and throughput
-- Memory usage patterns
-- Concurrency efficiency
-- Scalability factors
-- Error rates and retry behavior
-
-## Running Tests
-
-### Quick Start
-
+### 전체 검증 실행
 ```bash
-# Install test dependencies
-pip install -r tests/test_requirements.txt
-
-# Run all unit tests
-python tests/run_tests.py
-
-# Run specific service tests
-python tests/run_tests.py --service compute
-
-# Run with coverage
-python tests/run_tests.py --coverage
+python tests/validation/run_all_validations.py
 ```
 
-### Unit Tests Only
-
+### 플랫폼별 테스트 실행
 ```bash
-# Run all unit tests
-python tests/test_runner.py
-
-# Run specific test module
-python -m unittest tests.test_gcp_compute -v
-
-# Run specific test class
-python -m unittest tests.test_gcp_compute.TestFetchComputeInstancesViaMCP -v
+python tests/platform_test_runner.py --platforms ncp --test-types unit
 ```
 
-### Integration Tests
-
+### CI 테스트 실행
 ```bash
-# Configure integration tests
-export GCP_INTEGRATION_TEST_PROJECT="your-test-project"
-export RUN_GCP_INTEGRATION_TESTS="true"
-
-# Run integration tests
-python tests/run_tests.py --integration
-
-# Run integration tests for specific project
-python tests/integration/test_gcp_integration.py --project your-test-project
+python tests/ci/run_ci_tests.py --platform ncp --test-type unit
 ```
 
-### Performance Tests
-
+### Make를 사용한 테스트 실행
 ```bash
-# Run performance tests
-python tests/run_tests.py --performance
+# 모든 테스트
+make test-all
 
-# Run comprehensive benchmark
-python tests/performance/benchmark_runner.py
+# 플랫폼별 테스트
+make test-ncp
+make test-aws
 
-# Quick benchmark
-python tests/performance/benchmark_runner.py --quick
+# 테스트 타입별
+make test-unit
+make test-integration
 ```
 
-### Resource Cleanup
+## 📊 테스트 결과
 
-```bash
-# Dry run cleanup (show what would be deleted)
-python tests/integration/cleanup_test_resources.py --dry-run
+### 최근 검증 결과 (2025.09.24)
+- ✅ End-to-End CLI Validation: 100% (63/63 tests)
+- ✅ CI/CD Pipeline Validation: 100% (23/23 tests)
+- ✅ Security & Performance Validation: 100% (10/10 tests)
 
-# Force cleanup all test resources
-python tests/integration/cleanup_test_resources.py --force
+**총 성공률: 100% (96/96 tests)**
 
-# Cleanup specific service
-python tests/integration/cleanup_test_resources.py --service compute
-```
+## 🗂️ 백업된 파일들
 
-## Test Configuration
+정리 과정에서 중복되거나 오래된 파일들은 `backup/project_cleanup_20250924_183633/`에 백업되었습니다:
 
-### Environment Variables
+- 오래된 테스트 파일들
+- 중복된 실행 스크립트들
+- 과거 검증 리포트들
+- 임시 설정 파일들
 
-```bash
-# Unit Tests
-GCP_PROJECTS="project1,project2"
-GCP_REGIONS="us-central1,us-east1"
-GCP_SERVICE_ACCOUNT_KEY_PATH="/path/to/key.json"
+## 📝 테스트 작성 가이드
 
-# Integration Tests
-GCP_INTEGRATION_TEST_PROJECT="test-project-id"
-GCP_INTEGRATION_TEST_REGION="us-central1"
-GCP_INTEGRATION_TEST_ZONE="us-central1-a"
-RUN_GCP_INTEGRATION_TESTS="true"
+### 새로운 플랫폼 테스트 추가
+1. `tests/platforms/{platform}/` 디렉토리 생성
+2. `unit/`, `integration/`, `performance/` 하위 디렉토리 생성
+3. 테스트 파일은 `test_*.py` 형식으로 명명
 
-# Performance Tests
-GCP_API_RESPONSE_THRESHOLD="30.0"
-GCP_DATA_COLLECTION_THRESHOLD="60.0"
-GCP_PARALLEL_SPEEDUP_MIN="1.2"
+### 테스트 카테고리
+- **Unit**: 개별 함수/클래스 테스트
+- **Integration**: 컴포넌트 간 통합 테스트  
+- **Performance**: 성능 및 부하 테스트
+- **Security**: 보안 관련 테스트
+- **Validation**: 전체 시스템 검증
 
-# MCP Integration
-MCP_GCP_ENABLED="true"
-MCP_GCP_ENDPOINT="http://localhost:8080/gcp"
-GCP_PREFER_MCP="true"
-```
+## 🔧 유지보수
 
-### Configuration Files
+### 정기 정리 작업
+- 중복된 테스트 파일 확인
+- 오래된 검증 리포트 정리
+- 캐시 파일 정리 (`__pycache__` 디렉토리)
+- 사용하지 않는 모의 데이터 정리
 
-- `tests/integration/integration_test_config.json` - Integration test settings
-- `tests/test_config.py` - Global test configuration
-- `tests/test_requirements.txt` - Python dependencies
-
-## Test Data and Mocks
-
-### Mock Data Generation
-
-The test suite includes comprehensive mock data generators:
-
-```python
-from tests.test_gcp_mock_data import GCPMockDataGenerator
-
-generator = GCPMockDataGenerator()
-
-# Generate realistic test data
-instance = generator.generate_compute_instance()
-network = generator.generate_vpc_network()
-cluster = generator.generate_gke_cluster()
-```
-
-### Mock API Responses
-
-Mock API responses simulate real GCP API behavior:
-
-```python
-from tests.test_gcp_mock_data import GCPMockAPIResponses
-
-# Create mock GCP API objects
-mock_instance = GCPMockAPIResponses.create_mock_compute_instance()
-mock_cluster = GCPMockAPIResponses.create_mock_gke_cluster()
-```
-
-## Continuous Integration
-
-### GitHub Actions Integration
-
-```yaml
-name: GCP Services Tests
-on: [push, pull_request]
-
-jobs:
-  unit-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-      - name: Install dependencies
-        run: |
-          pip install -r requirements.txt
-          pip install -r tests/test_requirements.txt
-      - name: Run unit tests
-        run: python tests/run_tests.py --coverage
-      - name: Upload coverage
-        uses: codecov/codecov-action@v3
-
-  integration-tests:
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - uses: actions/checkout@v3
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-      - name: Authenticate to GCP
-        uses: google-github-actions/auth@v1
-        with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
-      - name: Run integration tests
-        env:
-          GCP_INTEGRATION_TEST_PROJECT: ${{ secrets.GCP_TEST_PROJECT }}
-          RUN_GCP_INTEGRATION_TESTS: "true"
-        run: python tests/run_tests.py --integration
-```
-
-## Performance Benchmarks
-
-### Baseline Performance Targets
-
-| Metric | Target | Threshold |
-|--------|--------|-----------|
-| Authentication | < 1s | < 5s |
-| Data Collection (1000 items) | < 10s | < 60s |
-| Output Formatting (1000 items) | < 2s | < 10s |
-| Parallel Speedup (4 cores) | > 2x | > 1.2x |
-| Memory Usage (1000 items) | < 50MB | < 100MB |
-
-### Benchmark Reports
-
-Performance benchmarks generate detailed reports:
-
-```bash
-# Run benchmark and generate report
-python tests/performance/benchmark_runner.py
-
-# Output: gcp_performance_benchmark_YYYYMMDD_HHMMSS.json
-```
-
-Report includes:
-- System information and test configuration
-- Performance metrics and statistics
-- Scalability analysis
-- Concurrency efficiency
-- Memory usage patterns
-- Performance recommendations
-
-## Troubleshooting
-
-### Common Issues
-
-1. **Import Errors**
-   ```bash
-   # Ensure project root is in Python path
-   export PYTHONPATH="${PYTHONPATH}:$(pwd)"
-   ```
-
-2. **Authentication Failures**
-   ```bash
-   # Check GCP credentials
-   gcloud auth list
-   gcloud auth application-default login
-   ```
-
-3. **Integration Test Failures**
-   ```bash
-   # Verify project access
-   gcloud projects describe $GCP_INTEGRATION_TEST_PROJECT
-   
-   # Check API enablement
-   gcloud services list --enabled --project $GCP_INTEGRATION_TEST_PROJECT
-   ```
-
-4. **Performance Test Issues**
-   ```bash
-   # Install performance dependencies
-   pip install psutil
-   
-   # Check system resources
-   python -c "import psutil; print(f'CPU: {psutil.cpu_count()}, RAM: {psutil.virtual_memory().total/1024**3:.1f}GB')"
-   ```
-
-### Debug Mode
-
-Enable debug logging for detailed test output:
-
-```bash
-export PYTHONPATH="$(pwd)"
-export GCP_DEBUG="true"
-python tests/run_tests.py --verbose
-```
-
-## Contributing
-
-### Adding New Tests
-
-1. **Unit Tests**: Add to appropriate `test_gcp_*.py` file
-2. **Integration Tests**: Add to `tests/integration/test_gcp_integration.py`
-3. **Performance Tests**: Add to `tests/performance/test_gcp_performance.py`
-
-### Test Guidelines
-
-- Use descriptive test names
-- Include docstrings explaining test purpose
-- Mock external dependencies in unit tests
-- Clean up resources in integration tests
-- Follow existing patterns and conventions
-- Add performance assertions for new features
-
-### Mock Data Guidelines
-
-- Generate realistic test data
-- Include edge cases and error conditions
-- Maintain consistency with real GCP API responses
-- Update mock data when APIs change
-
-## Test Results and Reporting
-
-### Coverage Reports
-
-```bash
-# Generate coverage report
-python tests/run_tests.py --coverage
-
-# View HTML coverage report
-coverage html
-open htmlcov/index.html
-```
-
-### Test Reports
-
-Test execution generates detailed reports:
-
-- `tests/test_report.json` - Comprehensive test results
-- `tests/performance/gcp_performance_benchmark_*.json` - Performance benchmarks
-- `tests/integration/cleanup_report_*.json` - Resource cleanup reports
-
-## Security Considerations
-
-### Credential Management
-
-- Never commit real GCP credentials
-- Use service accounts with minimal permissions
-- Rotate test credentials regularly
-- Use separate test projects
-
-### Test Data
-
-- Use synthetic test data only
-- Avoid real customer data in tests
-- Label all test resources clearly
-- Implement automatic cleanup
-
-### Resource Management
-
-- Set resource quotas for test projects
-- Monitor test resource usage
-- Implement cost alerts
-- Clean up resources after tests
-
-## Maintenance
-
-### Regular Tasks
-
-- Update test dependencies monthly
-- Review and update mock data quarterly
-- Validate integration tests with new GCP API versions
-- Update performance baselines as needed
-- Clean up old test resources
-
-### Monitoring
-
-- Track test execution times
-- Monitor test failure rates
-- Review performance trends
-- Update thresholds based on infrastructure changes
-
----
-
-## Summary
-
-This comprehensive test suite provides:
-
-✅ **Complete Coverage**: Unit, integration, and performance tests
-✅ **Real-world Validation**: Tests with actual GCP APIs
-✅ **Performance Monitoring**: Benchmarks and scalability tests
-✅ **Safety Features**: Resource cleanup and error handling
-✅ **CI/CD Ready**: Automated testing and reporting
-✅ **Developer Friendly**: Easy setup and execution
-
-The test suite ensures the GCP services integration is reliable, performant, and maintainable across all supported services and use cases.
+### 백업 정책
+- 정리 작업 시 항상 백업 생성
+- 백업 폴더는 `backup/project_cleanup_{timestamp}/` 형식
+- 백업 매니페스트 파일로 변경사항 추적

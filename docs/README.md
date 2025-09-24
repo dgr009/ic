@@ -1,52 +1,126 @@
-# IC 프로젝트 문서
+# IC Documentation
 
-이 디렉토리는 IC 프로젝트의 모든 문서를 체계적으로 정리한 곳입니다.
+This directory contains comprehensive documentation for the IC (Infrastructure Resource Management CLI) tool.
 
-## 📁 문서 구조
+## Getting Started
 
-### AWS 관련 문서 (`aws/`)
-- **[AWS CLI 확장 기능 사용법](aws/README.md)** - AWS 모듈 사용 가이드
-- **[AWS CLI PRD](aws/aws_cli_prd.md)** - AWS CLI 확장 기능 제품 요구사항 명세서
-- **[AWS 구현 요약](aws/AWS_IMPLEMENTATION_SUMMARY.md)** - AWS 기능 구현 완료 보고서
+- [Installation Guide](installation.md) - How to install IC CLI
+- [User Guide](user_guide.md) - Complete user guide and tutorials
+- [General Configuration](general/configuration.md) - General configuration management
+- [Security](security.md) - Security best practices
 
-### 개발 관련 문서 (`development/`)
-- **[AWS 모듈 테스트](development/test_aws_modules.py)** - AWS 모듈 임포트 테스트 스크립트
+## Platform-Specific Documentation
 
-## 📖 주요 문서 링크
+### AWS (Amazon Web Services)
+- [AWS Installation](aws/installation.md) - Install and setup AWS integration
+- [AWS Configuration](aws/configuration.md) - Configure AWS credentials and settings
+- [AWS Usage](aws/usage.md) - How to use AWS commands
+- [AWS Troubleshooting](aws/troubleshooting.md) - AWS-specific troubleshooting
 
-### 시작하기
-- [메인 README](../README.md) - 프로젝트 전체 개요 및 사용법
-- [환경 설정 예제](../env.example) - 환경 변수 설정 템플릿
+### Azure (Microsoft Azure)
+- [Azure Installation](azure/installation.md) - Install and setup Azure integration
+- [Azure Configuration](azure/configuration.md) - Configure Azure credentials and settings
+- [Azure Usage](azure/usage.md) - How to use Azure commands
+- [Azure Troubleshooting](azure/troubleshooting.md) - Azure-specific troubleshooting
 
-### AWS 기능
-- [AWS 서비스 사용법](aws/README.md) - ECS, EKS, Fargate, CodePipeline 등 AWS 서비스 사용 가이드
-- [AWS 구현 상세](aws/AWS_IMPLEMENTATION_SUMMARY.md) - 구현된 AWS 기능들의 기술적 세부사항
+### GCP (Google Cloud Platform)
+- [GCP Installation](gcp/installation.md) - Install and setup GCP integration
+- [GCP Configuration](gcp/configuration.md) - Configure GCP credentials and settings
+- [GCP Usage](gcp/usage.md) - How to use GCP commands
+- [GCP Troubleshooting](gcp/troubleshooting.md) - GCP-specific troubleshooting
 
-### 개발 가이드
-- [개발 환경 설정](.cursor/rules.md) - 프로젝트 엔지니어링 핸드북 및 AI 협업 규칙
+### NCP (Naver Cloud Platform)
+- [NCP Installation](ncp/installation.md) - Install and setup NCP integration
+- [NCP Configuration](ncp/configuration.md) - Configure NCP credentials and settings
+- [NCP Usage](ncp/usage.md) - How to use NCP commands
+- [NCP Troubleshooting](ncp/troubleshooting.md) - NCP-specific troubleshooting
 
-## 🔍 문서 찾기
+### NCPGOV (Naver Cloud Platform Government)
+- [NCPGOV Installation](ncpgov/installation.md) - Install and setup NCPGOV integration
+- [NCPGOV Configuration](ncpgov/configuration.md) - Configure NCPGOV credentials and settings
+- [NCPGOV Usage](ncpgov/usage.md) - How to use NCPGOV commands
+- [NCPGOV Troubleshooting](ncpgov/troubleshooting.md) - NCPGOV-specific troubleshooting
 
-### 사용법을 알고 싶다면
-1. [메인 README](../README.md) - 전체적인 사용법
-2. [AWS 사용 가이드](aws/README.md) - AWS 서비스별 상세 사용법
+### OCI (Oracle Cloud Infrastructure)
+- [OCI Installation](oci/installation.md) - Install and setup OCI integration
+- [OCI Configuration](oci/configuration.md) - Configure OCI credentials and settings
+- [OCI Usage](oci/usage.md) - How to use OCI commands
+- [OCI Troubleshooting](oci/troubleshooting.md) - OCI-specific troubleshooting
 
-### 구현 세부사항을 알고 싶다면
-1. [AWS 구현 요약](aws/AWS_IMPLEMENTATION_SUMMARY.md) - 구현된 기능들의 기술적 세부사항
-2. [AWS PRD](aws/aws_cli_prd.md) - 원본 요구사항 명세서
+## Advanced Topics
 
-### 개발에 참여하고 싶다면
-1. [엔지니어링 핸드북](../.cursor/rules.md) - 코딩 표준 및 협업 규칙
-2. [개발 테스트](development/test_aws_modules.py) - 모듈 테스트 방법
+- [MCP Integration](mcp_integration.md) - Model Context Protocol integration
+- [Deployment](deployment.md) - Deployment strategies
+- [Troubleshooting](troubleshooting.md) - General troubleshooting guide
 
-## 📝 문서 기여
+## Migration and Updates
 
-문서를 수정하거나 추가하고 싶다면:
-1. 해당 카테고리의 폴더에 문서 추가
-2. 이 README.md 파일에 링크 추가
-3. 메인 README.md에 필요시 링크 추가
+- [Migration Guide](migration_guide.md) - Migrating from older versions
+- [Config Migration](config_migration.md) - Configuration migration guide
+
+## Development
+
+- [Development Documentation](development/) - For contributors
+
+## Documentation Templates
+
+- [Templates](_templates/) - Documentation templates for consistency
+
+## Quick Reference
+
+### Platform Commands
+```bash
+# AWS
+ic aws ec2 info
+ic aws s3 info
+
+# Azure  
+ic azure vm info
+ic azure storage info
+
+# GCP
+ic gcp compute info
+ic gcp storage info
+
+# NCP
+ic ncp ec2 info
+ic ncp s3 info
+
+# NCPGOV
+ic ncpgov ec2 info
+ic ncpgov s3 info
+
+# OCI
+ic oci compute info
+ic oci storage info
+```
+
+### Configuration Commands
+```bash
+# Initialize configuration
+ic config init
+
+# Validate configuration
+ic config validate
+
+# Show configuration
+ic config show
+```
 
 ---
 
-**마지막 업데이트**: 2025-09-01  
-**관리자**: SangYun Kim (cruiser594@gmail.com)
+## 한국어 문서 (Korean Documentation)
+
+### 시작하기
+- [메인 README](../README.md) - 프로젝트 전체 개요 및 사용법
+
+### AWS 기능
+- [AWS 서비스 사용법](aws/README.md) - ECS, EKS, Fargate, CodePipeline 등 AWS 서비스 사용 가이드
+
+### 개발 가이드
+- [개발 환경 설정](../.cursor/rules.md) - 프로젝트 엔지니어링 핸드북 및 AI 협업 규칙
+
+---
+
+**Last Updated**: 2024  
+**Maintainer**: IC CLI Team

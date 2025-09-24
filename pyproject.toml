@@ -8,7 +8,7 @@ version = "1.0.7"
 authors = [
     {name = "sykim", email = "cruiser594@gmail.com"},
 ]
-description = "Infrastructure CLI tool for managing AWS, CloudFlare, SSH, and more"
+description = "Infrastructure CLI tool for managing AWS, Azure, GCP, OCI, NCP, CloudFlare, SSH, and more"
 readme = "README.md"
 requires-python = ">=3.9,<3.13"
 classifiers = [
@@ -27,17 +27,17 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Environment :: Console",
 ]
-keywords = ["cli", "infrastructure", "aws", "oci", "gcp", "azure", "cloudflare", "ssh", "devops", "multi-cloud"]
+keywords = ["cli", "infrastructure", "aws", "oci", "gcp", "azure", "ncp", "naver-cloud", "cloudflare", "ssh", "devops", "multi-cloud"]
 dependencies = [
     # Core dependencies - aligned with requirements.txt
     "boto3>=1.26.0,<2.0.0",
     "botocore>=1.29.0,<2.0.0",
-    "requests>=2.28.0,<3.0.0",
+    "requests>=2.28.0,<3.0.0",      # Required for NCP REST API calls
     "rich>=12.0.0,<15.0.0",
-    "PyYAML>=6.0,<=6.0.2",
+    "PyYAML>=6.0,<7.0.0",           # Required for NCP configuration files
     "paramiko>=2.11.0,<5.0.0",
     "python-dotenv>=0.19.0,<2.0.0",
-    "cryptography>=3.4.8,<46.0.0",
+    "cryptography>=3.4.8,<50.0.0",  # Required for NCP HMAC-SHA256 signatures
     "netifaces>=0.11.0,<1.0.0",
     "tqdm>=4.67.0,<5.0.0",
     "jsonschema>=4.23.0,<5.0.0",

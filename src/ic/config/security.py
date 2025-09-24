@@ -349,7 +349,13 @@ class GitSecurityChecker:
         # Skip binary files and certain extensions
         skip_extensions = {'.pyc', '.pyo', '.so', '.dylib', '.dll', '.exe', '.jpg', '.png', '.gif', '.pdf'}
         skip_dirs = {'__pycache__', '.git', 'node_modules', '.pytest_cache', 'logs'}
+        skip_files = {'requirements.txt', 'package.json', 'setup.py', 'pyproject.toml'}
         
+        # Get just the filename for checking
+        filename = os.path.basename(file_path)
+        
+        if filename in skip_files:
+            return False
         if any(file_path.endswith(ext) for ext in skip_extensions):
             return False
         if any(skip_dir in file_path for skip_dir in skip_dirs):
@@ -472,6 +478,398 @@ exit 0
 '''
 
 
+class NCPSecurityValidator:
+    """
+    NCP-specific security validation and compliance checks.
+    """
+    
+    def __init__(self, security_manager: SecurityManager):
+        """
+        Initialize NCP security validator.
+        
+        Args:
+            security_manager: SecurityManager instance
+        """
+        self.security = security_manager
+        self.ncp_sensitive_keys = [
+            "ncp_access_key", "ncp_secret_key", "access_key", "secret_key",
+            "private_ip", "internal_ip", "vpc_id", "subnet_id"
+        ]
+    
+    def scan_for_hardcoded_credentials(self, directory: str = ".") -> List[str]:
+        """
+        Scan for hardcoded NCP credentials in source code.
+        
+        Args:
+            directory: Directory to scan
+            
+        Returns:
+            List of security violations found
+        """
+        violations = []
+        
+        try:
+            for root, dirs, files in os.walk(directory):
+                # Skip certain directories
+                dirs[:] = [d for d in dirs if d not in {'.git', '__pycache__', 'node_modules', '.pytest_cache'}]
+                
+                for file in files:
+                    if self._should_scan_file(file):
+                        file_path = os.path.join(root, file)
+                        file_violations = self._scan_file_for_credentials(file_path)
+                        violations.extend(file_violations)
+        
+        except Exception as e:
+            logger.error(f"Error scanning for hardcoded credentials: {e}")
+        
+        return violations
+    
+    def _should_scan_file(self, filename: str) -> bool:
+        """
+        Determine if file should be scanned for credentials.
+        
+        Args:
+            filename: Name of the file
+            
+        Returns:
+            True if file should be scanned
+        """
+        scan_extensions = {'.py', '.js', '.ts', '.yaml', '.yml', '.json', '.env', '.sh', '.bash'}
+        skip_files = {'requirements.txt', 'package.json', 'setup.py'}
+        
+        if filename in skip_files:
+            return False
+        
+        return any(filename.endswith(ext) for ext in scan_extensions)
+    
+    def _scan_file_for_credentials(self, file_path: str) -> List[str]:
+        """
+        Scan individual file for NCP credentials.
+        
+        Args:
+            file_path: Path to file to scan
+            
+        Returns:
+            List of violations in this file
+        """
+        violations = []
+        
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+            
+            # NCP-specific credential patterns
+            ncp_patterns = [
+                (r'ncp[_-]?access[_-]?key\s*[=:]\s*["\']?([A-Za-z0-9]{20,})["\']?', 'NCP Access Key'),
+                (r'ncp[_-]?secret[_-]?key\s*[=:]\s*["\']?([A-Za-z0-9+/]{40,})["\']?', 'NCP Secret Key'),
+                (r'access[_-]?key\s*[=:]\s*["\']?([A-Za-z0-9]{20,})["\']?', 'Access Key'),
+                (r'secret[_-]?key\s*[=:]\s*["\']?([A-Za-z0-9+/]{40,})["\']?', 'Secret Key'),
+            ]
+            
+            for pattern, credential_type in ncp_patterns:
+                matches = re.finditer(pattern, content, re.IGNORECASE)
+                for match in matches:
+                    credential_value = match.group(1)
+                    if not self._is_placeholder_credential(credential_value):
+                        violations.append(
+                            f"Hardcoded {credential_type} found in {file_path}:{self._get_line_number(content, match.start())}"
+                        )
+        
+        except Exception as e:
+            logger.debug(f"Could not scan file {file_path}: {e}")
+        
+        return violations
+    
+    def _is_placeholder_credential(self, value: str) -> bool:
+        """
+        Check if credential value is a placeholder.
+        
+        Args:
+            value: Credential value to check
+            
+        Returns:
+            True if value is a placeholder
+        """
+        placeholder_patterns = [
+            r'^your[_-].*[_-]here$',
+            r'^<.*>$',
+            r'^\[.*\]$',
+            r'^example.*',
+            r'^test.*',
+            r'^dummy.*',
+            r'^placeholder.*',
+            r'^xxx+$',
+            r'^000+$',
+        ]
+        
+        value_lower = value.lower()
+        return any(re.match(pattern, value_lower) for pattern in placeholder_patterns)
+    
+    def _get_line_number(self, content: str, position: int) -> int:
+        """
+        Get line number for a position in content.
+        
+        Args:
+            content: File content
+            position: Character position
+            
+        Returns:
+            Line number
+        """
+        return content[:position].count('\n') + 1
+    
+    def validate_config_file_permissions(self, config_paths: List[str]) -> List[str]:
+        """
+        Validate NCP configuration file permissions.
+        
+        Args:
+            config_paths: List of configuration file paths to check
+            
+        Returns:
+            List of permission violations
+        """
+        violations = []
+        
+        for config_path in config_paths:
+            path = Path(config_path).expanduser()
+            
+            if not path.exists():
+                continue
+            
+            try:
+                # Check file permissions (Unix systems only)
+                if os.name != 'nt':
+                    file_mode = oct(path.stat().st_mode)[-3:]
+                    if file_mode != '600':
+                        violations.append(
+                            f"Insecure file permissions for {path}: {file_mode} (should be 600)"
+                        )
+                
+                # Check directory permissions
+                parent_dir = path.parent
+                if parent_dir.exists() and os.name != 'nt':
+                    dir_mode = oct(parent_dir.stat().st_mode)[-3:]
+                    if dir_mode not in ['700', '755']:
+                        violations.append(
+                            f"Insecure directory permissions for {parent_dir}: {dir_mode} (should be 700 or 755)"
+                        )
+            
+            except Exception as e:
+                logger.warning(f"Could not check permissions for {path}: {e}")
+        
+        return violations
+    
+    def validate_government_compliance(self, config_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Validate government cloud compliance for NCP Gov.
+        
+        Args:
+            config_data: Configuration data to validate
+            
+        Returns:
+            Compliance validation results
+        """
+        compliance_results = {
+            "compliant": True,
+            "violations": [],
+            "warnings": [],
+            "recommendations": []
+        }
+        
+        # Required security settings for government compliance
+        required_security_settings = {
+            'encryption_enabled': 'Data encryption must be enabled',
+            'audit_logging_enabled': 'Audit logging must be enabled',
+            'access_control_enabled': 'Access control must be enabled',
+            'network_security_enabled': 'Network security must be enabled'
+        }
+        
+        # Check required security settings
+        for setting, description in required_security_settings.items():
+            if not config_data.get(setting, False):
+                compliance_results["violations"].append(f"{setting}: {description}")
+                compliance_results["compliant"] = False
+        
+        # Check for government-specific requirements
+        gov_requirements = {
+            'data_residency': 'Data must remain within government boundaries',
+            'security_clearance_level': 'Security clearance level must be specified',
+            'compliance_framework': 'Compliance framework must be defined'
+        }
+        
+        for requirement, description in gov_requirements.items():
+            if requirement not in config_data:
+                compliance_results["warnings"].append(f"{requirement}: {description}")
+        
+        # Additional recommendations
+        if not config_data.get('multi_factor_auth', False):
+            compliance_results["recommendations"].append("Enable multi-factor authentication for enhanced security")
+        
+        if not config_data.get('session_timeout'):
+            compliance_results["recommendations"].append("Configure session timeout for security")
+        
+        return compliance_results
+    
+    def mask_sensitive_data_in_logs(self, log_message: str) -> str:
+        """
+        Mask NCP-specific sensitive data in log messages.
+        
+        Args:
+            log_message: Original log message
+            
+        Returns:
+            Log message with sensitive data masked
+        """
+        # NCP-specific patterns to mask
+        ncp_patterns = [
+            (r'(ncp[_-]?access[_-]?key[\s=:]+)[^\s]+', r'\1***MASKED***'),
+            (r'(ncp[_-]?secret[_-]?key[\s=:]+)[^\s]+', r'\1***MASKED***'),
+            (r'(private[_-]?ip[\s=:]+)[^\s]+', r'\1***MASKED***'),
+            (r'(vpc[_-]?id[\s=:]+)[^\s]+', r'\1***MASKED***'),
+            (r'(subnet[_-]?id[\s=:]+)[^\s]+', r'\1***MASKED***'),
+            (r'vpc-[a-zA-Z0-9]+', r'***VPC_MASKED***'),  # VPC IDs
+            (r'subnet-[a-zA-Z0-9]+', r'***SUBNET_MASKED***'),  # Subnet IDs
+            (r'(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})', r'***IP_MASKED***'),  # IP addresses
+        ]
+        
+        masked_message = log_message
+        for pattern, replacement in ncp_patterns:
+            masked_message = re.sub(pattern, replacement, masked_message, flags=re.IGNORECASE)
+        
+        # Use base security manager for additional masking
+        masked_message = self.security.mask_log_message(masked_message)
+        
+        return masked_message
+
+
+class NCPComplianceChecker:
+    """
+    NCP Government Cloud compliance checker.
+    """
+    
+    def __init__(self):
+        """Initialize compliance checker."""
+        self.compliance_frameworks = {
+            'government': {
+                'name': 'Government Cloud Compliance',
+                'requirements': [
+                    'data_encryption',
+                    'audit_logging',
+                    'access_control',
+                    'network_security',
+                    'data_residency',
+                    'security_monitoring'
+                ]
+            },
+            'financial': {
+                'name': 'Financial Services Compliance',
+                'requirements': [
+                    'data_encryption',
+                    'audit_logging',
+                    'access_control',
+                    'transaction_monitoring',
+                    'fraud_detection'
+                ]
+            }
+        }
+    
+    def check_compliance(self, config_data: Dict[str, Any], framework: str = 'government') -> Dict[str, Any]:
+        """
+        Check compliance against specified framework.
+        
+        Args:
+            config_data: Configuration to check
+            framework: Compliance framework to use
+            
+        Returns:
+            Compliance check results
+        """
+        if framework not in self.compliance_frameworks:
+            raise ValueError(f"Unknown compliance framework: {framework}")
+        
+        framework_info = self.compliance_frameworks[framework]
+        results = {
+            'framework': framework_info['name'],
+            'compliant': True,
+            'score': 0,
+            'total_requirements': len(framework_info['requirements']),
+            'passed_requirements': 0,
+            'failed_requirements': [],
+            'warnings': [],
+            'recommendations': []
+        }
+        
+        # Check each requirement
+        for requirement in framework_info['requirements']:
+            if self._check_requirement(requirement, config_data):
+                results['passed_requirements'] += 1
+            else:
+                results['failed_requirements'].append(requirement)
+                results['compliant'] = False
+        
+        # Calculate compliance score
+        results['score'] = (results['passed_requirements'] / results['total_requirements']) * 100
+        
+        # Add recommendations based on failed requirements
+        for failed_req in results['failed_requirements']:
+            recommendation = self._get_requirement_recommendation(failed_req)
+            if recommendation:
+                results['recommendations'].append(recommendation)
+        
+        return results
+    
+    def _check_requirement(self, requirement: str, config_data: Dict[str, Any]) -> bool:
+        """
+        Check individual compliance requirement.
+        
+        Args:
+            requirement: Requirement to check
+            config_data: Configuration data
+            
+        Returns:
+            True if requirement is met
+        """
+        requirement_checks = {
+            'data_encryption': lambda c: c.get('encryption_enabled', False),
+            'audit_logging': lambda c: c.get('audit_logging_enabled', False),
+            'access_control': lambda c: c.get('access_control_enabled', False),
+            'network_security': lambda c: c.get('network_security_enabled', False),
+            'data_residency': lambda c: c.get('data_residency_compliant', False),
+            'security_monitoring': lambda c: c.get('security_monitoring_enabled', False),
+            'transaction_monitoring': lambda c: c.get('transaction_monitoring_enabled', False),
+            'fraud_detection': lambda c: c.get('fraud_detection_enabled', False),
+        }
+        
+        check_func = requirement_checks.get(requirement)
+        if check_func:
+            return check_func(config_data)
+        
+        return False
+    
+    def _get_requirement_recommendation(self, requirement: str) -> str:
+        """
+        Get recommendation for failed requirement.
+        
+        Args:
+            requirement: Failed requirement
+            
+        Returns:
+            Recommendation text
+        """
+        recommendations = {
+            'data_encryption': 'Enable data encryption for all sensitive data at rest and in transit',
+            'audit_logging': 'Enable comprehensive audit logging for all system activities',
+            'access_control': 'Implement role-based access control with principle of least privilege',
+            'network_security': 'Configure network security groups and firewalls properly',
+            'data_residency': 'Ensure all data remains within approved geographical boundaries',
+            'security_monitoring': 'Enable real-time security monitoring and alerting',
+            'transaction_monitoring': 'Implement transaction monitoring for financial compliance',
+            'fraud_detection': 'Enable fraud detection mechanisms for financial transactions',
+        }
+        
+        return recommendations.get(requirement, f'Address {requirement} compliance requirement')
+
+
 def create_security_config() -> Dict[str, Any]:
     """
     Create default security configuration.
@@ -489,8 +887,16 @@ def create_security_config() -> Dict[str, Any]:
             "credential", "credentials",
             "cert", "certificate",
             "session", "session_token",
+            # NCP-specific sensitive keys
+            "ncp_access_key", "ncp_secret_key",
+            "private_ip", "internal_ip", "vpc_id", "subnet_id"
         ],
         "mask_pattern": "***MASKED***",
         "warn_on_sensitive_in_config": True,
         "git_hooks_enabled": True,
+        # NCP-specific security settings
+        "ncp_security_enabled": True,
+        "government_compliance_enabled": False,
+        "credential_scanning_enabled": True,
+        "file_permission_validation_enabled": True,
     }

@@ -180,48 +180,64 @@ try:
         load_dotenv()
 except ImportError:
     pass
-from aws.ec2 import list_tags as ec2_list_tags
-from aws.ec2 import tag_check as ec2_tag_check
-from aws.ec2 import info as ec2_info
-from aws.lb import list_tags as lb_list_tags
-from aws.lb import tag_check as lb_tag_check
-from aws.vpc import tag_check as vpc_tag_check
-from aws.vpc import list_tags as vpc_list_tags
-from aws.rds import list_tags as rds_list_tags
-from aws.rds import tag_check as rds_tag_check
-from aws.s3 import list_tags as s3_list_tags
-from aws.s3 import tag_check as s3_tag_check
-from aws.sg import info as sg_info
-from aws.eks import info as eks_info
-from aws.eks import nodes as eks_nodes
-from aws.eks import pods as eks_pods
-from aws.eks import fargate as eks_fargate
-from aws.eks import addons as eks_addons
-from aws.eks import update_config as eks_update_config
-from aws.fargate import info as fargate_info
-from aws.codepipeline import build as codepipeline_build
-from aws.codepipeline import deploy as codepipeline_deploy
-from aws.ecs import info as ecs_info
-from aws.ecs import service as ecs_service
-from aws.ecs import task as ecs_task
-from aws.msk import info as msk_info
-from aws.msk import broker as msk_broker
-from aws.profile.info import ProfileInfoCollector, ProfileTableRenderer
-from aws.cloudfront.info import CloudFrontCollector, CloudFrontRenderer
-from cf.dns import list_info as dns_info
-from oci_module.info import oci_info as oci_info # Deprecated. 통합 oci info
-from oci_module.vm import add_arguments as vm_add_args, main as vm_main
-from oci_module.lb import add_arguments as lb_add_args, main as lb_main
-from oci_module.nsg import add_arguments as nsg_add_args, main as nsg_main
-from oci_module.volume import add_arguments as volume_add_args, main as volume_main
-from oci_module.policy import add_arguments as policy_add_args, main as policy_main
-from oci_module.policy import search as oci_policy_search
-from oci_module.obj import add_arguments as obj_add_args, main as obj_main
-from oci_module.cost.usage import add_arguments as cost_usage_add_args, main as cost_usage_main
-from oci_module.cost.credit import add_arguments as cost_credit_add_args, main as cost_credit_main
-from oci_module.vcn import info as vcn_info
-from oci_module.compartment.info import CompartmentTreeBuilder, CompartmentTreeRenderer
-from ssh import auto_ssh, server_info
+# AWS imports - Unified module structure
+from src.ic.platforms.aws.ec2 import list_tags as ec2_list_tags
+from src.ic.platforms.aws.ec2 import tag_check as ec2_tag_check
+from src.ic.platforms.aws.ec2 import info as ec2_info
+from src.ic.platforms.aws.lb import list_tags as lb_list_tags
+from src.ic.platforms.aws.lb import tag_check as lb_tag_check
+from src.ic.platforms.aws.vpc import tag_check as vpc_tag_check
+from src.ic.platforms.aws.vpc import list_tags as vpc_list_tags
+from src.ic.platforms.aws.rds import list_tags as rds_list_tags
+from src.ic.platforms.aws.rds import tag_check as rds_tag_check
+from src.ic.platforms.aws.s3 import list_tags as s3_list_tags
+from src.ic.platforms.aws.s3 import tag_check as s3_tag_check
+from src.ic.platforms.aws.sg import info as sg_info
+from src.ic.platforms.aws.eks import info as eks_info
+from src.ic.platforms.aws.eks import nodes as eks_nodes
+from src.ic.platforms.aws.eks import pods as eks_pods
+from src.ic.platforms.aws.eks import fargate as eks_fargate
+from src.ic.platforms.aws.eks import addons as eks_addons
+from src.ic.platforms.aws.eks import update_config as eks_update_config
+from src.ic.platforms.aws.fargate import info as fargate_info
+from src.ic.platforms.aws.codepipeline import build as codepipeline_build
+from src.ic.platforms.aws.codepipeline import deploy as codepipeline_deploy
+from src.ic.platforms.aws.ecs import info as ecs_info
+from src.ic.platforms.aws.ecs import service as ecs_service
+from src.ic.platforms.aws.ecs import task as ecs_task
+from src.ic.platforms.aws.msk import info as msk_info
+from src.ic.platforms.aws.msk import broker as msk_broker
+from src.ic.platforms.aws.profile.info import ProfileInfoCollector, ProfileTableRenderer
+from src.ic.platforms.aws.cloudfront.info import CloudFrontCollector, CloudFrontRenderer
+# CloudFlare imports - Unified module structure
+from src.ic.platforms.cloudflare.dns import list_info as dns_info
+# OCI imports - Unified module structure
+from src.ic.platforms.oci.info import oci_info as oci_info # Deprecated. 통합 oci info
+from src.ic.platforms.oci.vm import add_arguments as vm_add_args, main as vm_main
+from src.ic.platforms.oci.lb import add_arguments as lb_add_args, main as lb_main
+from src.ic.platforms.oci.nsg import add_arguments as nsg_add_args, main as nsg_main
+from src.ic.platforms.oci.volume import add_arguments as volume_add_args, main as volume_main
+from src.ic.platforms.oci.policy import add_arguments as policy_add_args, main as policy_main
+from src.ic.platforms.oci.policy import search as oci_policy_search
+from src.ic.platforms.oci.obj import add_arguments as obj_add_args, main as obj_main
+from src.ic.platforms.oci.cost.usage import add_arguments as cost_usage_add_args, main as cost_usage_main
+from src.ic.platforms.oci.cost.credit import add_arguments as cost_credit_add_args, main as cost_credit_main
+from src.ic.platforms.oci.vcn import info as vcn_info
+from src.ic.platforms.oci.compartment.info import CompartmentTreeBuilder, CompartmentTreeRenderer
+# SSH imports - Unified module structure
+from src.ic.platforms.ssh import auto_ssh, server_info
+# NCP imports - Unified module structure
+from src.ic.platforms.ncp.ec2 import info as ncp_ec2_info
+from src.ic.platforms.ncp.s3 import info as ncp_s3_info
+from src.ic.platforms.ncp.vpc import info as ncp_vpc_info
+from src.ic.platforms.ncp.sg import info as ncp_sg_info
+from src.ic.platforms.ncp.rds import info as ncp_rds_info
+# NCP Gov imports - Unified module structure
+from src.ic.platforms.ncpgov.ec2 import info as ncpgov_ec2_info
+from src.ic.platforms.ncpgov.s3 import info as ncpgov_s3_info
+from src.ic.platforms.ncpgov.vpc import info as ncpgov_vpc_info
+from src.ic.platforms.ncpgov.sg import info as ncpgov_sg_info
+from src.ic.platforms.ncpgov.rds import info as ncpgov_rds_info
 import concurrent.futures
 from threading import Lock
 
@@ -409,6 +425,14 @@ def main():
     config_commands = ConfigCommands()
     config_commands.add_subparsers(platform_subparsers)
     
+    # Add security commands
+    try:
+        from .commands.security import SecurityCommands
+    except ImportError:
+        from ic.commands.security import SecurityCommands
+    security_commands = SecurityCommands()
+    security_commands.add_subparsers(platform_subparsers)
+    
     aws_parser = platform_subparsers.add_parser("aws", help="AWS 관련 명령어")
     oci_parser = platform_subparsers.add_parser("oci", help="OCI 관련 명령어")
     azure_parser = platform_subparsers.add_parser(
@@ -423,6 +447,42 @@ def main():
     )
     cf_parser = platform_subparsers.add_parser("cf", help="CloudFlare 관련 명령어")
     ssh_parser = platform_subparsers.add_parser("ssh", help="SSH 관련 명령어")
+    ncp_parser = platform_subparsers.add_parser(
+        "ncp", 
+        help="NCP (Naver Cloud Platform) 관련 명령어",
+        description="NCP 클라우드 서비스 관리 도구\n\n"
+                   "지원 서비스:\n"
+                   "  • ec2: 서버 인스턴스 관리\n"
+                   "  • s3: 오브젝트 스토리지 관리\n"
+                   "  • vpc: 가상 네트워크 관리\n"
+                   "  • sg: 보안 그룹 관리\n\n"
+                   "사용 예시:\n"
+                   "  ic ncp ec2 info --name web\n"
+                   "  ic ncp s3 info --format json\n"
+                   "  ic ncp vpc info --profile production\n"
+                   "  ic ncp sg info --verbose",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ncpgov_parser = platform_subparsers.add_parser(
+        "ncpgov", 
+        help="NCP Gov (Naver Cloud Platform Government) 관련 명령어",
+        description="NCP 정부 클라우드 서비스 관리 도구 (보안 강화)\n\n"
+                   "지원 서비스:\n"
+                   "  • ec2: 정부 클라우드 서버 인스턴스 관리\n"
+                   "  • s3: 정부 클라우드 오브젝트 스토리지 관리\n"
+                   "  • vpc: 정부 클라우드 가상 네트워크 관리\n"
+                   "  • sg: 정부 클라우드 보안 그룹 관리\n\n"
+                   "보안 특징:\n"
+                   "  • 민감한 정보 자동 마스킹\n"
+                   "  • 정부 클라우드 규정 준수 검증\n"
+                   "  • 감사 로그 자동 기록\n\n"
+                   "사용 예시:\n"
+                   "  ic ncpgov ec2 info --name secure\n"
+                   "  ic ncpgov s3 info --format json\n"
+                   "  ic ncpgov vpc info --profile government\n"
+                   "  ic ncpgov sg info --verbose",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
 
     aws_subparsers = aws_parser.add_subparsers(dest="service",required=True,help="AWS 리소스 관리 서비스")
     oci_subparsers = oci_parser.add_subparsers(dest="service",required=True,help="OCI 리소스 관리 서비스")
@@ -430,6 +490,8 @@ def main():
     gcp_subparsers = gcp_parser.add_subparsers(dest="service", required=True, help="GCP 리소스 관리 서비스")
     cf_subparsers = cf_parser.add_subparsers(dest="service",required=True,help="CloudFlare 리소스 관리 서비스")
     ssh_subparsers = ssh_parser.add_subparsers(dest="service",required=True,help="SSH 관리 서비스")
+    ncp_subparsers = ncp_parser.add_subparsers(dest="service", required=True, help="NCP 리소스 관리 서비스")
+    ncpgov_subparsers = ncpgov_parser.add_subparsers(dest="service", required=True, help="NCP Gov 리소스 관리 서비스")
 
     # ---------------- AWS ----------------
     ec2_parser = aws_subparsers.add_parser("ec2", help="EC2 관련 명령어")
@@ -454,7 +516,7 @@ def main():
     lb_check_parser.set_defaults(func=lb_tag_check.main)
 
     lb_info_parser = lb_subparsers.add_parser("info", help="LB 상세 정보 조회")
-    from aws.lb import info as lb_info
+    from src.ic.platforms.aws.lb import info as lb_info
     lb_info.add_arguments(lb_info_parser)
     lb_info_parser.set_defaults(func=lb_info.main)
 
@@ -468,14 +530,14 @@ def main():
     vpc_list_parser.set_defaults(func=vpc_list_tags.main)
 
     vpc_info_parser = vpc_subparsers.add_parser("info", help="VPC 상세 정보 조회")
-    from aws.vpc import info as vpc_info
+    from src.ic.platforms.aws.vpc import info as vpc_info
     vpc_info.add_arguments(vpc_info_parser)
     vpc_info_parser.set_defaults(func=vpc_info.main)
 
     vpn_parser = aws_subparsers.add_parser("vpn", help="TGW, VGW, VPN Connection, Endpoint 관련 명령어")
     vpn_subparsers = vpn_parser.add_subparsers(dest="command", required=True)
     vpn_info_parser = vpn_subparsers.add_parser("info", help="VPN 관련 상세 정보 조회")
-    from aws.vpn import info as vpn_info
+    from src.ic.platforms.aws.vpn import info as vpn_info
     vpn_info.add_arguments(vpn_info_parser)
     vpn_info_parser.set_defaults(func=vpn_info.main)
 
@@ -490,7 +552,7 @@ def main():
     rds_check_cmd.set_defaults(func=rds_tag_check.main)
 
     rds_info_parser = rds_subparsers.add_parser("info", help="RDS 상세 정보 조회")
-    from aws.rds import info as rds_info
+    from src.ic.platforms.aws.rds import info as rds_info
     rds_info.add_arguments(rds_info_parser)
     rds_info_parser.set_defaults(func=rds_info.main)
 
@@ -504,7 +566,7 @@ def main():
     s3_check_cmd.set_defaults(func=s3_tag_check.main)
 
     s3_info_parser = s3_subparsers.add_parser("info", help="S3 상세 정보 조회")
-    from aws.s3 import info as s3_info
+    from src.ic.platforms.aws.s3 import info as s3_info
     s3_info.add_arguments(s3_info_parser)
     s3_info_parser.set_defaults(func=s3_info.main)
 
@@ -1129,6 +1191,508 @@ def main():
     ssh_reg_parser = ssh_subparsers.add_parser("reg", help="네트워크를 스캔하여 새로운 SSH 서버를 찾아 .ssh/config에 등록합니다.")
     ssh_reg_parser.set_defaults(func=lambda args: auto_ssh.main())
 
+    # ---------------- NCP ----------------
+    # NCP EC2 commands
+    ncp_ec2_parser = ncp_subparsers.add_parser(
+        "ec2", 
+        help="NCP EC2 관련 명령어",
+        description="NCP 서버 인스턴스 관리\n\n"
+                   "사용 가능한 명령어:\n"
+                   "  info: 인스턴스 목록 및 상세 정보 조회\n\n"
+                   "예시:\n"
+                   "  ic ncp ec2 info                    # 모든 인스턴스 조회\n"
+                   "  ic ncp ec2 info --name web         # 이름에 'web' 포함된 인스턴스\n"
+                   "  ic ncp ec2 info --format json      # JSON 형식으로 출력\n"
+                   "  ic ncp ec2 info --profile prod     # 특정 프로필 사용",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ncp_ec2_subparsers = ncp_ec2_parser.add_subparsers(dest="command", required=True)
+    ncp_ec2_info_parser = ncp_ec2_subparsers.add_parser(
+        "info", 
+        help="NCP EC2 인스턴스 정보 조회",
+        description="NCP EC2 인스턴스의 상세 정보를 조회합니다.\n\n"
+                   "출력 정보:\n"
+                   "  • 인스턴스 ID, 이름, 상태\n"
+                   "  • 인스턴스 타입, 플랫폼\n"
+                   "  • 공인/사설 IP 주소\n"
+                   "  • VPC, 서브넷 정보\n"
+                   "  • 생성 날짜\n\n"
+                   "필터링 옵션:\n"
+                   "  --name: 인스턴스 이름으로 필터링\n"
+                   "  --format: 출력 형식 (table/json)\n"
+                   "  --profile: 사용할 NCP 프로필",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ncp_ec2_info_parser.add_argument("--name", help="인스턴스 이름 필터 (부분 일치)")
+    ncp_ec2_info_parser.add_argument("--format", choices=['table', 'json'], default='table', 
+                                   help="출력 형식: table (기본값), json")
+    ncp_ec2_info_parser.add_argument("--profile", default='default', 
+                                   help="사용할 NCP 프로필 (기본값: default)")
+    ncp_ec2_info_parser.set_defaults(func=lambda args: ncp_ec2_info.ncp_ec2_info_command(
+        name_filter=args.name, 
+        output_format=args.format, 
+        profile=args.profile
+    ))
+
+    # NCP S3 commands
+    ncp_s3_parser = ncp_subparsers.add_parser(
+        "s3", 
+        help="NCP S3 관련 명령어",
+        description="NCP 오브젝트 스토리지 관리\n\n"
+                   "사용 가능한 명령어:\n"
+                   "  info: 버킷 목록 및 상세 정보 조회\n\n"
+                   "예시:\n"
+                   "  ic ncp s3 info                     # 모든 버킷 조회\n"
+                   "  ic ncp s3 info --name backup       # 이름에 'backup' 포함된 버킷\n"
+                   "  ic ncp s3 info --format json       # JSON 형식으로 출력\n"
+                   "  ic ncp s3 info --profile prod      # 특정 프로필 사용",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ncp_s3_subparsers = ncp_s3_parser.add_subparsers(dest="command", required=True)
+    ncp_s3_info_parser = ncp_s3_subparsers.add_parser(
+        "info", 
+        help="NCP S3 버킷 정보 조회",
+        description="NCP S3 버킷의 상세 정보를 조회합니다.\n\n"
+                   "출력 정보:\n"
+                   "  • 버킷 이름, 리전, 생성일\n"
+                   "  • 객체 수, 총 크기\n"
+                   "  • 스토리지 클래스\n"
+                   "  • 접근 제어 설정\n"
+                   "  • 버전 관리, 암호화 상태\n\n"
+                   "필터링 옵션:\n"
+                   "  --name: 버킷 이름으로 필터링\n"
+                   "  --format: 출력 형식 (table/json)\n"
+                   "  --profile: 사용할 NCP 프로필",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ncp_s3_info_parser.add_argument("--name", help="버킷 이름 필터 (부분 일치)")
+    ncp_s3_info_parser.add_argument("--format", choices=['table', 'json'], default='table', 
+                                   help="출력 형식: table (기본값), json")
+    ncp_s3_info_parser.add_argument("--profile", default='default', 
+                                   help="사용할 NCP 프로필 (기본값: default)")
+    ncp_s3_info_parser.set_defaults(func=lambda args: ncp_s3_info.ncp_s3_info_command(
+        name_filter=args.name, 
+        output_format=args.format, 
+        profile=args.profile
+    ))
+
+    # NCP VPC commands
+    ncp_vpc_parser = ncp_subparsers.add_parser(
+        "vpc", 
+        help="NCP VPC 관련 명령어",
+        description="NCP 가상 네트워크 관리\n\n"
+                   "사용 가능한 명령어:\n"
+                   "  info: VPC 목록 및 상세 정보 조회\n\n"
+                   "예시:\n"
+                   "  ic ncp vpc info                    # 모든 VPC 조회\n"
+                   "  ic ncp vpc info --name main        # 이름에 'main' 포함된 VPC\n"
+                   "  ic ncp vpc info --format json      # JSON 형식으로 출력\n"
+                   "  ic ncp vpc info --profile prod     # 특정 프로필 사용",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ncp_vpc_subparsers = ncp_vpc_parser.add_subparsers(dest="command", required=True)
+    ncp_vpc_info_parser = ncp_vpc_subparsers.add_parser(
+        "info", 
+        help="NCP VPC 정보 조회",
+        description="NCP VPC의 상세 정보를 조회합니다.\n\n"
+                   "출력 정보:\n"
+                   "  • VPC ID, 이름, CIDR 블록\n"
+                   "  • 상태, 리전\n"
+                   "  • 서브넷 수, 라우트 테이블 수\n"
+                   "  • 연결된 리소스 수 (인스턴스, 로드밸런서 등)\n"
+                   "  • 기본 VPC 여부, 생성일\n\n"
+                   "필터링 옵션:\n"
+                   "  --name: VPC 이름으로 필터링\n"
+                   "  --format: 출력 형식 (table/json)\n"
+                   "  --profile: 사용할 NCP 프로필",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ncp_vpc_info_parser.add_argument("--name", help="VPC 이름 필터 (부분 일치)")
+    ncp_vpc_info_parser.add_argument("--verbose", "-v", action="store_true", 
+                                   help="상세 정보 표시 (서브넷 및 라우트 테이블 포함)")
+    ncp_vpc_info_parser.add_argument("--format", choices=['table', 'json'], default='table', 
+                                   help="출력 형식: table (기본값), json")
+    ncp_vpc_info_parser.add_argument("--profile", default='default', 
+                                   help="사용할 NCP 프로필 (기본값: default)")
+    ncp_vpc_info_parser.set_defaults(func=lambda args: ncp_vpc_info.ncp_vpc_info_command(
+        name_filter=args.name, 
+        output_format=args.format, 
+        profile=args.profile,
+        verbose=args.verbose
+    ))
+
+    # NCP Security Group commands
+    ncp_sg_parser = ncp_subparsers.add_parser(
+        "sg", 
+        help="NCP Security Group 관련 명령어",
+        description="NCP 보안 그룹(Access Control Group) 관리\n\n"
+                   "사용 가능한 명령어:\n"
+                   "  info: 보안 그룹 목록 및 상세 정보 조회\n\n"
+                   "예시:\n"
+                   "  ic ncp sg info                     # 모든 보안 그룹 조회\n"
+                   "  ic ncp sg info --name web          # 이름에 'web' 포함된 보안 그룹\n"
+                   "  ic ncp sg info --verbose           # 규칙 포함 상세 정보\n"
+                   "  ic ncp sg info --format json       # JSON 형식으로 출력\n"
+                   "  ic ncp sg info --profile prod      # 특정 프로필 사용",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ncp_sg_subparsers = ncp_sg_parser.add_subparsers(dest="command", required=True)
+    ncp_sg_info_parser = ncp_sg_subparsers.add_parser(
+        "info", 
+        help="NCP Security Group 정보 조회",
+        description="NCP 보안 그룹의 상세 정보를 조회합니다.\n\n"
+                   "출력 정보:\n"
+                   "  • 보안 그룹 ID, 이름, 설명\n"
+                   "  • 상태, 플랫폼 타입, VPC 정보\n"
+                   "  • 인바운드/아웃바운드 규칙 수\n"
+                   "  • 생성일\n\n"
+                   "상세 모드 (--verbose):\n"
+                   "  • 모든 보안 그룹 규칙 상세 정보\n"
+                   "  • 프로토콜, 포트, 소스/대상 IP\n"
+                   "  • 규칙 설명\n\n"
+                   "필터링 옵션:\n"
+                   "  --name: 보안 그룹 이름으로 필터링\n"
+                   "  --format: 출력 형식 (table/json)\n"
+                   "  --profile: 사용할 NCP 프로필",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ncp_sg_info_parser.add_argument("--name", help="보안 그룹 이름 필터 (부분 일치)")
+    ncp_sg_info_parser.add_argument("--verbose", "-v", action="store_true", 
+                                   help="상세 정보 표시 (규칙 포함)")
+    ncp_sg_info_parser.add_argument("--format", choices=['table', 'json'], default='table', 
+                                   help="출력 형식: table (기본값), json")
+    ncp_sg_info_parser.add_argument("--profile", default='default', 
+                                   help="사용할 NCP 프로필 (기본값: default)")
+    ncp_sg_info_parser.set_defaults(func=lambda args: ncp_sg_info.ncp_sg_info_command(
+        name_filter=args.name, 
+        output_format=args.format, 
+        profile=args.profile,
+        verbose=args.verbose
+    ))
+
+    # NCP RDS commands
+    ncp_rds_parser = ncp_subparsers.add_parser(
+        "rds", 
+        help="NCP RDS 관련 명령어",
+        description="NCP Cloud DB (RDS) 관리\n\n"
+                   "사용 가능한 명령어:\n"
+                   "  info: 데이터베이스 인스턴스 목록 및 상세 정보 조회\n\n"
+                   "예시:\n"
+                   "  ic ncp rds info                    # 모든 데이터베이스 조회\n"
+                   "  ic ncp rds info --name mysql       # 이름에 'mysql' 포함된 DB\n"
+                   "  ic ncp rds info --verbose          # 상세 정보 표시\n"
+                   "  ic ncp rds info --format json      # JSON 형식으로 출력\n"
+                   "  ic ncp rds info --profile prod     # 특정 프로필 사용",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ncp_rds_subparsers = ncp_rds_parser.add_subparsers(dest="command", required=True)
+    ncp_rds_info_parser = ncp_rds_subparsers.add_parser(
+        "info", 
+        help="NCP RDS 인스턴스 정보 조회",
+        description="NCP Cloud DB 인스턴스의 상세 정보를 조회합니다.\n\n"
+                   "출력 정보:\n"
+                   "  • 인스턴스 ID, 서비스 이름, 상태\n"
+                   "  • 엔진 버전, 라이선스 모델\n"
+                   "  • 포트, 백업 설정\n"
+                   "  • 스토리지 타입, 크기\n"
+                   "  • CPU, 메모리 정보\n"
+                   "  • 생성 날짜\n\n"
+                   "필터링 옵션:\n"
+                   "  --name: 데이터베이스 이름으로 필터링\n"
+                   "  --verbose: 상세 정보 표시\n"
+                   "  --format: 출력 형식 (table/json)\n"
+                   "  --profile: 사용할 NCP 프로필",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ncp_rds_info_parser.add_argument("--name", help="데이터베이스 이름 필터 (부분 일치)")
+    ncp_rds_info_parser.add_argument("--verbose", "-v", action="store_true", 
+                                   help="상세 정보 표시 (전체 컬럼 표시)")
+    ncp_rds_info_parser.add_argument("--format", choices=['table', 'json'], default='table', 
+                                   help="출력 형식: table (기본값), json")
+    ncp_rds_info_parser.add_argument("--profile", default='default', 
+                                   help="사용할 NCP 프로필 (기본값: default)")
+    ncp_rds_info_parser.set_defaults(func=lambda args: ncp_rds_info.ncp_rds_info_command(
+        name_filter=args.name, 
+        output_format=args.format, 
+        profile=args.profile,
+        verbose=args.verbose
+    ))
+
+    # ---------------- NCP Gov ----------------
+    # NCP Gov EC2 commands
+    ncpgov_ec2_parser = ncpgov_subparsers.add_parser(
+        "ec2", 
+        help="NCP Gov EC2 관련 명령어",
+        description="NCP 정부 클라우드 서버 인스턴스 관리 (보안 강화)\n\n"
+                   "사용 가능한 명령어:\n"
+                   "  info: 인스턴스 목록 및 상세 정보 조회\n\n"
+                   "보안 특징:\n"
+                   "  • 민감한 IP 정보 자동 마스킹\n"
+                   "  • 정부 클라우드 보안 정책 준수 검증\n"
+                   "  • 감사 로그 자동 기록\n"
+                   "  • 보안 상태 및 규정 준수 상태 표시\n\n"
+                   "예시:\n"
+                   "  ic ncpgov ec2 info                 # 모든 인스턴스 조회\n"
+                   "  ic ncpgov ec2 info --name secure   # 이름에 'secure' 포함된 인스턴스\n"
+                   "  ic ncpgov ec2 info --format json   # JSON 형식으로 출력",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ncpgov_ec2_subparsers = ncpgov_ec2_parser.add_subparsers(dest="command", required=True)
+    ncpgov_ec2_info_parser = ncpgov_ec2_subparsers.add_parser(
+        "info", 
+        help="NCP Gov EC2 인스턴스 정보 조회",
+        description="NCP 정부 클라우드 EC2 인스턴스의 상세 정보를 조회합니다.\n\n"
+                   "출력 정보:\n"
+                   "  • 인스턴스 ID, 이름, 상태\n"
+                   "  • 인스턴스 타입, 플랫폼\n"
+                   "  • 공인/사설 IP 주소 (마스킹됨)\n"
+                   "  • VPC, 서브넷 정보\n"
+                   "  • 보안 상태, 규정 준수 상태\n"
+                   "  • 생성 날짜\n\n"
+                   "보안 기능:\n"
+                   "  • 민감한 정보 자동 마스킹\n"
+                   "  • 정부 클라우드 보안 정책 검증\n"
+                   "  • 감사 로그 기록\n\n"
+                   "필터링 옵션:\n"
+                   "  --name: 인스턴스 이름으로 필터링\n"
+                   "  --format: 출력 형식 (table/json)\n"
+                   "  --profile: 사용할 NCP Gov 프로필",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ncpgov_ec2_info_parser.add_argument("--name", help="인스턴스 이름 필터 (부분 일치)")
+    ncpgov_ec2_info_parser.add_argument("--format", choices=['table', 'json'], default='table', 
+                                      help="출력 형식: table (기본값), json")
+    ncpgov_ec2_info_parser.add_argument("--profile", default='default', 
+                                      help="사용할 NCP Gov 프로필 (기본값: default)")
+    ncpgov_ec2_info_parser.set_defaults(func=ncpgov_ec2_info.main)
+
+    # NCP Gov S3 commands
+    ncpgov_s3_parser = ncpgov_subparsers.add_parser(
+        "s3", 
+        help="NCP Gov S3 관련 명령어",
+        description="NCP 정부 클라우드 오브젝트 스토리지 관리 (보안 강화)\n\n"
+                   "사용 가능한 명령어:\n"
+                   "  info: 버킷 목록 및 상세 정보 조회\n\n"
+                   "보안 특징:\n"
+                   "  • 정부 클라우드 보안 정책 준수 검증\n"
+                   "  • 네트워크 재시도 로직 (지수 백오프)\n"
+                   "  • 감사 로그 자동 기록\n"
+                   "  • 보안 등급 및 규정 준수 상태 표시\n\n"
+                   "예시:\n"
+                   "  ic ncpgov s3 info                  # 모든 버킷 조회\n"
+                   "  ic ncpgov s3 info --name secure    # 이름에 'secure' 포함된 버킷\n"
+                   "  ic ncpgov s3 info --format json    # JSON 형식으로 출력",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ncpgov_s3_subparsers = ncpgov_s3_parser.add_subparsers(dest="command", required=True)
+    ncpgov_s3_info_parser = ncpgov_s3_subparsers.add_parser(
+        "info", 
+        help="NCP Gov S3 버킷 정보 조회",
+        description="NCP 정부 클라우드 S3 버킷의 상세 정보를 조회합니다.\n\n"
+                   "출력 정보:\n"
+                   "  • 버킷 이름, 리전, 생성일\n"
+                   "  • 객체 수, 총 크기\n"
+                   "  • 스토리지 클래스 (정부 클라우드 전용)\n"
+                   "  • 접근 제어 설정\n"
+                   "  • 버전 관리, 암호화 상태\n"
+                   "  • 보안 등급, 규정 준수 상태\n"
+                   "  • 감사 상태\n\n"
+                   "보안 기능:\n"
+                   "  • 정부 클라우드 보안 정책 검증\n"
+                   "  • 네트워크 재시도 로직\n"
+                   "  • 감사 로그 기록\n\n"
+                   "필터링 옵션:\n"
+                   "  --name: 버킷 이름으로 필터링\n"
+                   "  --format: 출력 형식 (table/json)\n"
+                   "  --profile: 사용할 NCP Gov 프로필",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ncpgov_s3_info_parser.add_argument("--name", help="버킷 이름 필터 (부분 일치)")
+    ncpgov_s3_info_parser.add_argument("--format", choices=['table', 'json'], default='table', 
+                                     help="출력 형식: table (기본값), json")
+    ncpgov_s3_info_parser.add_argument("--profile", default='default', 
+                                     help="사용할 NCP Gov 프로필 (기본값: default)")
+    ncpgov_s3_info_parser.set_defaults(func=lambda args: ncpgov_s3_info.ncpgov_s3_info_command(
+        name_filter=args.name, 
+        output_format=args.format, 
+        profile=args.profile
+    ))
+
+    # NCP Gov VPC commands
+    ncpgov_vpc_parser = ncpgov_subparsers.add_parser(
+        "vpc", 
+        help="NCP Gov VPC 관련 명령어",
+        description="NCP 정부 클라우드 가상 네트워크 관리 (보안 강화)\n\n"
+                   "사용 가능한 명령어:\n"
+                   "  info: VPC 목록 및 상세 정보 조회\n\n"
+                   "보안 특징:\n"
+                   "  • 정부 네트워크 정책 준수 검증\n"
+                   "  • 민감한 네트워크 정보 자동 마스킹\n"
+                   "  • 감사 로그 자동 기록\n"
+                   "  • 정책 준수 상태 및 보안 등급 표시\n\n"
+                   "예시:\n"
+                   "  ic ncpgov vpc info                 # 모든 VPC 조회\n"
+                   "  ic ncpgov vpc info --name gov      # 이름에 'gov' 포함된 VPC\n"
+                   "  ic ncpgov vpc info --format json   # JSON 형식으로 출력",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ncpgov_vpc_subparsers = ncpgov_vpc_parser.add_subparsers(dest="command", required=True)
+    ncpgov_vpc_info_parser = ncpgov_vpc_subparsers.add_parser(
+        "info", 
+        help="NCP Gov VPC 정보 조회",
+        description="NCP 정부 클라우드 VPC의 상세 정보를 조회합니다.\n\n"
+                   "출력 정보:\n"
+                   "  • VPC ID, 이름, CIDR 블록 (마스킹됨)\n"
+                   "  • 상태, 리전\n"
+                   "  • 서브넷 수, 라우트 테이블 수\n"
+                   "  • 연결된 리소스 수\n"
+                   "  • 정책 준수 상태, 보안 등급\n"
+                   "  • 정부 승인 상태, 네트워크 보안 상태\n"
+                   "  • 기본 VPC 여부, 생성일\n\n"
+                   "보안 기능:\n"
+                   "  • 정부 네트워크 정책 준수 검증\n"
+                   "  • 민감한 네트워크 정보 마스킹\n"
+                   "  • 감사 로그 기록\n\n"
+                   "필터링 옵션:\n"
+                   "  --name: VPC 이름으로 필터링\n"
+                   "  --format: 출력 형식 (table/json)\n"
+                   "  --profile: 사용할 NCP Gov 프로필",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ncpgov_vpc_info_parser.add_argument("--name", help="VPC 이름 필터 (부분 일치)")
+    ncpgov_vpc_info_parser.add_argument("--verbose", "-v", action="store_true", 
+                                      help="상세 정보 표시 (서브넷 및 라우트 테이블 포함)")
+    ncpgov_vpc_info_parser.add_argument("--format", choices=['table', 'json'], default='table', 
+                                      help="출력 형식: table (기본값), json")
+    ncpgov_vpc_info_parser.add_argument("--profile", default='default', 
+                                      help="사용할 NCP Gov 프로필 (기본값: default)")
+    ncpgov_vpc_info_parser.set_defaults(func=lambda args: ncpgov_vpc_info.ncpgov_vpc_info_command(
+        name_filter=args.name, 
+        output_format=args.format, 
+        profile=args.profile,
+        verbose=args.verbose
+    ))
+
+    # NCP Gov Security Group commands
+    ncpgov_sg_parser = ncpgov_subparsers.add_parser(
+        "sg", 
+        help="NCP Gov Security Group 관련 명령어",
+        description="NCP 정부 클라우드 보안 그룹(Access Control Group) 관리 (보안 강화)\n\n"
+                   "사용 가능한 명령어:\n"
+                   "  info: 보안 그룹 목록 및 상세 정보 조회\n\n"
+                   "보안 특징:\n"
+                   "  • API Gateway를 통한 보안 강화된 접근\n"
+                   "  • 민감한 정보 자동 마스킹\n"
+                   "  • 감사 로그 자동 기록\n"
+                   "  • 정부 클라우드 규정 준수\n\n"
+                   "예시:\n"
+                   "  ic ncpgov sg info                  # 모든 보안 그룹 조회\n"
+                   "  ic ncpgov sg info --name secure    # 이름에 'secure' 포함된 보안 그룹\n"
+                   "  ic ncpgov sg info --verbose        # 규칙 포함 상세 정보\n"
+                   "  ic ncpgov sg info --format json    # JSON 형식으로 출력\n"
+                   "  ic ncpgov sg info --profile gov    # 정부 클라우드 프로필 사용",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ncpgov_sg_subparsers = ncpgov_sg_parser.add_subparsers(dest="command", required=True)
+    ncpgov_sg_info_parser = ncpgov_sg_subparsers.add_parser(
+        "info", 
+        help="NCP Gov Security Group 정보 조회",
+        description="NCP 정부 클라우드 보안 그룹의 상세 정보를 조회합니다.\n\n"
+                   "출력 정보:\n"
+                   "  • 보안 그룹 ID, 이름, 설명 (마스킹 적용)\n"
+                   "  • 상태, 플랫폼 타입, VPC 정보\n"
+                   "  • 인바운드/아웃바운드 규칙 수\n"
+                   "  • 생성일\n\n"
+                   "상세 모드 (--verbose):\n"
+                   "  • 모든 보안 그룹 규칙 상세 정보\n"
+                   "  • 프로토콜, 포트, 소스/대상 IP (마스킹 적용)\n"
+                   "  • 규칙 설명\n\n"
+                   "보안 기능:\n"
+                   "  • 민감한 IP 주소 자동 마스킹\n"
+                   "  • 감사 로그 자동 기록\n"
+                   "  • 정부 클라우드 보안 정책 준수\n\n"
+                   "필터링 옵션:\n"
+                   "  --name: 보안 그룹 이름으로 필터링\n"
+                   "  --format: 출력 형식 (table/json)\n"
+                   "  --profile: 사용할 NCP Gov 프로필",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ncpgov_sg_info_parser.add_argument("--name", help="보안 그룹 이름 필터 (부분 일치)")
+    ncpgov_sg_info_parser.add_argument("--verbose", "-v", action="store_true", 
+                                      help="상세 정보 표시 (규칙 포함)")
+    ncpgov_sg_info_parser.add_argument("--format", choices=['table', 'json'], default='table', 
+                                      help="출력 형식: table (기본값), json")
+    ncpgov_sg_info_parser.add_argument("--profile", default='default', 
+                                      help="사용할 NCP Gov 프로필 (기본값: default)")
+    ncpgov_sg_info_parser.set_defaults(func=lambda args: ncpgov_sg_info.ncpgov_sg_info_command(
+        name_filter=args.name, 
+        output_format=args.format, 
+        profile=args.profile,
+        verbose=args.verbose
+    ))
+
+    # NCP Gov RDS commands
+    ncpgov_rds_parser = ncpgov_subparsers.add_parser(
+        "rds", 
+        help="NCP Gov RDS 관련 명령어",
+        description="NCP 정부 클라우드 RDS 데이터베이스 관리 (보안 강화)\n\n"
+                   "사용 가능한 명령어:\n"
+                   "  info: 데이터베이스 인스턴스 목록 및 상세 정보 조회\n\n"
+                   "보안 특징:\n"
+                   "  • API Gateway를 통한 보안 강화된 접근\n"
+                   "  • 민감한 정보 자동 마스킹\n"
+                   "  • 감사 로그 자동 기록\n"
+                   "  • 정부 클라우드 규정 준수\n"
+                   "  • 데이터베이스 암호화 상태 표시\n\n"
+                   "예시:\n"
+                   "  ic ncpgov rds info                 # 모든 데이터베이스 조회\n"
+                   "  ic ncpgov rds info --name secure   # 이름에 'secure' 포함된 DB\n"
+                   "  ic ncpgov rds info --verbose       # 상세 정보 표시\n"
+                   "  ic ncpgov rds info --format json   # JSON 형식으로 출력\n"
+                   "  ic ncpgov rds info --profile gov   # 정부 클라우드 프로필 사용",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ncpgov_rds_subparsers = ncpgov_rds_parser.add_subparsers(dest="command", required=True)
+    ncpgov_rds_info_parser = ncpgov_rds_subparsers.add_parser(
+        "info", 
+        help="NCP Gov RDS 인스턴스 정보 조회",
+        description="NCP 정부 클라우드 RDS 인스턴스의 상세 정보를 조회합니다.\n\n"
+                   "출력 정보:\n"
+                   "  • 인스턴스 ID, 서비스 이름 (마스킹됨), 상태\n"
+                   "  • 엔진 버전, 라이선스 모델\n"
+                   "  • 포트, 백업 설정\n"
+                   "  • 스토리지 타입, 크기\n"
+                   "  • 암호화 상태 (데이터/백업)\n"
+                   "  • 보안 등급, 규정 준수 상태\n"
+                   "  • 생성 날짜\n\n"
+                   "보안 기능:\n"
+                   "  • 민감한 데이터베이스 정보 자동 마스킹\n"
+                   "  • 감사 로그 자동 기록\n"
+                   "  • 정부 클라우드 보안 정책 준수\n\n"
+                   "필터링 옵션:\n"
+                   "  --name: 데이터베이스 이름으로 필터링\n"
+                   "  --verbose: 상세 정보 표시\n"
+                   "  --format: 출력 형식 (table/json)\n"
+                   "  --profile: 사용할 NCP Gov 프로필",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    ncpgov_rds_info_parser.add_argument("--name", help="데이터베이스 이름 필터 (부분 일치)")
+    ncpgov_rds_info_parser.add_argument("--verbose", "-v", action="store_true", 
+                                      help="상세 정보 표시 (전체 컬럼 표시)")
+    ncpgov_rds_info_parser.add_argument("--format", choices=['table', 'json'], default='table', 
+                                      help="출력 형식: table (기본값), json")
+    ncpgov_rds_info_parser.add_argument("--profile", default='default', 
+                                      help="사용할 NCP Gov 프로필 (기본값: default)")
+    ncpgov_rds_info_parser.add_argument("--mask-sensitive", action="store_true", default=True,
+                                      help="민감한 정보 마스킹 활성화 (정부 클라우드 기본값)")
+    ncpgov_rds_info_parser.set_defaults(func=lambda args: ncpgov_rds_info.ncpgov_rds_info_command(
+        name_filter=args.name, 
+        output_format=args.format, 
+        profile=args.profile,
+        verbose=args.verbose,
+        mask_sensitive=args.mask_sensitive
+    ))
+
     # ---------------- OCI ----------------
     oci_info_parser = oci_subparsers.add_parser("info", help="[DEPRECATED] OCI 리소스 통합 조회. 각 서비스별 명령어를 사용하세요.")
     oci_info_parser.set_defaults(func=oci_info_deprecated)
@@ -1265,6 +1829,61 @@ def process_and_execute_commands(parser):
                 print(f"ERROR: 명령어 실행 중 오류 발생: {e}")
             sys.exit(1)
 
+def _show_ncp_help_message():
+    """NCP 설정 도움말 메시지를 표시합니다."""
+    from rich.console import Console
+    from rich.panel import Panel
+    console = Console()
+    
+    help_panel = Panel(
+        "[yellow]NCP 설정이 필요합니다.[/yellow]\n\n"
+        "다음 명령어로 NCP 설정을 생성하세요:\n"
+        "[bold cyan]ic config init[/bold cyan]\n\n"
+        "설정 파일 위치: [dim]~/.ncp/config[/dim]\n"
+        "필수 설정 항목:\n"
+        "  - access_key: NCP Access Key\n"
+        "  - secret_key: NCP Secret Key\n"
+        "  - region: KR (기본값)\n\n"
+        "사용 예시:\n"
+        "  [cyan]ic ncp ec2 info[/cyan]                    # EC2 인스턴스 목록\n"
+        "  [cyan]ic ncp ec2 info --name web[/cyan]         # 이름 필터링\n"
+        "  [cyan]ic ncp s3 info --format json[/cyan]       # JSON 형식 출력\n"
+        "  [cyan]ic ncp vpc info --profile prod[/cyan]     # 특정 프로필 사용",
+        title="NCP (Naver Cloud Platform) 설정 안내",
+        border_style="yellow"
+    )
+    console.print()
+    console.print(help_panel)
+
+def _show_ncpgov_help_message():
+    """정부 클라우드 설정 도움말 메시지를 표시합니다."""
+    from rich.console import Console
+    from rich.panel import Panel
+    console = Console()
+    
+    help_panel = Panel(
+        "[yellow]NCP Gov 설정이 필요합니다.[/yellow]\n\n"
+        "다음 명령어로 정부 클라우드 설정을 생성하세요:\n"
+        "[bold cyan]ic config init[/bold cyan]\n\n"
+        "설정 파일 위치: [dim]~/.ncpgov/config[/dim]\n"
+        "보안 요구사항: 파일 권한 600 필수\n"
+        "필수 설정 항목:\n"
+        "  - access_key: NCP Gov Access Key\n"
+        "  - secret_key: NCP Gov Secret Key\n"
+        "  - region: KR (기본값)\n"
+        "  - encryption_enabled: true\n"
+        "  - audit_logging_enabled: true\n"
+        "  - access_control_enabled: true\n\n"
+        "사용 예시:\n"
+        "  [cyan]ic ncpgov ec2 info[/cyan]                 # 정부 클라우드 EC2 인스턴스\n"
+        "  [cyan]ic ncpgov s3 info --name secure[/cyan]    # 보안 버킷 필터링\n"
+        "  [cyan]ic ncpgov vpc info --format json[/cyan]   # 정부 VPC JSON 출력",
+        title="NCP Government Cloud 설정 안내",
+        border_style="yellow"
+    )
+    console.print()
+    console.print(help_panel)
+
 def execute_single_command(args):
     """파싱된 인수를 기반으로 실제 단일 명령을 실행합니다."""
     # Handle config commands specially (they don't have 'service' attribute)
@@ -1319,6 +1938,42 @@ def execute_single_command(args):
                 raise
             except Exception as e:
                 ic_logger.log_error(f"GCP service '{args.service}' execution failed: {e}")
+                raise
+        # Add consistent error handling for NCP services
+        elif args.platform == 'ncp':
+            try:
+                args.func(args)
+            except ImportError as e:
+                ic_logger.log_error(f"NCP service '{args.service}' dependencies not available: {e}")
+                from rich.console import Console
+                console = Console()
+                console.print(f"[red]NCP 서비스 '{args.service}' 의존성을 찾을 수 없습니다: {e}[/red]")
+                console.print("\n💡 NCP SDK 설치가 필요합니다:")
+                console.print("   pip install ncloud-sdk-python")
+                _show_ncp_help_message()
+                raise
+            except Exception as e:
+                ic_logger.log_error(f"NCP service '{args.service}' execution failed: {e}")
+                if "authentication" in str(e).lower() or "config" in str(e).lower():
+                    _show_ncp_help_message()
+                raise
+        # Add consistent error handling for NCP Gov services
+        elif args.platform == 'ncpgov':
+            try:
+                args.func(args)
+            except ImportError as e:
+                ic_logger.log_error(f"NCP Gov service '{args.service}' dependencies not available: {e}")
+                from rich.console import Console
+                console = Console()
+                console.print(f"[red]NCP Gov 서비스 '{args.service}' 의존성을 찾을 수 없습니다: {e}[/red]")
+                console.print("\n💡 NCP Gov SDK 설치가 필요합니다:")
+                console.print("   pip install ncloud-sdk-python")
+                _show_ncpgov_help_message()
+                raise
+            except Exception as e:
+                ic_logger.log_error(f"NCP Gov service '{args.service}' execution failed: {e}")
+                if "authentication" in str(e).lower() or "config" in str(e).lower() or "compliance" in str(e).lower():
+                    _show_ncpgov_help_message()
                 raise
         else:
             args.func(args)

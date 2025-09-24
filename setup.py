@@ -129,7 +129,7 @@ setup(
     version=get_version(),
     author="SangYun Kim",
     author_email="cruiser594@gmail.com",
-    description="A comprehensive CLI tool for managing cloud infrastructure resources across AWS, Azure, GCP, OCI, and CloudFlare with built-in security features",
+    description="A comprehensive CLI tool for managing cloud infrastructure resources across AWS, Azure, GCP, OCI, NCP, and CloudFlare with built-in security features",
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
     url="https://github.com/dgr009/ic",
@@ -142,7 +142,7 @@ setup(
         "Configuration Guide": "https://github.com/dgr009/ic/blob/main/docs/configuration.md",
         "Migration Guide": "https://github.com/dgr009/ic/blob/main/docs/migration.md",
     },
-    packages=find_packages(where="src") + find_packages(include=["aws*", "azure_module*", "gcp*", "oci_module*", "ssh*", "cf*", "common*", "mcp*"]),
+    packages=find_packages(where="src") + find_packages(include=["aws*", "azure_module*", "gcp*", "oci_module*", "ncp*", "ncp_module*", "ncpgov*", "ncpgov_module*", "ssh*", "cf*", "common*", "mcp*"]),
     package_dir={"": "src"},
     package_data={
         "ic": ["config/*.yaml", "config/*.json", "config/examples/*.yaml"],
@@ -151,12 +151,12 @@ setup(
         # Core dependencies - Python 3.9-3.12 compatible
         "boto3>=1.26.0,<2.0.0",
         "botocore>=1.29.0,<2.0.0", 
-        "requests>=2.28.0,<3.0.0",
+        "requests>=2.28.0,<3.0.0",  # Required for NCP REST API calls
         "rich>=12.0.0,<15.0.0",
-        "PyYAML>=6.0,<=6.0.2",
+        "PyYAML>=6.0,<7.0.0",       # Required for NCP configuration files
         "paramiko>=2.11.0,<5.0.0",
         "python-dotenv>=0.19.0,<2.0.0",
-        "cryptography>=3.4.8,<46.0.0",
+        "cryptography>=3.4.8,<50.0.0",  # Required for NCP HMAC-SHA256 signatures
         "netifaces>=0.11.0,<1.0.0",
         "tqdm>=4.67.0,<5.0.0",
         "jsonschema>=4.23.0,<5.0.0",
@@ -173,6 +173,7 @@ setup(
         # Optional cloud platform dependencies (install as needed)
         # AWS: awscli>=1.42.0,<2.0.0, kubernetes>=29.0.0,<31.0.0
         # OCI: oci>=2.149.0,<3.0.0
+        # NCP: Uses direct REST API calls (no SDK dependency required)
         # GCP: google-cloud-* packages
         # Azure: azure-* packages
     ],
@@ -221,7 +222,7 @@ setup(
         "Natural Language :: Korean",
     ],
     keywords=[
-        "aws", "azure", "gcp", "oci", "cloudflare", 
+        "aws", "azure", "gcp", "oci", "ncp", "naver-cloud", "cloudflare", 
         "infrastructure", "cli", "cloud", "devops",
         "multi-cloud", "resource-management", "security",
         "configuration", "monitoring", "automation",

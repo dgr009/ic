@@ -1,0 +1,1 @@
+# AZURE vm integration tests

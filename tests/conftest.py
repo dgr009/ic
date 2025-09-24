@@ -338,6 +338,232 @@ def temp_log_dir(tmp_path):
     return log_dir
 
 
+@pytest.fixture
+def mock_ncp_config():
+    """Mock NCP configuration for testing."""
+    ncp_config = {
+        'default': {
+            'access_key': 'test-ncp-access-key',
+            'secret_key': 'test-ncp-secret-key',
+            'region': 'KR'
+        },
+        'production': {
+            'access_key': 'prod-ncp-access-key',
+            'secret_key': 'prod-ncp-secret-key',
+            'region': 'KR'
+        }
+    }
+    
+    with patch('common.ncp_utils.load_ncp_config', return_value=ncp_config):
+        yield ncp_config
+
+
+@pytest.fixture
+def mock_ncpgov_config():
+    """Mock NCP Gov configuration for testing."""
+    ncpgov_config = {
+        'default': {
+            'access_key': 'test-gov-access-key',
+            'secret_key': 'test-gov-secret-key',
+            'region': 'KR',
+            'security_policy': 'government_compliant',
+            'audit_logging': True,
+            'encryption_enabled': True
+        }
+    }
+    
+    with patch('common.ncpgov_utils.load_ncpgov_config', return_value=ncpgov_config):
+        yield ncpgov_config
+
+
+@pytest.fixture
+def mock_ncp_client():
+    """Mock NCP client for testing."""
+    with patch('ncp.client.NCPClient') as mock_client_class:
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+        
+        # Mock NCP API responses
+        mock_client.get_server_instances.return_value = {
+            'instances': [
+                {
+                    'serverInstanceNo': '12345',
+                    'serverName': 'test-ncp-server',
+                    'serverInstanceStatus': 'RUN',
+                    'serverInstanceType': 'SVR.VSVR.STAND.C002.M008.NET.SSD.B050.G002',
+                    'cpuCount': 2,
+                    'memorySize': 8589934592,
+                    'region': 'KR'
+                }
+            ],
+            'total_count': 1
+        }
+        
+        mock_client.get_object_storage_buckets.return_value = {
+            'buckets': [
+                {
+                    'bucketName': 'test-ncp-bucket',
+                    'region': 'KR',
+                    'creationDate': '2024-01-01T00:00:00+0900',
+                    'storageClass': 'STANDARD'
+                }
+            ],
+            'total_count': 1
+        }
+        
+        mock_client.get_vpc_list.return_value = {
+            'vpcs': [
+                {
+                    'vpcNo': 'vpc-12345',
+                    'vpcName': 'test-ncp-vpc',
+                    'ipv4CidrBlock': '10.0.0.0/16',
+                    'vpcStatus': 'RUN',
+                    'regionCode': 'KR'
+                }
+            ],
+            'total_count': 1
+        }
+        
+        mock_client.test_connection.return_value = True
+        
+        yield mock_client
+
+
+@pytest.fixture
+def mock_ncpgov_client():
+    """Mock NCP Gov client for testing."""
+    with patch('ncpgov.client.NCPGovClient') as mock_client_class:
+        mock_client = Mock()
+        mock_client_class.return_value = mock_client
+        
+        # Mock NCP Gov API responses with compliance data
+        mock_client.get_server_instances.return_value = {
+            'instances': [
+                {
+                    'serverInstanceNo': '67890',
+                    'serverName': 'test-gov-server',
+                    'serverInstanceStatus': 'RUN',
+                    'private_ip': '***MASKED***',
+                    'internal_ip': '***MASKED***'
+                }
+            ],
+            'total_count': 1,
+            'compliance_status': 'validated'
+        }
+        
+        mock_client.get_object_storage_buckets.return_value = {
+            'buckets': [],
+            'total_count': 0,
+            'compliance_status': 'validated',
+            'security_policy': 'government_cloud_compliant'
+        }
+        
+        mock_client.get_vpc_list.return_value = {
+            'vpcs': [
+                {
+                    'vpcNo': 'vpc-gov123',
+                    'vpcName': 'test-gov-vpc',
+                    'ipv4CidrBlock': '10.0.0.0/16',
+                    'vpcStatus': 'RUN',
+                    'policy_compliance': 'compliant'
+                }
+            ],
+            'total_count': 1,
+            'compliance_status': 'validated'
+        }
+        
+        mock_client.test_connection.return_value = True
+        
+        yield mock_client
+
+
+@pytest.fixture
+def sample_ncp_instances():
+    """Sample NCP instance data for testing."""
+    return [
+        {
+            'serverInstanceNo': '12345',
+            'serverName': 'web-server-1',
+            'serverInstanceStatus': 'RUN',
+            'serverInstanceType': 'SVR.VSVR.STAND.C002.M008.NET.SSD.B050.G002',
+            'cpuCount': 2,
+            'memorySize': 8589934592,
+            'platformType': 'LNX64',
+            'publicIp': '123.456.789.10',
+            'privateIp': '10.0.1.100',
+            'vpcName': 'main-vpc',
+            'subnetName': 'web-subnet',
+            'region': 'KR',
+            'createDate': '2024-01-01T00:00:00+0900'
+        },
+        {
+            'serverInstanceNo': '67890',
+            'serverName': 'db-server-1',
+            'serverInstanceStatus': 'STOP',
+            'serverInstanceType': 'SVR.VSVR.STAND.C004.M016.NET.SSD.B100.G002',
+            'cpuCount': 4,
+            'memorySize': 17179869184,
+            'platformType': 'LNX64',
+            'publicIp': None,
+            'privateIp': '10.0.2.100',
+            'vpcName': 'main-vpc',
+            'subnetName': 'db-subnet',
+            'region': 'KR',
+            'createDate': '2024-01-02T00:00:00+0900'
+        }
+    ]
+
+
+@pytest.fixture
+def sample_ncp_buckets():
+    """Sample NCP bucket data for testing."""
+    return [
+        {
+            'bucketName': 'my-app-kr-bucket',
+            'region': 'KR',
+            'creationDate': '2024-01-01T00:00:00+0900',
+            'storageClass': 'STANDARD',
+            'acl': 'private',
+            'versioning': 'Enabled',
+            'encryption': 'AES256'
+        },
+        {
+            'bucketName': 'backup-kr-bucket',
+            'region': 'KR',
+            'creationDate': '2024-01-15T00:00:00+0900',
+            'storageClass': 'COLD',
+            'acl': 'private',
+            'versioning': 'Disabled',
+            'encryption': 'None'
+        }
+    ]
+
+
+@pytest.fixture
+def sample_ncp_vpcs():
+    """Sample NCP VPC data for testing."""
+    return [
+        {
+            'vpcNo': 'vpc-12345',
+            'vpcName': 'main-vpc-kr',
+            'ipv4CidrBlock': '10.0.0.0/16',
+            'vpcStatus': 'RUN',
+            'regionCode': 'KR',
+            'isDefault': True,
+            'createDate': '2024-01-01T00:00:00+0900'
+        },
+        {
+            'vpcNo': 'vpc-67890',
+            'vpcName': 'dev-vpc-kr',
+            'ipv4CidrBlock': '10.1.0.0/16',
+            'vpcStatus': 'RUN',
+            'regionCode': 'KR',
+            'isDefault': False,
+            'createDate': '2024-01-10T00:00:00+0900'
+        }
+    ]
+
+
 @pytest.fixture(autouse=True)
 def cleanup_test_files():
     """Automatically cleanup test files after each test."""
@@ -347,7 +573,9 @@ def cleanup_test_files():
     temp_files = [
         '/tmp/ic_test.log',
         '/tmp/test_config.yaml',
-        '/tmp/test_secrets.yaml'
+        '/tmp/test_secrets.yaml',
+        '/tmp/ncp_test_config.yaml',
+        '/tmp/ncpgov_test_config.yaml'
     ]
     
     for temp_file in temp_files:

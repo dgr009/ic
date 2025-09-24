@@ -21,6 +21,8 @@ from rich.syntax import Syntax
 from ..config.manager import ConfigManager
 from ..config.security import SecurityManager
 from ..config.migration import MigrationManager
+from ..config.path_manager import ConfigPathManager
+from ..config.migration_utils import ConfigMigrationUtils, create_migration_confirmation_callback
 from ..core.logging import ICLogger
 
 
@@ -32,6 +34,8 @@ class ConfigCommands:
         self.security_manager = SecurityManager()
         self.config_manager = ConfigManager(security_manager=self.security_manager)
         self.migration = MigrationManager()
+        self.path_manager = ConfigPathManager()
+        self.migration_utils = ConfigMigrationUtils(self.path_manager)
     
     def add_subparsers(self, parent_parser: argparse.ArgumentParser) -> None:
         """
@@ -62,7 +66,7 @@ class ConfigCommands:
         )
         init_parser.add_argument(
             "--template", "-t",
-            choices=["minimal", "full", "aws", "azure", "gcp", "multi-cloud"],
+            choices=["minimal", "full", "aws", "azure", "gcp", "ncp", "ncpgov", "multi-cloud"],
             default="minimal",
             help="Configuration template to use (default: minimal)"
         )
@@ -205,44 +209,63 @@ class ConfigCommands:
     
     def init_config(self, args) -> None:
         """
-        Initialize secure configuration setup.
+        Initialize secure configuration setup with hierarchical path management.
         
         Args:
             args: Command line arguments
         """
-        # Create ~/.ic/config directory structure
-        config_dir = Path.home() / ".ic" / "config"
-        config_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Determine output paths
-        if args.output == "ic.yaml":  # Default case
-            default_config_path = config_dir / "default.yaml"
-            secrets_config_path = config_dir / "secrets.yaml"
-            secrets_example_path = config_dir / "secrets.yaml.example"
-        else:
-            # Custom output path - use as specified but still in ~/.ic/config
-            default_config_path = config_dir / args.output
-            secrets_config_path = config_dir / f"secrets_{Path(args.output).stem}.yaml"
-            secrets_example_path = config_dir / f"secrets_{Path(args.output).stem}.yaml.example"
-        
-        # Check if files exist and not forcing
-        if (default_config_path.exists() or secrets_config_path.exists()) and not args.force:
-            if not Confirm.ask(f"Configuration files already exist in {config_dir}. Overwrite?"):
-                self.console.print("❌ Configuration initialization cancelled.")
-                return
-        
         self.console.print(f"🚀 Initializing IC configuration with template: {args.template}")
         
-        # Get template configurations (separated into default and secrets)
-        default_config, secrets_config, secrets_example = self._get_separated_template_config(args.template)
+        # Check for existing project-level configs that need migration
+        migration_info = self.migration_utils._analyze_migration_needs()
         
-        # Interactive configuration if not minimal
-        if args.template != "minimal":
-            default_config, secrets_config, secrets_example = self._interactive_separated_config_setup(
-                default_config, secrets_config, secrets_example, args.template
-            )
+        if migration_info["needs_migration"]:
+            self.console.print("\n📦 Found existing configuration folders that should be migrated:")
+            for config in migration_info["project_configs"]:
+                self.console.print(f"  • {config['name']}: {config['path']}")
+            
+            if Confirm.ask("Would you like to migrate these configurations to user home directory?"):
+                # Perform migration with user confirmation
+                confirm_func = create_migration_confirmation_callback(interactive=True)
+                migration_results = self.migration_utils.interactive_migration(confirm_func)
+                
+                if migration_results["migrations_performed"]:
+                    self.console.print(f"✅ Migrated configurations: {', '.join(migration_results['migrations_performed'])}")
+                if migration_results["errors"]:
+                    self.console.print(f"⚠️  Migration errors: {migration_results['errors']}")
         
+        # Create default configuration structure using path manager
         try:
+            created_paths = self.path_manager.create_default_config_structure()
+            
+            # Determine output paths based on new structure
+            config_dir = self.path_manager.home_dir / ".ic" / "config"
+            
+            if args.output == "ic.yaml":  # Default case
+                default_config_path = config_dir / "default.yaml"
+                secrets_config_path = config_dir / "secrets.yaml"
+                secrets_example_path = config_dir / "secrets.yaml.example"
+            else:
+                # Custom output path - use as specified but still in ~/.ic/config
+                default_config_path = config_dir / args.output
+                secrets_config_path = config_dir / f"secrets_{Path(args.output).stem}.yaml"
+                secrets_example_path = config_dir / f"secrets_{Path(args.output).stem}.yaml.example"
+            
+            # Check if files exist and not forcing
+            if (default_config_path.exists() or secrets_config_path.exists()) and not args.force:
+                if not Confirm.ask(f"Configuration files already exist in {config_dir}. Overwrite?"):
+                    self.console.print("❌ Configuration initialization cancelled.")
+                    return
+            
+            # Get template configurations (separated into default and secrets)
+            default_config, secrets_config, secrets_example = self._get_separated_template_config(args.template)
+            
+            # Interactive configuration if not minimal
+            if args.template != "minimal":
+                default_config, secrets_config, secrets_example = self._interactive_separated_config_setup(
+                    default_config, secrets_config, secrets_example, args.template
+                )
+            
             # Save default configuration (non-sensitive)
             with open(default_config_path, 'w') as f:
                 yaml.dump(default_config, f, default_flow_style=False, indent=2, sort_keys=False)
@@ -260,15 +283,28 @@ class ConfigCommands:
             # Update .gitignore
             self._update_gitignore()
             
+            # Create NCP/NCPGOV configuration files if templates are used
+            if args.template in ["ncp", "ncpgov", "multi-cloud", "full"]:
+                self._create_platform_config_files(args.template, secrets_config)
+            
+            # Display success message with path information
+            config_info = self.path_manager.get_config_sources_info()
+            
             self.console.print(Panel(
                 f"✅ Configuration initialized successfully!\n\n"
                 f"📁 Default config: {default_config_path}\n"
                 f"📄 Secrets example: {secrets_example_path}\n"
+                f"🏠 NCP config: {self.path_manager.home_dir / '.ncp' / 'config.yaml'}\n"
+                f"🏛️  NCPGOV config: {self.path_manager.home_dir / '.ncpgov' / 'config.yaml'}\n"
                 f"🔒 .gitignore updated for security\n"
                 f"{f'💾 Backup created: {backup_path}' if backup_path else ''}\n\n"
+                f"Configuration hierarchy:\n"
+                f"1. Project: ./.ic/config/\n"
+                f"2. User home: ~/.ic/config/\n"
+                f"3. Platform-specific: ~/.ncp/, ~/.ncpgov/\n\n"
                 f"Next steps:\n"
                 f"1. Copy secrets example to secrets.yaml: cp {secrets_example_path} {secrets_config_path}\n"
-                f"2. Edit {secrets_config_path} with your actual credentials\n"
+                f"2. Edit platform configs with your actual credentials\n"
                 f"3. Run 'ic config validate' to verify setup",
                 title="Configuration Initialized",
                 border_style="green"
@@ -352,6 +388,9 @@ class ConfigCommands:
                 if is_secrets_file:
                     # Secrets files only need basic structure validation
                     errors = self._validate_secrets_config(config_data)
+                    # Also validate NCP credentials if present
+                    ncp_errors = self._validate_ncp_credentials(config_data)
+                    errors.extend(ncp_errors)
                 elif is_default_file:
                     # Default files need full structure validation
                     errors = self._validate_default_config(config_data)
@@ -571,6 +610,20 @@ class ConfigCommands:
                 "gcp": base_config["gcp"],
                 "security": base_config["security"],
             }
+        elif template == "ncp":
+            return {
+                "version": base_config["version"],
+                "logging": base_config["logging"],
+                "ncp": base_config["ncp"],
+                "security": base_config["security"],
+            }
+        elif template == "ncpgov":
+            return {
+                "version": base_config["version"],
+                "logging": base_config["logging"],
+                "ncpgov": base_config["ncpgov"],
+                "security": base_config["security"],
+            }
         elif template == "multi-cloud":
             return base_config
         else:
@@ -597,6 +650,14 @@ class ConfigCommands:
             project_id = Prompt.ask("GCP Project ID", default="")
             if project_id:
                 config["gcp"]["project_id"] = project_id
+        
+        if template in ["ncp", "multi-cloud"]:
+            regions = Prompt.ask("NCP Regions (comma-separated)", default="KR")
+            config["ncp"]["regions"] = [reg.strip() for reg in regions.split(",")]
+        
+        if template in ["ncpgov", "multi-cloud"]:
+            regions = Prompt.ask("NCP Gov Regions (comma-separated)", default="KR")
+            config["ncpgov"]["regions"] = [reg.strip() for reg in regions.split(",")]
         
         return config
     
@@ -1174,6 +1235,45 @@ class ConfigCommands:
             # OCI doesn't typically have secrets in the secrets file
             # as it uses the ~/.oci/config file for credentials
         
+        if template in ["ncp", "multi-cloud", "full"]:
+            default_config["ncp"] = {
+                "config_path": "~/.ncp/config",
+                "regions": ["KR"],
+                "max_workers": 10
+            }
+            
+            secrets_config["ncp"] = {
+                "access_key": "",
+                "secret_key": ""
+            }
+            
+            secrets_example["ncp"] = {
+                "access_key": "your-ncp-access-key",
+                "secret_key": "your-ncp-secret-key"
+            }
+        
+        if template in ["ncpgov", "multi-cloud", "full"]:
+            default_config["ncpgov"] = {
+                "config_path": "~/.ncpgov/config",
+                "regions": ["KR"],
+                "max_workers": 10,
+                "security": {
+                    "encryption_enabled": True,
+                    "audit_logging_enabled": True,
+                    "access_control_enabled": True
+                }
+            }
+            
+            secrets_config["ncpgov"] = {
+                "access_key": "",
+                "secret_key": ""
+            }
+            
+            secrets_example["ncpgov"] = {
+                "access_key": "your-ncpgov-access-key",
+                "secret_key": "your-ncpgov-secret-key"
+            }
+        
         if template in ["cloudflare", "multi-cloud", "full"]:
             default_config["cloudflare"] = {
                 "config_path": "~/.cloudflare/config",
@@ -1332,6 +1432,28 @@ class ConfigCommands:
                 secrets_config["cloudflare"]["cloudflare_zones"] = cf_zones
                 secrets_example["cloudflare"]["cloudflare_zones"] = cf_zones
         
+        if template in ["ncp", "multi-cloud", "full"]:
+            ncp_access_key = Prompt.ask("NCP Access Key", default="")
+            if ncp_access_key:
+                secrets_config["ncp"]["access_key"] = ncp_access_key
+                secrets_example["ncp"]["access_key"] = ncp_access_key
+            
+            ncp_secret_key = Prompt.ask("NCP Secret Key", default="")
+            if ncp_secret_key:
+                secrets_config["ncp"]["secret_key"] = ncp_secret_key
+                secrets_example["ncp"]["secret_key"] = ncp_secret_key
+        
+        if template in ["ncpgov", "multi-cloud", "full"]:
+            ncpgov_access_key = Prompt.ask("NCP Gov Access Key", default="")
+            if ncpgov_access_key:
+                secrets_config["ncpgov"]["access_key"] = ncpgov_access_key
+                secrets_example["ncpgov"]["access_key"] = ncpgov_access_key
+            
+            ncpgov_secret_key = Prompt.ask("NCP Gov Secret Key", default="")
+            if ncpgov_secret_key:
+                secrets_config["ncpgov"]["secret_key"] = ncpgov_secret_key
+                secrets_example["ncpgov"]["secret_key"] = ncpgov_secret_key
+        
         if template in ["ssh", "multi-cloud", "full"]:
             ssh_key_dir = Prompt.ask("SSH Key Directory", default="~/aws-key")
             if ssh_key_dir:
@@ -1365,10 +1487,10 @@ class ConfigCommands:
         
         # Secrets files don't need version or logging sections
         # Just validate that it contains expected platform sections
-        valid_sections = ['aws', 'oci', 'azure', 'gcp', 'cloudflare', 'ssh']
+        valid_sections = ['aws', 'oci', 'azure', 'gcp', 'ncp', 'ncpgov', 'cloudflare', 'ssh']
         
         if not any(section in config_data for section in valid_sections):
-            errors.append("Secrets configuration should contain at least one platform section (aws, oci, azure, gcp, cloudflare, ssh)")
+            errors.append("Secrets configuration should contain at least one platform section (aws, oci, azure, gcp, ncp, ncpgov, cloudflare, ssh)")
         
         return errors
     
@@ -1433,3 +1555,384 @@ class ConfigCommands:
         
         add_rows(config)
         self.console.print(table)
+    
+    def _create_ncp_config_files(self, template: str, secrets_config: Dict[str, Any]) -> None:
+        """
+        Create NCP configuration files with proper permissions.
+        
+        Args:
+            template: Configuration template being used
+            secrets_config: Secrets configuration data
+        """
+        try:
+            if template in ["ncp", "multi-cloud", "full"] and "ncp" in secrets_config:
+                # Create NCP config directory
+                ncp_config_dir = Path.home() / ".ncp"
+                ncp_config_dir.mkdir(mode=0o700, exist_ok=True)
+                ncp_config_path = ncp_config_dir / "config"
+                
+                # Create NCP config file
+                ncp_secrets = secrets_config.get("ncp", {})
+                # Handle case where ncp_secrets might be a string or other type
+                if not isinstance(ncp_secrets, dict):
+                    ncp_secrets = {}
+                
+                ncp_config_data = {
+                    "default": {
+                        "access_key": ncp_secrets.get("access_key", ""),
+                        "secret_key": ncp_secrets.get("secret_key", ""),
+                        "region": "KR",
+                        "platform": "VPC"
+                    }
+                }
+                
+                with open(ncp_config_path, 'w', encoding='utf-8') as f:
+                    yaml.dump(ncp_config_data, f, default_flow_style=False, indent=2)
+                
+                # Set proper permissions (600)
+                if os.name != 'nt':  # Unix systems
+                    os.chmod(ncp_config_path, 0o600)
+                
+                self.console.print(f"✅ NCP configuration created: {ncp_config_path}")
+            
+            if template in ["ncpgov", "multi-cloud", "full"] and "ncpgov" in secrets_config:
+                # Create NCP Gov config directory
+                ncpgov_config_dir = Path.home() / ".ncpgov"
+                ncpgov_config_dir.mkdir(mode=0o700, exist_ok=True)
+                ncpgov_config_path = ncpgov_config_dir / "config"
+                
+                # Create NCP Gov config file
+                ncpgov_secrets = secrets_config.get("ncpgov", {})
+                # Handle case where ncpgov_secrets might be a string or other type
+                if not isinstance(ncpgov_secrets, dict):
+                    ncpgov_secrets = {}
+                
+                ncpgov_config_data = {
+                    "default": {
+                        "access_key": ncpgov_secrets.get("access_key", ""),
+                        "secret_key": ncpgov_secrets.get("secret_key", ""),
+                        "apigw_key": ncpgov_secrets.get("apigw_key", ""),
+                        "region": "KR",
+                        "platform": "VPC",
+                        "security": {
+                            "encryption_enabled": True,
+                            "audit_logging_enabled": True,
+                            "access_control_enabled": True,
+                            "mask_sensitive_data": True
+                        }
+                    }
+                }
+                
+                with open(ncpgov_config_path, 'w', encoding='utf-8') as f:
+                    yaml.dump(ncpgov_config_data, f, default_flow_style=False, indent=2)
+                
+                # Set proper permissions (600) - required for government cloud
+                if os.name != 'nt':  # Unix systems
+                    os.chmod(ncpgov_config_path, 0o600)
+                
+                self.console.print(f"✅ NCP Gov configuration created: {ncpgov_config_path}")
+                
+        except Exception as e:
+            self.console.print(f"❌ Failed to create NCP config files: {e}")
+    
+    def _validate_ncp_credentials(self, config_data: Dict[str, Any]) -> List[str]:
+        """
+        Validate NCP credentials in configuration.
+        
+        Args:
+            config_data: Configuration data to validate
+            
+        Returns:
+            List of validation errors
+        """
+        errors = []
+        
+        # Validate NCP credentials
+        if 'ncp' in config_data:
+            ncp_config = config_data['ncp']
+            if 'access_key' in ncp_config:
+                access_key = ncp_config['access_key']
+                if not access_key or len(access_key) < 10:
+                    errors.append("NCP access_key appears to be invalid or too short")
+            
+            if 'secret_key' in ncp_config:
+                secret_key = ncp_config['secret_key']
+                if not secret_key or len(secret_key) < 20:
+                    errors.append("NCP secret_key appears to be invalid or too short")
+        
+        # Validate NCP Gov credentials
+        if 'ncpgov' in config_data:
+            ncpgov_config = config_data['ncpgov']
+            if 'access_key' in ncpgov_config:
+                access_key = ncpgov_config['access_key']
+                if not access_key or len(access_key) < 10:
+                    errors.append("NCP Gov access_key appears to be invalid or too short")
+            
+            if 'secret_key' in ncpgov_config:
+                secret_key = ncpgov_config['secret_key']
+                if not secret_key or len(secret_key) < 20:
+                    errors.append("NCP Gov secret_key appears to be invalid or too short")
+        
+        return errors 
+   
+    def _get_separated_template_config(self, template: str) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+        """
+        Get template configuration separated into default, secrets, and secrets example.
+        
+        Args:
+            template: Template name
+            
+        Returns:
+            Tuple of (default_config, secrets_config, secrets_example)
+        """
+        base_config = self.config_manager._get_default_config()
+        
+        # Default configuration (non-sensitive)
+        default_config = {
+            "version": base_config["version"],
+            "logging": base_config["logging"],
+            "security": base_config["security"],
+        }
+        
+        # Add platform-specific default configs
+        if template in ["aws", "multi-cloud", "full"]:
+            default_config["aws"] = {
+                "accounts": [],
+                "regions": base_config["aws"]["regions"],
+                "cross_account_role": base_config["aws"]["cross_account_role"],
+                "session_duration": base_config["aws"]["session_duration"],
+                "max_workers": base_config["aws"]["max_workers"],
+                "tags": base_config["aws"]["tags"]
+            }
+        
+        if template in ["azure", "multi-cloud", "full"]:
+            default_config["azure"] = {
+                "subscriptions": [],
+                "locations": base_config["azure"]["locations"],
+                "max_workers": base_config["azure"]["max_workers"]
+            }
+        
+        if template in ["gcp", "multi-cloud", "full"]:
+            default_config["gcp"] = {
+                "mcp": base_config["gcp"]["mcp"],
+                "projects": [],
+                "regions": base_config["gcp"]["regions"],
+                "zones": base_config["gcp"]["zones"],
+                "max_workers": base_config["gcp"]["max_workers"]
+            }
+        
+        if template in ["ncp", "multi-cloud", "full"]:
+            default_config["ncp"] = {
+                "config_path": base_config["ncp"]["config_path"],
+                "regions": base_config["ncp"]["regions"],
+                "max_workers": base_config["ncp"]["max_workers"]
+            }
+        
+        if template in ["ncpgov", "multi-cloud", "full"]:
+            default_config["ncpgov"] = {
+                "config_path": base_config["ncpgov"]["config_path"],
+                "regions": base_config["ncpgov"]["regions"],
+                "max_workers": base_config["ncpgov"]["max_workers"],
+                "security": base_config["ncpgov"]["security"]
+            }
+        
+        # Secrets configuration (sensitive data)
+        secrets_config = {}
+        secrets_example = {}
+        
+        if template in ["aws", "multi-cloud", "full"]:
+            secrets_example["aws"] = {
+                "default_profile": "your-aws-profile",
+                "access_key_id": "your-aws-access-key-id",
+                "secret_access_key": "your-aws-secret-access-key"
+            }
+        
+        if template in ["azure", "multi-cloud", "full"]:
+            secrets_example["azure"] = {
+                "subscription_id": "your-azure-subscription-id",
+                "tenant_id": "your-azure-tenant-id",
+                "client_id": "your-azure-client-id",
+                "client_secret": "your-azure-client-secret"
+            }
+        
+        if template in ["gcp", "multi-cloud", "full"]:
+            secrets_example["gcp"] = {
+                "project_id": "your-gcp-project-id",
+                "service_account_key_path": "/path/to/service-account.json"
+            }
+        
+        if template in ["ncp", "multi-cloud", "full"]:
+            secrets_example["ncp"] = {
+                "default": {
+                    "access_key": "your-ncp-access-key",
+                    "secret_key": "your-ncp-secret-key",
+                    "region": "KR",
+                    "platform": "VPC"
+                }
+            }
+        
+        if template in ["ncpgov", "multi-cloud", "full"]:
+            secrets_example["ncpgov"] = {
+                "default": {
+                    "access_key": "your-ncpgov-access-key",
+                    "secret_key": "your-ncpgov-secret-key",
+                    "apigw_key": "your-ncpgov-apigw-key",
+                    "region": "KR",
+                    "platform": "VPC",
+                    "encryption_enabled": True,
+                    "audit_logging_enabled": True,
+                    "access_control_enabled": True
+                }
+            }
+        
+        return default_config, secrets_config, secrets_example
+    
+    def _interactive_separated_config_setup(self, default_config: Dict[str, Any], 
+                                          secrets_config: Dict[str, Any], 
+                                          secrets_example: Dict[str, Any], 
+                                          template: str) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+        """
+        Interactive configuration setup for separated configs.
+        
+        Args:
+            default_config: Default configuration
+            secrets_config: Secrets configuration
+            secrets_example: Secrets example configuration
+            template: Template name
+            
+        Returns:
+            Updated configurations
+        """
+        self.console.print(f"\n🔧 Interactive setup for {template} template:")
+        
+        if template in ["aws", "multi-cloud", "full"]:
+            accounts = Prompt.ask("AWS Account IDs (comma-separated)", default="")
+            if accounts:
+                default_config["aws"]["accounts"] = [acc.strip() for acc in accounts.split(",")]
+            
+            regions = Prompt.ask("AWS Regions (comma-separated)", default="ap-northeast-2")
+            default_config["aws"]["regions"] = [reg.strip() for reg in regions.split(",")]
+        
+        if template in ["azure", "multi-cloud", "full"]:
+            subscription_id = Prompt.ask("Azure Subscription ID", default="")
+            if subscription_id:
+                secrets_example["azure"]["subscription_id"] = subscription_id
+        
+        if template in ["gcp", "multi-cloud", "full"]:
+            project_id = Prompt.ask("GCP Project ID", default="")
+            if project_id:
+                secrets_example["gcp"]["project_id"] = project_id
+        
+        if template in ["ncp", "multi-cloud", "full"]:
+            regions = Prompt.ask("NCP Regions (comma-separated)", default="KR")
+            default_config["ncp"]["regions"] = [reg.strip() for reg in regions.split(",")]
+        
+        if template in ["ncpgov", "multi-cloud", "full"]:
+            regions = Prompt.ask("NCP Gov Regions (comma-separated)", default="KR")
+            default_config["ncpgov"]["regions"] = [reg.strip() for reg in regions.split(",")]
+        
+        return default_config, secrets_config, secrets_example
+    
+    def _create_platform_config_files(self, template: str, secrets_config: Dict[str, Any]) -> None:
+        """
+        Create platform-specific configuration files using path manager.
+        
+        Args:
+            template: Template name
+            secrets_config: Secrets configuration
+        """
+        if template in ["ncp", "multi-cloud", "full"]:
+            ncp_config_path = self.path_manager.home_dir / ".ncp" / "config.yaml"
+            if not ncp_config_path.exists():
+                ncp_content = self.path_manager._get_default_ncp_config()
+                with open(ncp_config_path, 'w', encoding='utf-8') as f:
+                    f.write(ncp_content)
+                ncp_config_path.chmod(0o600)
+                self.console.print(f"✅ NCP configuration created: {ncp_config_path}")
+        
+        if template in ["ncpgov", "multi-cloud", "full"]:
+            ncpgov_config_path = self.path_manager.home_dir / ".ncpgov" / "config.yaml"
+            if not ncpgov_config_path.exists():
+                ncpgov_content = self.path_manager._get_default_ncpgov_config()
+                with open(ncpgov_config_path, 'w', encoding='utf-8') as f:
+                    f.write(ncpgov_content)
+                ncpgov_config_path.chmod(0o600)
+                self.console.print(f"✅ NCPGOV configuration created: {ncpgov_config_path}")
+    
+    def _validate_secrets_config(self, config_data: Dict[str, Any]) -> List[str]:
+        """
+        Validate secrets configuration structure.
+        
+        Args:
+            config_data: Configuration data to validate
+            
+        Returns:
+            List of validation errors
+        """
+        errors = []
+        
+        # Basic structure validation for secrets
+        if not isinstance(config_data, dict):
+            errors.append("Configuration must be a dictionary")
+            return errors
+        
+        # Validate platform-specific secrets
+        for platform in ["aws", "azure", "gcp", "ncp", "ncpgov"]:
+            if platform in config_data:
+                platform_config = config_data[platform]
+                if not isinstance(platform_config, dict):
+                    errors.append(f"{platform} configuration must be a dictionary")
+                    continue
+                
+                # Platform-specific validation
+                if platform == "ncp":
+                    for profile_name, profile_config in platform_config.items():
+                        if not isinstance(profile_config, dict):
+                            errors.append(f"NCP profile '{profile_name}' must be a dictionary")
+                            continue
+                        
+                        required_keys = ["access_key", "secret_key"]
+                        for key in required_keys:
+                            if key not in profile_config or not profile_config[key]:
+                                errors.append(f"NCP profile '{profile_name}' missing required key: {key}")
+                
+                elif platform == "ncpgov":
+                    for profile_name, profile_config in platform_config.items():
+                        if not isinstance(profile_config, dict):
+                            errors.append(f"NCPGOV profile '{profile_name}' must be a dictionary")
+                            continue
+                        
+                        required_keys = ["access_key", "secret_key", "apigw_key"]
+                        for key in required_keys:
+                            if key not in profile_config or not profile_config[key]:
+                                errors.append(f"NCPGOV profile '{profile_name}' missing required key: {key}")
+        
+        return errors
+    
+    def _validate_default_config(self, config_data: Dict[str, Any]) -> List[str]:
+        """
+        Validate default configuration structure.
+        
+        Args:
+            config_data: Configuration data to validate
+            
+        Returns:
+            List of validation errors
+        """
+        errors = []
+        
+        # Use existing config manager validation
+        base_errors = self.config_manager.validate_config(config_data)
+        errors.extend(base_errors)
+        
+        # Additional validation for new structure
+        if "version" not in config_data:
+            errors.append("Configuration version is required")
+        
+        if "logging" not in config_data:
+            errors.append("Logging configuration is required")
+        
+        if "security" not in config_data:
+            errors.append("Security configuration is required")
+        
+        return errors
