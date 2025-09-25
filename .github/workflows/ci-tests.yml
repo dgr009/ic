@@ -111,14 +111,13 @@ jobs:
             PLATFORMS='["${{ github.event.inputs.platform }}"]'
           fi
           
-          # Create matrix
-          cat > /tmp/matrix_gen.py << 'EOF'
+          # Create matrix using inline Python
+          MATRIX=$(python -c "
           import json
           import sys
           test_types = eval(sys.argv[1])
           platforms = eval(sys.argv[2])
           python_versions = ['3.11']
-
           matrix = []
           for python_version in python_versions:
               for platform in platforms:
@@ -129,10 +128,8 @@ jobs:
                           'test-type': test_type,
                           'os': 'ubuntu-latest'
                       })
-
           print(json.dumps({'include': matrix}))
-          EOF
-          MATRIX=$(python /tmp/matrix_gen.py "$TEST_TYPES" "$PLATFORMS")
+          " "$TEST_TYPES" "$PLATFORMS")
           
           echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
           echo "test-types=$TEST_TYPES" >> $GITHUB_OUTPUT
@@ -203,12 +200,11 @@ jobs:
       
       - name: Create mock credential files
         run: |
-          cat > /tmp/create_creds.py << 'EOF'
+          python -c "
           from tests.ci.env_support import create_mock_credential_files
           files = create_mock_credential_files()
           print('Created mock credential files:', files)
-          EOF
-          python /tmp/create_creds.py
+          "
       
       - name: Run ${{ matrix.test-type }} tests for ${{ matrix.platform }}
         run: |
@@ -243,10 +239,10 @@ jobs:
               || echo "Tests completed with issues"
           else
             echo "No ${{ matrix.test-type }} tests found for ${{ matrix.platform }}, running basic validation..."
-            cat > /tmp/validate_mock.py << 'EOF'
+            python -c "
             from tests.ci.mock_configs import get_mock_config, get_mock_client
             import sys
-            platform = sys.argv[1]
+            platform = '${{ matrix.platform }}'
             try:
                 config = get_mock_config(platform)
                 print(f'✅ Mock config for {platform} is valid')
@@ -255,8 +251,7 @@ jobs:
             except Exception as e:
                 print(f'❌ Mock validation failed for {platform}: {e}')
                 exit(1)
-            EOF
-            python /tmp/validate_mock.py "${{ matrix.platform }}"
+            "
           fi
       
       - name: Upload test results
@@ -309,7 +304,7 @@ jobs:
       - name: Test CLI help commands
         run: |
           # Test that CLI can be imported and help works
-          cat > /tmp/test_cli.py << 'EOF'
+          python -c "
           import sys
           sys.path.insert(0, 'src')
           try:
@@ -318,8 +313,7 @@ jobs:
           except Exception as e:
               print(f'❌ CLI import failed: {e}')
               exit(1)
-          EOF
-          python /tmp/test_cli.py
+          "
           
           # Test basic CLI functionality (without actual cloud calls)
           export IC_MOCK_MODE=true
@@ -364,21 +358,18 @@ jobs:
       - name: Check for secrets in code
         run: |
           # Use our own security scanning
-          cat > /tmp/security_scan.py << 'EOF'
+          python -c "
           import os
           import re
           from pathlib import Path
-
-          # Patterns to check for sensitive data
           patterns = [
               r'(?i)(password|passwd|pwd)\s*[=:]\s*[\"\']\w+[\"\']',
               r'(?i)(secret|token|key)\s*[=:]\s*[\"\']\w+[\"\']',
               r'(?i)(api[_-]?key)\s*[=:]\s*[\"\']\w+[\"\']',
               r'(?i)(access[_-]?key)\s*[=:]\s*[\"\']\w+[\"\']',
-              r'AKIA[0-9A-Z]{16}',  # AWS Access Key
-              r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'  # UUID
+              r'AKIA[0-9A-Z]{16}',
+              r'[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'
           ]
-
           issues = []
           for py_file in Path('src').rglob('*.py'):
               with open(py_file, 'r', encoding='utf-8', errors='ignore') as f:
@@ -387,7 +378,6 @@ jobs:
                       for pattern in patterns:
                           if re.search(pattern, line) and 'MOCK' not in line.upper() and 'EXAMPLE' not in line.upper():
                               issues.append(f'{py_file}:{i}: Potential sensitive data: {line.strip()[:100]}')
-
           if issues:
               print('❌ Potential sensitive data found:')
               for issue in issues:
@@ -395,8 +385,7 @@ jobs:
               exit(1)
           else:
               print('✅ No sensitive data patterns found in source code')
-          EOF
-          python /tmp/security_scan.py
+          "
       
       - name: Upload security reports
         uses: actions/upload-artifact@v4
@@ -449,17 +438,14 @@ jobs:
       
       - name: Test configuration loading
         run: |
-          cat > /tmp/test_config.py << 'EOF'
+          python -c "
           from tests.ci.fallback_configs import load_config_with_fallback, validate_config
-
           platforms = ['ic', 'ncp', 'ncpgov']
           all_valid = True
-
           for platform in platforms:
               try:
                   config = load_config_with_fallback(platform)
                   issues = validate_config(platform, config)
-                  
                   if issues:
                       print(f'❌ {platform.upper()} config issues: {issues}')
                       all_valid = False
@@ -468,11 +454,9 @@ jobs:
               except Exception as e:
                   print(f'❌ {platform.upper()} config failed: {e}')
                   all_valid = False
-
           if not all_valid:
               exit(1)
-          EOF
-          python /tmp/test_config.py
+          "
       
       - name: Upload integration test results
         uses: actions/upload-artifact@v4
