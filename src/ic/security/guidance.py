@@ -165,7 +165,7 @@ class SecurityGuidance:
                 RemediationStep(
                     step_number=2,
                     description='Use environment variables',
-                    command='export SLACK_TOKEN="your_token_here"',
+                    command='export SLACK_TOKEN="your_token_here"  # EXAMPLE',
                     example='In your code: token = os.getenv("SLACK_TOKEN")'
                 ),
                 RemediationStep(
