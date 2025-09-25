@@ -1,22 +1,23 @@
-[bandit]
 # Bandit configuration file for IC CLI project
+# YAML format
 
 # Skip certain test IDs that are acceptable in this context
-skips = B404,B110,B603,B607
-
-# Test IDs to include (empty means all)
-tests = 
+skips:
+  - B404  # subprocess import warnings (acceptable for CLI tool)
+  - B110  # try/except/pass patterns (acceptable for error handling)
+  - B603  # subprocess calls (acceptable with proper input validation)
+  - B607  # subprocess calls (acceptable with proper input validation)
 
 # Paths to exclude from scanning
-exclude_dirs = tests,backup,scripts,.local-docs
+exclude_dirs:
+  - tests
+  - backup
+  - scripts
+  - .local-docs
+  - .kiro
 
 # Confidence level threshold (LOW, MEDIUM, HIGH)
-confidence = MEDIUM
+confidence: MEDIUM
 
 # Severity level threshold (LOW, MEDIUM, HIGH)  
-severity = MEDIUM
-
-# Additional notes:
-# B404 - subprocess import warnings (acceptable for CLI tool)
-# B110 - try/except/pass patterns (acceptable for error handling)
-# B603/B607 - subprocess calls (acceptable with proper input validation)
+severity: MEDIUM

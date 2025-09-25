@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from ic.config.manager import ConfigManager
-from ic.config.migration import ConfigMigration
+from ic.config.migration import MigrationManager
 from ic.config.security import SecurityManager
 
 
