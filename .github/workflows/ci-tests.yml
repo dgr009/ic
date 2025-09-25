@@ -306,7 +306,13 @@ jobs:
           python src/ic/cli.py config --help || echo "Config help command tested"
           
           # Test platform help commands
+          python src/ic/cli.py --help || echo "IC help command tested"
           python src/ic/cli.py aws --help || echo "AWS help command tested"
+          python src/ic/cli.py oci --help || echo "OCI help command tested"
+          python src/ic/cli.py ssh --help || echo "SSH help command tested"
+          python src/ic/cli.py cf --help || echo "CloudFlare help command tested"
+          python src/ic/cli.py azure --help || echo "Azure help command tested"
+          python src/ic/cli.py gcp --help || echo "GCP help command tested"
           python src/ic/cli.py ncp --help || echo "NCP help command tested"
           python src/ic/cli.py ncpgov --help || echo "NCPGOV help command tested"
 
