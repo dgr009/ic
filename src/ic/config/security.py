@@ -434,7 +434,7 @@ class GitSecurityChecker:
                 f.write(hook_content)
             
             # Make hook executable (owner only for security)
-            os.chmod(pre_commit_hook, 0o750)
+            os.chmod(pre_commit_hook, 0o700)  # More restrictive permissions
             
             logger.info("Pre-commit security hook installed successfully")
             return True

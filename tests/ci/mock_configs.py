@@ -530,36 +530,41 @@ mock_client_factory = MockClientFactory()
 
 
 def get_mock_config(platform: str) -> Dict[str, Any]:
-    """Get mock configuration for specified platform."""
+    """Get mock configuration for specified platform (only platforms with actual tests)."""
+    # Only platforms with actual test files
     config_methods = {
-        'aws': mock_config_provider.get_mock_aws_config,
-        'azure': mock_config_provider.get_mock_azure_config,
-        'gcp': mock_config_provider.get_mock_gcp_config,
-        'oci': mock_config_provider.get_mock_oci_config,
         'ncp': mock_config_provider.get_mock_ncp_config,
-        'ncpgov': mock_config_provider.get_mock_ncpgov_config,
-        'cloudflare': mock_config_provider.get_mock_cloudflare_config
+        'ncpgov': mock_config_provider.get_mock_ncpgov_config
     }
+    
+    # Platforms in development (no tests yet)
+    development_platforms = ['aws', 'azure', 'gcp', 'oci', 'cloudflare']
     
     if platform in config_methods:
         return config_methods[platform]()
+    elif platform in development_platforms:
+        raise ValueError(f"Platform {platform} is in development - no tests available yet")
     else:
-        raise ValueError(f"Unsupported platform: {platform}")
+        raise ValueError(f"Unknown platform: {platform}")
 
 
 def get_mock_client(platform: str):
-    """Get mock client for specified platform."""
+    """Get mock client for specified platform (only platforms with actual tests)."""
+    # Only platforms with actual test files
     client_methods = {
-        'aws': mock_client_factory.create_mock_aws_session,
         'ncp': mock_client_factory.create_mock_ncp_client,
-        'ncpgov': mock_client_factory.create_mock_ncpgov_client,
-        'cloudflare': mock_client_factory.create_mock_cloudflare_client
+        'ncpgov': mock_client_factory.create_mock_ncpgov_client
     }
+    
+    # Platforms in development (no tests yet)
+    development_platforms = ['aws', 'azure', 'gcp', 'oci', 'cloudflare']
     
     if platform in client_methods:
         return client_methods[platform]()
+    elif platform in development_platforms:
+        raise ValueError(f"Platform {platform} is in development - no tests available yet")
     else:
-        raise ValueError(f"Unsupported platform: {platform}")
+        raise ValueError(f"Unknown platform: {platform}")
 
 
 def get_mock_response(platform: str, service: str) -> Dict[str, Any]:

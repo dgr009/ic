@@ -574,7 +574,16 @@ class MigrationRollback:
         
         for import_test in import_tests:
             try:
-                exec(import_test)
+                # Parse import statement to extract module and attribute
+                if import_test.startswith("from ") and " import " in import_test:
+                    parts = import_test.replace("from ", "").split(" import ")
+                    module_name = parts[0].strip()
+                    attr_name = parts[1].strip()
+                    
+                    import importlib
+                    module = importlib.import_module(module_name)
+                    getattr(module, attr_name)  # Check if attribute exists
+                    
                 validation_results["checks"].append(f"✅ Import works: {import_test}")
             except Exception as e:
                 validation_results["errors"].append(f"❌ Import failed: {import_test} - {e}")

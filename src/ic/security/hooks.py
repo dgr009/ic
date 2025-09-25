@@ -41,7 +41,7 @@ class PreCommitHook:
                 f.write(hook_script)
             
             # Make the hook executable (owner only for security)
-            os.chmod(hook_path, 0o750)
+            os.chmod(hook_path, 0o700)  # More restrictive permissions
             
             print(f"✅ Pre-commit hook installed at {hook_path}")
             return True

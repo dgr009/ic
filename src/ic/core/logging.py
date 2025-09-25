@@ -84,10 +84,11 @@ class ICLogger:
             log_dir.mkdir(parents=True, exist_ok=True)
         except (PermissionError, OSError) as e:
             # Fallback to temp directory if home directory is not writable
-            fallback_dir = Path("/tmp/ic/logs")
+            import tempfile
+            temp_dir = Path(tempfile.gettempdir()) / "ic" / "logs"
             try:
-                fallback_dir.mkdir(parents=True, exist_ok=True)
-                log_path = fallback_dir / f"ic_{date_str}.log"
+                temp_dir.mkdir(parents=True, exist_ok=True)
+                log_path = temp_dir / f"ic_{date_str}.log"
                 print(f"Warning: Using fallback log path {log_path} due to: {e}")
             except Exception as fallback_error:
                 # Last resort: current directory

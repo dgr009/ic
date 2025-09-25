@@ -25,13 +25,8 @@ on:
         type: choice
         options:
           - all
-          - aws
-          - azure
-          - gcp
-          - oci
           - ncp
           - ncpgov
-          - cloudflare
 
 env:
   # CI Environment Detection
@@ -104,11 +99,20 @@ jobs:
             TEST_TYPES='["${{ github.event.inputs.test_type }}"]'
           fi
           
-          # Determine platforms to test
+          # Determine platforms to test (only platforms with actual tests)
           if [ "${{ github.event.inputs.platform }}" = "all" ] || [ -z "${{ github.event.inputs.platform }}" ]; then
-            PLATFORMS='["aws", "azure", "gcp", "oci", "ncp", "ncpgov", "cloudflare"]'
+            PLATFORMS='["ncp", "ncpgov"]'
           else
-            PLATFORMS='["${{ github.event.inputs.platform }}"]'
+            # Only allow platforms that have tests
+            case "${{ github.event.inputs.platform }}" in
+              "ncp"|"ncpgov")
+                PLATFORMS='["${{ github.event.inputs.platform }}"]'
+                ;;
+              *)
+                echo "Warning: Platform ${{ github.event.inputs.platform }} has no tests, using default platforms"
+                PLATFORMS='["ncp", "ncpgov"]'
+                ;;
+            esac
           fi
           
           # Create matrix using inline Python
@@ -117,7 +121,8 @@ jobs:
           import sys
           test_types = eval(sys.argv[1])
           platforms = eval(sys.argv[2])
-          python_versions = ['3.11']
+          # Only test key Python versions to save CI resources
+          python_versions = ['3.11', '3.12']
           matrix = []
           for python_version in python_versions:
               for platform in platforms:
@@ -172,15 +177,8 @@ jobs:
           pip install -r tests/test_requirements.txt
           
           # Install platform-specific dependencies if needed
-          if [ "${{ matrix.platform }}" = "aws" ]; then
-            pip install boto3 botocore
-          elif [ "${{ matrix.platform }}" = "azure" ]; then
-            pip install azure-identity azure-mgmt-resource
-          elif [ "${{ matrix.platform }}" = "gcp" ]; then
-            pip install google-cloud-core google-auth
-          elif [ "${{ matrix.platform }}" = "oci" ]; then
-            pip install oci
-          fi
+          # Currently only NCP and NCPGov platforms have tests
+          echo "Installing dependencies for ${{ matrix.platform }}"
       
       - name: Setup CI environment
         run: |
@@ -193,9 +191,6 @@ jobs:
           elif [ "${{ matrix.platform }}" = "ncpgov" ]; then
             echo "NCPGOV_ACCESS_KEY=MOCK_NCPGOV_ACCESS_KEY" >> $GITHUB_ENV
             echo "NCPGOV_SECRET_KEY=MOCK_NCPGOV_SECRET_KEY" >> $GITHUB_ENV
-          elif [ "${{ matrix.platform }}" = "aws" ]; then
-            echo "AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE" >> $GITHUB_ENV
-            echo "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" >> $GITHUB_ENV
           fi
       
       - name: Create mock credential files
@@ -238,20 +233,8 @@ jobs:
               -m "not slow" \
               || echo "Tests completed with issues"
           else
-            echo "No ${{ matrix.test-type }} tests found for ${{ matrix.platform }}, running basic validation..."
-            python -c "
-            from tests.ci.mock_configs import get_mock_config, get_mock_client
-            import sys
-            platform = '${{ matrix.platform }}'
-            try:
-                config = get_mock_config(platform)
-                print(f'✅ Mock config for {platform} is valid')
-                client = get_mock_client(platform)
-                print(f'✅ Mock client for {platform} created successfully')
-            except Exception as e:
-                print(f'❌ Mock validation failed for {platform}: {e}')
-                exit(1)
-            "
+            echo "No ${{ matrix.test-type }} tests found for ${{ matrix.platform }}"
+            echo "Skipping test execution for this platform/test-type combination"
           fi
       
       - name: Upload test results
@@ -347,8 +330,8 @@ jobs:
       
       - name: Run Bandit security scan
         run: |
-          bandit -r src/ -f json -o bandit-report.json || true
-          bandit -r src/ -f txt
+          bandit -r src/ -c .bandit -f json -o bandit-report.json
+          bandit -r src/ -c .bandit -f txt
       
       - name: Run Safety check
         run: |

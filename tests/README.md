@@ -1,23 +1,38 @@
 # IC CLI Test Suite
 
-## 📁 테스트 구조 (정리됨 - 2025.09.24)
+## 📁 테스트 구조 (최적화됨 - 2025.09.25)
 
-### 핵심 테스트 디렉토리
+### 현재 테스트 상태
 
-#### `platforms/` - 플랫폼별 테스트
+#### ✅ 완전히 구현된 플랫폼 (CI에서 테스트됨)
+- **NCP (Naver Cloud Platform)**: `platforms/ncp/`
+  - EC2, S3, VPC, Security Group, RDS 서비스
+  - Unit, Integration, Performance 테스트 완료
+- **NCPGov (NCP Government)**: `platforms/ncpgov/`
+  - EC2 서비스 테스트 완료
+
+#### 🚧 개발 중인 플랫폼 (테스트 없음)
+- **AWS**: 구조만 존재, 실제 테스트 파일 없음
+- **Azure**: 구조만 존재, 실제 테스트 파일 없음  
+- **GCP**: 구조만 존재, 실제 테스트 파일 없음
+- **OCI**: 구조만 존재, 실제 테스트 파일 없음
+
+### 플랫폼별 테스트 구조
 ```
 platforms/
-├── aws/           # AWS 서비스 테스트
-├── azure/         # Azure 서비스 테스트  
-├── gcp/           # GCP 서비스 테스트
-├── ncp/           # NCP 서비스 테스트
+├── ncp/           # ✅ 완전 구현
 │   ├── ec2/
 │   │   ├── unit/           # 단위 테스트
 │   │   ├── integration/    # 통합 테스트
 │   │   └── performance/    # 성능 테스트
-│   └── s3/
-├── ncpgov/        # NCP Government 테스트
-└── oci/           # OCI 서비스 테스트
+│   ├── s3/
+│   ├── vpc/
+│   ├── sg/
+│   └── rds/
+├── ncpgov/        # ✅ 부분 구현
+│   └── ec2/
+│       └── unit/
+└── [aws|azure|gcp|oci]/  # 🚧 개발 중 (테스트 없음)
 ```
 
 #### `validation/` - 검증 테스트 (최신)
@@ -48,6 +63,30 @@ platforms/
 - `test_ic_logger.py` - 로거 테스트
 
 #### `ci/` - CI/CD 테스트
+
+## 🚀 CI/CD 최적화 (2025.09.25)
+
+### CI 테스트 범위 최적화
+- **이전**: 모든 플랫폼(AWS, Azure, GCP, OCI, NCP, NCPGov, CloudFlare) 테스트 시도
+- **현재**: 실제 테스트가 있는 플랫폼(NCP, NCPGov)만 테스트
+- **Python 버전**: 3.9-3.12 → 3.11, 3.12로 축소하여 리소스 절약
+
+### 해결된 문제
+- ❌ **IndentationError**: 존재하지 않는 테스트 파일 실행 시도로 인한 구문 오류
+- ❌ **리소스 낭비**: 테스트가 없는 플랫폼에 대한 불필요한 CI 실행
+- ❌ **긴 CI 실행 시간**: 불필요한 플랫폼/Python 버전 조합 제거
+
+### CI 실행 방법
+```bash
+# 모든 플랫폼 테스트 (NCP, NCPGov만)
+python tests/ci/run_ci_tests.py --all-platforms
+
+# 특정 플랫폼 테스트
+python tests/ci/run_ci_tests.py --platform ncp --test-type unit
+
+# 설정 검증만
+python tests/ci/run_ci_tests.py --validate-only
+```
 - `run_ci_tests.py` - CI 테스트 실행기
 - `environment.py` - CI 환경 설정
 - `mock_configs.py` - 모의 설정

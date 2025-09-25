@@ -104,12 +104,16 @@ class PlatformTestRunner:
         self.console = Console()
         self.results: List[TestResult] = []
         
-        # Available platforms and services
+        # Available platforms and services (only platforms with actual tests)
         self.platforms = {
+            'ncp': ['ec2', 's3', 'vpc', 'sg', 'rds'],
+            'ncpgov': ['ec2', 's3', 'vpc', 'sg', 'rds']
+        }
+        
+        # Platforms in development (no tests yet)
+        self.development_platforms = {
             'aws': ['ec2', 's3', 'vpc', 'rds', 'cloudfront', 'ecs', 'eks'],
             'gcp': ['compute', 'storage', 'vpc', 'gke', 'sql'],
-            'ncp': ['ec2', 's3', 'vpc', 'sg', 'rds'],
-            'ncpgov': ['ec2', 's3', 'vpc', 'sg', 'rds'],
             'oci': ['compute', 'storage', 'vcn', 'compartment'],
             'azure': ['vm', 'storage', 'vnet', 'aks']
         }
@@ -452,8 +456,8 @@ def main():
     parser.add_argument(
         "--platforms", 
         nargs="+", 
-        choices=['aws', 'gcp', 'ncp', 'ncpgov', 'oci', 'azure', 'cloudflare'],
-        help="Platforms to test"
+        choices=['ncp', 'ncpgov'],
+        help="Platforms to test (only platforms with actual tests)"
     )
     
     parser.add_argument(

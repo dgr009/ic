@@ -51,7 +51,7 @@ def get_accounts():
     Cloudflare /accounts 엔드포인트를 통해 계정 목록을 가져옵니다.
     """
     url = f"{API_ENDPOINT}/accounts"
-    response = requests.get(url, headers=headers)
+    response = requests.get(url, headers=headers, timeout=30)
     if response.status_code == 200:
         return response.json().get("result", [])
     log_error(f"Failed to fetch accounts: {response.text}")
@@ -63,7 +63,7 @@ def get_zones(account_id):
     특정 Account에 대한 Zone 목록을 가져옵니다.
     """
     url = f"{API_ENDPOINT}/zones?account.id={account_id}&per_page=100"
-    response = requests.get(url, headers=headers)
+    response = requests.get(url, headers=headers, timeout=30)
     if response.status_code == 200:
         return response.json().get("result", [])
     log_error(f"Failed to fetch zones for account {account_id}: {response.text}")
@@ -75,7 +75,7 @@ def get_dns_records(zone_id):
     특정 Zone에 대한 DNS 레코드 목록을 가져옵니다.
     """
     url = f"{API_ENDPOINT}/zones/{zone_id}/dns_records?per_page=100"
-    response = requests.get(url, headers=headers)
+    response = requests.get(url, headers=headers, timeout=30)
     if response.status_code == 200:
         return response.json().get("result", [])
     log_error(f"Failed to fetch DNS records for zone {zone_id}: {response.text}")
