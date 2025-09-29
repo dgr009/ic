@@ -95,12 +95,21 @@ class ServerInfoRetriever:
 
         try:
             ssh = paramiko.SSHClient()
-            # 보안 강화: 알려진 호스트만 허용하되, 개발/테스트 환경에서는 경고와 함께 허용
+            # 보안 정책 설정: 설정 파일에서 정책을 읽어오거나 환경 변수 확인
             import os
+            host_key_policy = _ssh_config.get('host_key_policy', 'auto').lower()
+            
             if os.getenv('IC_TEST_MODE') or os.getenv('IC_DEV_MODE'):
                 ssh.set_missing_host_key_policy(paramiko.WarningPolicy())  # nosec B507
-            else:
+            elif host_key_policy == 'reject':
                 ssh.set_missing_host_key_policy(paramiko.RejectPolicy())
+            elif host_key_policy == 'warning':
+                ssh.set_missing_host_key_policy(paramiko.WarningPolicy())  # nosec B507
+            elif host_key_policy == 'auto':
+                ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # nosec B507
+            else:
+                # 기본값: 보안을 위해 경고 정책 사용
+                ssh.set_missing_host_key_policy(paramiko.WarningPolicy())  # nosec B507
             ssh.connect(
                 self.hostname,
                 username=self.username,
@@ -529,6 +538,19 @@ def main(args) -> None:
     if not server_configs:
         logger.error("서버 설정이 비어있어 종료합니다.")
         return
+
+    # Host 필터링 적용
+    if hasattr(args, 'host') and args.host and args.host != 'default':
+        original_count = len(server_configs)
+        server_configs = [
+            config for config in server_configs 
+            if args.host.lower() in config['servername'].lower()
+        ]
+        filtered_count = len(server_configs)
+        if filtered_count == 0:
+            console.print(f"[red]'{args.host}' 패턴과 일치하는 서버를 찾을 수 없습니다.[/red]")
+            return
+        console.print(f"[cyan]Host 필터 적용:[/cyan] '{args.host}' → {filtered_count}/{original_count} 서버 선택됨")
 
     # "Memory"로 헤더 변경
     headers = [

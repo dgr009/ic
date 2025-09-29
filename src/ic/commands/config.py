@@ -441,22 +441,8 @@ class ConfigCommands:
         """
 
         try:
-            # Load configuration
-            self.config_manager.load_config()
-            config = self.config_manager.get_config()
-            
-            # Also load secrets if available
-            secrets_path = Path.home() / ".ic" / "config" / "secrets.yaml"
-            if secrets_path.exists():
-                try:
-                    with open(secrets_path, 'r') as f:
-                        secrets = yaml.safe_load(f) or {}
-                    # Merge secrets into config for display
-                    if 'secrets' not in config:
-                        config['secrets'] = {}
-                    config['secrets'].update(secrets)
-                except Exception as e:
-                    self.console.print(f"⚠️  Warning: Could not load secrets: {e}")
+            # Load all configurations including secrets
+            config = self.config_manager.load_all_configs()
             
             # Mask sensitive data if requested
             if args.mask_sensitive:
@@ -556,8 +542,8 @@ class ConfigCommands:
             args: Command line arguments
         """
         try:
-            # Load configuration
-            self.config_manager.load_config()
+            # Load all configurations including secrets
+            self.config_manager.load_all_configs()
             
             # Get value
             value = self.config_manager.get_config_value(args.key_path, args.default)

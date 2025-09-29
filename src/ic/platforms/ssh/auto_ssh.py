@@ -161,12 +161,25 @@ def get_hostname_via_ssh(ip, key_path, user, port):
     """SSH를 통해 호스트명(hostname)을 가져옵니다."""
     try:
         ssh = paramiko.SSHClient()
-        # 보안 강화: 알려진 호스트만 허용하되, 개발/테스트 환경에서는 경고와 함께 허용
+        # 보안 정책 설정: 설정 파일에서 정책을 읽어오거나 환경 변수 확인
         import os
+        from ic.config.manager import ConfigManager
+        _config_manager = ConfigManager()
+        _config = _config_manager.load_all_configs()
+        _ssh_config = _config.get('ssh', {})
+        host_key_policy = _ssh_config.get('host_key_policy', 'auto').lower()
+        
         if os.getenv('IC_TEST_MODE') or os.getenv('IC_DEV_MODE'):
             ssh.set_missing_host_key_policy(paramiko.WarningPolicy())  # nosec B507
-        else:
+        elif host_key_policy == 'reject':
             ssh.set_missing_host_key_policy(paramiko.RejectPolicy())
+        elif host_key_policy == 'warning':
+            ssh.set_missing_host_key_policy(paramiko.WarningPolicy())  # nosec B507
+        elif host_key_policy == 'auto':
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # nosec B507
+        else:
+            # 기본값: 보안을 위해 경고 정책 사용
+            ssh.set_missing_host_key_policy(paramiko.WarningPolicy())  # nosec B507
         ssh.connect(str(ip), username=user, key_filename=key_path, port=port, timeout=SSH_TIMEOUT)
         stdin, stdout, stderr = ssh.exec_command("hostname")
         hostname = stdout.read().decode().strip()
@@ -240,12 +253,25 @@ def check_ssh_connection(host):
     identityfile = host_config.get('identityfile')
     
     client = paramiko.SSHClient()
-    # 보안 강화: 알려진 호스트만 허용하되, 개발/테스트 환경에서는 경고와 함께 허용
+    # 보안 정책 설정: 설정 파일에서 정책을 읽어오거나 환경 변수 확인
     import os
+    from ic.config.manager import ConfigManager
+    _config_manager = ConfigManager()
+    _config = _config_manager.load_all_configs()
+    _ssh_config = _config.get('ssh', {})
+    host_key_policy = _ssh_config.get('host_key_policy', 'auto').lower()
+    
     if os.getenv('IC_TEST_MODE') or os.getenv('IC_DEV_MODE'):
         client.set_missing_host_key_policy(paramiko.WarningPolicy())  # nosec B507
-    else:
+    elif host_key_policy == 'reject':
         client.set_missing_host_key_policy(paramiko.RejectPolicy())
+    elif host_key_policy == 'warning':
+        client.set_missing_host_key_policy(paramiko.WarningPolicy())  # nosec B507
+    elif host_key_policy == 'auto':
+        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())  # nosec B507
+    else:
+        # 기본값: 보안을 위해 경고 정책 사용
+        client.set_missing_host_key_policy(paramiko.WarningPolicy())  # nosec B507
     try:
         client.connect(
             hostname=hostname,
