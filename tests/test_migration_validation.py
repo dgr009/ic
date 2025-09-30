@@ -18,7 +18,7 @@ from unittest.mock import Mock, patch, MagicMock
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from src.ic.migration import (
+from ic.migration import (
     PreMigrationValidator,
     PostMigrationValidator,
     MigrationRollback,
@@ -471,7 +471,7 @@ def main():
     @patch.object(PostMigrationValidator, 'validate_all')
     def test_run_post_migration_validation(self, mock_validate, temp_project_full):
         """Test post-migration validation execution."""
-        from src.ic.migration.post_validation import ValidationStatus
+        from ic.migration.post_validation import ValidationStatus
         
         mock_validate.return_value = ValidationStatus(
             success=True,

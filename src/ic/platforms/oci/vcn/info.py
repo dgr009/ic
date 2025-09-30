@@ -11,7 +11,10 @@ from rich.rule import Rule
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from common.progress_decorator import progress_bar, ManualProgress
-from src.ic.platforms.oci.common.utils import get_all_subscribed_regions, get_compartments
+try:
+    from .platforms.oci.common.utils import get_all_subscribed_regions, get_compartments
+except ImportError:
+    from ic.platforms.oci.common.utils import get_all_subscribed_regions, get_compartments
 
 def add_arguments(parser):
     """

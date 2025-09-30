@@ -61,7 +61,7 @@ class PostInstallCommand(install):
         """Run post-installation configuration setup."""
         try:
             # Import here to avoid import errors during setup
-            from src.ic.config.installer import ConfigInstaller
+            from ic.config.installer import ConfigInstaller
             
             installer = ConfigInstaller()
             

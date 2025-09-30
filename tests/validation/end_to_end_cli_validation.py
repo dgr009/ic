@@ -329,8 +329,8 @@ class EndToEndCLIValidator:
     def _test_config_manager_init(self) -> bool:
         """Test ConfigManager initialization."""
         try:
-            from src.ic.config.manager import ConfigManager
-            from src.ic.config.security import SecurityManager
+            from ic.config.manager import ConfigManager
+            from ic.config.security import SecurityManager
             
             security_manager = SecurityManager()
             config_manager = ConfigManager(security_manager)
@@ -341,7 +341,7 @@ class EndToEndCLIValidator:
     def _test_path_manager(self) -> bool:
         """Test PathManager functionality."""
         try:
-            from src.ic.config.path_manager import ConfigPathManager
+            from ic.config.path_manager import ConfigPathManager
             
             path_manager = ConfigPathManager()
             # Test basic path resolution
@@ -354,7 +354,7 @@ class EndToEndCLIValidator:
     def _test_ncp_config_loading(self) -> bool:
         """Test NCP configuration loading."""
         try:
-            from src.ic.platforms.ncp.client import NCPClient
+            from ic.platforms.ncp.client import NCPClient
             # This should not fail even if config doesn't exist (should use fallbacks)
             return True
         except Exception:
@@ -363,7 +363,7 @@ class EndToEndCLIValidator:
     def _test_ncpgov_config_loading(self) -> bool:
         """Test NCPGOV configuration loading."""
         try:
-            from src.ic.platforms.ncpgov.client import NCPGovClient
+            from ic.platforms.ncpgov.client import NCPGovClient
             # This should not fail even if config doesn't exist (should use fallbacks)
             return True
         except Exception:
@@ -372,7 +372,7 @@ class EndToEndCLIValidator:
     def _test_security_config_loading(self) -> bool:
         """Test security configuration loading."""
         try:
-            from src.ic.security.config import SecurityConfig
+            from ic.security.config import SecurityConfig
             
             config = SecurityConfig()
             return True

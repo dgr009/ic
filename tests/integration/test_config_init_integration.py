@@ -23,9 +23,9 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from src.ic.commands.config import ConfigCommands
-from src.ic.config.manager import ConfigManager
-from src.ic.config.security import SecurityManager
+from ic.commands.config import ConfigCommands
+from ic.config.manager import ConfigManager
+from ic.config.security import SecurityManager
 
 
 class TestConfigInitIntegration:

@@ -30,7 +30,10 @@ from common.ncp_utils import (
     load_ncp_config, handle_ncp_api_error, apply_status_color, 
     filter_resources_by_name, validate_platform_support
 )
-from src.ic.platforms.ncp.client import NCPClient, NCPAPIError
+try:
+    from .platforms.ncp.client import NCPClient, NCPAPIError
+except ImportError:
+    from ic.platforms.ncp.client import NCPClient, NCPAPIError
 
 logger = logging.getLogger(__name__)
 console = Console()

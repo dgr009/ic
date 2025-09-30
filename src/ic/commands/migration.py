@@ -15,7 +15,10 @@ try:
 except ImportError:
     # Handle case when run directly
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-    from src.ic.migration import MigrationManager
+    try:
+    from .migration import MigrationManager
+except ImportError:
+    from ic.migration import MigrationManager
 
 
 class MigrationCommands:

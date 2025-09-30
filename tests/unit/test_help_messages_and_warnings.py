@@ -20,7 +20,7 @@ project_root = Path(__file__).parent.parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from src.ic.cli import DevelopmentStatusHelpFormatter
+from ic.cli import DevelopmentStatusHelpFormatter
 
 
 class TestDevelopmentStatusHelpFormatter:
@@ -405,7 +405,7 @@ class TestCLIIntegrationWithWarnings:
     def test_cli_imports_warning_formatter(self):
         """Test that CLI module properly imports and uses warning formatter."""
         try:
-            from src.ic.cli import DevelopmentStatusHelpFormatter
+            from ic.cli import DevelopmentStatusHelpFormatter
             assert DevelopmentStatusHelpFormatter is not None
         except ImportError:
             pytest.fail("DevelopmentStatusHelpFormatter not properly imported")

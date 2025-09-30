@@ -7,7 +7,10 @@ from rich.console import Console
 from rich.table import Table
 from rich import box
 from common.progress_decorator import progress_bar, ManualProgress
-from src.ic.platforms.oci.common.utils import get_compartments
+try:
+    from .platforms.oci.common.utils import get_compartments
+except ImportError:
+    from ic.platforms.oci.common.utils import get_compartments
 
 # ─────────────────────────────────────────────────────────────────────────────
 # IAM Policy 구문 분석 (기존 oci_info.py 에서 복원)

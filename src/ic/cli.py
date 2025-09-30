@@ -181,63 +181,128 @@ try:
 except ImportError:
     pass
 # AWS imports - Unified module structure
-from src.ic.platforms.aws.ec2 import list_tags as ec2_list_tags
-from src.ic.platforms.aws.ec2 import tag_check as ec2_tag_check
-from src.ic.platforms.aws.ec2 import info as ec2_info
-from src.ic.platforms.aws.lb import list_tags as lb_list_tags
-from src.ic.platforms.aws.lb import tag_check as lb_tag_check
-from src.ic.platforms.aws.vpc import tag_check as vpc_tag_check
-from src.ic.platforms.aws.vpc import list_tags as vpc_list_tags
-from src.ic.platforms.aws.rds import list_tags as rds_list_tags
-from src.ic.platforms.aws.rds import tag_check as rds_tag_check
-from src.ic.platforms.aws.s3 import list_tags as s3_list_tags
-from src.ic.platforms.aws.s3 import tag_check as s3_tag_check
-from src.ic.platforms.aws.sg import info as sg_info
-from src.ic.platforms.aws.eks import info as eks_info
-from src.ic.platforms.aws.eks import nodes as eks_nodes
-from src.ic.platforms.aws.eks import pods as eks_pods
-from src.ic.platforms.aws.eks import fargate as eks_fargate
-from src.ic.platforms.aws.eks import addons as eks_addons
-from src.ic.platforms.aws.eks import update_config as eks_update_config
-from src.ic.platforms.aws.fargate import info as fargate_info
-from src.ic.platforms.aws.codepipeline import build as codepipeline_build
-from src.ic.platforms.aws.codepipeline import deploy as codepipeline_deploy
-from src.ic.platforms.aws.ecs import info as ecs_info
-from src.ic.platforms.aws.ecs import service as ecs_service
-from src.ic.platforms.aws.ecs import task as ecs_task
-from src.ic.platforms.aws.msk import info as msk_info
-from src.ic.platforms.aws.msk import broker as msk_broker
-from src.ic.platforms.aws.profile.info import ProfileInfoCollector, ProfileTableRenderer
-from src.ic.platforms.aws.cloudfront.info import CloudFrontCollector, CloudFrontRenderer
+try:
+    from .platforms.aws.ec2 import list_tags as ec2_list_tags
+    from .platforms.aws.ec2 import tag_check as ec2_tag_check
+    from .platforms.aws.ec2 import info as ec2_info
+    from .platforms.aws.lb import list_tags as lb_list_tags
+    from .platforms.aws.lb import tag_check as lb_tag_check
+    from .platforms.aws.vpc import tag_check as vpc_tag_check
+    from .platforms.aws.vpc import list_tags as vpc_list_tags
+    from .platforms.aws.rds import list_tags as rds_list_tags
+    from .platforms.aws.rds import tag_check as rds_tag_check
+    from .platforms.aws.s3 import list_tags as s3_list_tags
+    from .platforms.aws.s3 import tag_check as s3_tag_check
+    from .platforms.aws.sg import info as sg_info
+    from .platforms.aws.eks import info as eks_info
+    from .platforms.aws.eks import nodes as eks_nodes
+    from .platforms.aws.eks import pods as eks_pods
+    from .platforms.aws.eks import fargate as eks_fargate
+    from .platforms.aws.eks import addons as eks_addons
+    from .platforms.aws.eks import update_config as eks_update_config
+    from .platforms.aws.fargate import info as fargate_info
+    from .platforms.aws.codepipeline import build as codepipeline_build
+    from .platforms.aws.codepipeline import deploy as codepipeline_deploy
+    from .platforms.aws.ecs import info as ecs_info
+    from .platforms.aws.ecs import service as ecs_service
+    from .platforms.aws.ecs import task as ecs_task
+    from .platforms.aws.msk import info as msk_info
+    from .platforms.aws.msk import broker as msk_broker
+    from .platforms.aws.profile.info import ProfileInfoCollector, ProfileTableRenderer
+    from .platforms.aws.cloudfront.info import CloudFrontCollector, CloudFrontRenderer
+except ImportError:
+    # Fallback for installed package
+    from ic.platforms.aws.ec2 import list_tags as ec2_list_tags
+    from ic.platforms.aws.ec2 import tag_check as ec2_tag_check
+    from ic.platforms.aws.ec2 import info as ec2_info
+    from ic.platforms.aws.lb import list_tags as lb_list_tags
+    from ic.platforms.aws.lb import tag_check as lb_tag_check
+    from ic.platforms.aws.vpc import tag_check as vpc_tag_check
+    from ic.platforms.aws.vpc import list_tags as vpc_list_tags
+    from ic.platforms.aws.rds import list_tags as rds_list_tags
+    from ic.platforms.aws.rds import tag_check as rds_tag_check
+    from ic.platforms.aws.s3 import list_tags as s3_list_tags
+    from ic.platforms.aws.s3 import tag_check as s3_tag_check
+    from ic.platforms.aws.sg import info as sg_info
+    from ic.platforms.aws.eks import info as eks_info
+    from ic.platforms.aws.eks import nodes as eks_nodes
+    from ic.platforms.aws.eks import pods as eks_pods
+    from ic.platforms.aws.eks import fargate as eks_fargate
+    from ic.platforms.aws.eks import addons as eks_addons
+    from ic.platforms.aws.eks import update_config as eks_update_config
+    from ic.platforms.aws.fargate import info as fargate_info
+    from ic.platforms.aws.codepipeline import build as codepipeline_build
+    from ic.platforms.aws.codepipeline import deploy as codepipeline_deploy
+    from ic.platforms.aws.ecs import info as ecs_info
+    from ic.platforms.aws.ecs import service as ecs_service
+    from ic.platforms.aws.ecs import task as ecs_task
+    from ic.platforms.aws.msk import info as msk_info
+    from ic.platforms.aws.msk import broker as msk_broker
+    from ic.platforms.aws.profile.info import ProfileInfoCollector, ProfileTableRenderer
+    from ic.platforms.aws.cloudfront.info import CloudFrontCollector, CloudFrontRenderer
 # CloudFlare imports - Unified module structure
-from src.ic.platforms.cloudflare.dns import list_info as dns_info
+try:
+    from .platforms.cloudflare.dns import list_info as dns_info
+except ImportError:
+    from ic.platforms.cloudflare.dns import list_info as dns_info
 # OCI imports - Unified module structure
-from src.ic.platforms.oci.info import oci_info as oci_info # Deprecated. 통합 oci info
-from src.ic.platforms.oci.vm import add_arguments as vm_add_args, main as vm_main
-from src.ic.platforms.oci.lb import add_arguments as lb_add_args, main as lb_main
-from src.ic.platforms.oci.nsg import add_arguments as nsg_add_args, main as nsg_main
-from src.ic.platforms.oci.volume import add_arguments as volume_add_args, main as volume_main
-from src.ic.platforms.oci.policy import add_arguments as policy_add_args, main as policy_main
-from src.ic.platforms.oci.policy import search as oci_policy_search
-from src.ic.platforms.oci.obj import add_arguments as obj_add_args, main as obj_main
-from src.ic.platforms.oci.cost.usage import add_arguments as cost_usage_add_args, main as cost_usage_main
-from src.ic.platforms.oci.cost.credit import add_arguments as cost_credit_add_args, main as cost_credit_main
-from src.ic.platforms.oci.vcn import info as vcn_info
-from src.ic.platforms.oci.compartment.info import CompartmentTreeBuilder, CompartmentTreeRenderer
+try:
+    from .platforms.oci.info import oci_info as oci_info # Deprecated. 통합 oci info
+    from .platforms.oci.vm import add_arguments as vm_add_args, main as vm_main
+    from .platforms.oci.lb import add_arguments as lb_add_args, main as lb_main
+    from .platforms.oci.nsg import add_arguments as nsg_add_args, main as nsg_main
+    from .platforms.oci.volume import add_arguments as volume_add_args, main as volume_main
+    from .platforms.oci.policy import add_arguments as policy_add_args, main as policy_main
+    from .platforms.oci.policy import search as oci_policy_search
+    from .platforms.oci.obj import add_arguments as obj_add_args, main as obj_main
+    from .platforms.oci.cost.usage import add_arguments as cost_usage_add_args, main as cost_usage_main
+    from .platforms.oci.cost.credit import add_arguments as cost_credit_add_args, main as cost_credit_main
+    from .platforms.oci.vcn import info as vcn_info
+    from .platforms.oci.compartment.info import CompartmentTreeBuilder, CompartmentTreeRenderer
+except ImportError:
+    from ic.platforms.oci.info import oci_info as oci_info # Deprecated. 통합 oci info
+    from ic.platforms.oci.vm import add_arguments as vm_add_args, main as vm_main
+    from ic.platforms.oci.lb import add_arguments as lb_add_args, main as lb_main
+    from ic.platforms.oci.nsg import add_arguments as nsg_add_args, main as nsg_main
+    from ic.platforms.oci.volume import add_arguments as volume_add_args, main as volume_main
+    from ic.platforms.oci.policy import add_arguments as policy_add_args, main as policy_main
+    from ic.platforms.oci.policy import search as oci_policy_search
+    from ic.platforms.oci.obj import add_arguments as obj_add_args, main as obj_main
+    from ic.platforms.oci.cost.usage import add_arguments as cost_usage_add_args, main as cost_usage_main
+    from ic.platforms.oci.cost.credit import add_arguments as cost_credit_add_args, main as cost_credit_main
+    from ic.platforms.oci.vcn import info as vcn_info
+    from ic.platforms.oci.compartment.info import CompartmentTreeBuilder, CompartmentTreeRenderer
 # SSH imports - Unified module structure
-from src.ic.platforms.ssh import auto_ssh, server_info
+try:
+    from .platforms.ssh import auto_ssh, server_info
+except ImportError:
+    from ic.platforms.ssh import auto_ssh, server_info
 # NCP imports - Unified module structure
-from src.ic.platforms.ncp.ec2 import info as ncp_ec2_info
-from src.ic.platforms.ncp.s3 import info as ncp_s3_info
-from src.ic.platforms.ncp.vpc import info as ncp_vpc_info
-from src.ic.platforms.ncp.sg import info as ncp_sg_info
-from src.ic.platforms.ncp.rds import info as ncp_rds_info
+try:
+    from .platforms.ncp.ec2 import info as ncp_ec2_info
+    from .platforms.ncp.s3 import info as ncp_s3_info
+    from .platforms.ncp.vpc import info as ncp_vpc_info
+    from .platforms.ncp.sg import info as ncp_sg_info
+    from .platforms.ncp.rds import info as ncp_rds_info
+except ImportError:
+    from ic.platforms.ncp.ec2 import info as ncp_ec2_info
+    from ic.platforms.ncp.s3 import info as ncp_s3_info
+    from ic.platforms.ncp.vpc import info as ncp_vpc_info
+    from ic.platforms.ncp.sg import info as ncp_sg_info
+    from ic.platforms.ncp.rds import info as ncp_rds_info
 # NCP Gov imports - Unified module structure
-from src.ic.platforms.ncpgov.ec2 import info as ncpgov_ec2_info
-from src.ic.platforms.ncpgov.s3 import info as ncpgov_s3_info
-from src.ic.platforms.ncpgov.vpc import info as ncpgov_vpc_info
-from src.ic.platforms.ncpgov.sg import info as ncpgov_sg_info
-from src.ic.platforms.ncpgov.rds import info as ncpgov_rds_info
+try:
+    from .platforms.ncpgov.ec2 import info as ncpgov_ec2_info
+    from .platforms.ncpgov.s3 import info as ncpgov_s3_info
+    from .platforms.ncpgov.vpc import info as ncpgov_vpc_info
+    from .platforms.ncpgov.sg import info as ncpgov_sg_info
+    from .platforms.ncpgov.rds import info as ncpgov_rds_info
+except ImportError:
+    from ic.platforms.ncpgov.ec2 import info as ncpgov_ec2_info
+    from ic.platforms.ncpgov.s3 import info as ncpgov_s3_info
+    from ic.platforms.ncpgov.vpc import info as ncpgov_vpc_info
+    from ic.platforms.ncpgov.sg import info as ncpgov_sg_info
+    from ic.platforms.ncpgov.rds import info as ncpgov_rds_info
 import concurrent.futures
 from threading import Lock
 
@@ -516,7 +581,10 @@ def main():
     lb_check_parser.set_defaults(func=lb_tag_check.main)
 
     lb_info_parser = lb_subparsers.add_parser("info", help="LB 상세 정보 조회")
-    from src.ic.platforms.aws.lb import info as lb_info
+    try:
+        from .platforms.aws.lb import info as lb_info
+    except ImportError:
+        from ic.platforms.aws.lb import info as lb_info
     lb_info.add_arguments(lb_info_parser)
     lb_info_parser.set_defaults(func=lb_info.main)
 
@@ -530,14 +598,20 @@ def main():
     vpc_list_parser.set_defaults(func=vpc_list_tags.main)
 
     vpc_info_parser = vpc_subparsers.add_parser("info", help="VPC 상세 정보 조회")
-    from src.ic.platforms.aws.vpc import info as vpc_info
+    try:
+        from .platforms.aws.vpc import info as vpc_info
+    except ImportError:
+        from ic.platforms.aws.vpc import info as vpc_info
     vpc_info.add_arguments(vpc_info_parser)
     vpc_info_parser.set_defaults(func=vpc_info.main)
 
     vpn_parser = aws_subparsers.add_parser("vpn", help="TGW, VGW, VPN Connection, Endpoint 관련 명령어")
     vpn_subparsers = vpn_parser.add_subparsers(dest="command", required=True)
     vpn_info_parser = vpn_subparsers.add_parser("info", help="VPN 관련 상세 정보 조회")
-    from src.ic.platforms.aws.vpn import info as vpn_info
+    try:
+        from .platforms.aws.vpn import info as vpn_info
+    except ImportError:
+        from ic.platforms.aws.vpn import info as vpn_info
     vpn_info.add_arguments(vpn_info_parser)
     vpn_info_parser.set_defaults(func=vpn_info.main)
 
@@ -552,7 +626,10 @@ def main():
     rds_check_cmd.set_defaults(func=rds_tag_check.main)
 
     rds_info_parser = rds_subparsers.add_parser("info", help="RDS 상세 정보 조회")
-    from src.ic.platforms.aws.rds import info as rds_info
+    try:
+        from .platforms.aws.rds import info as rds_info
+    except ImportError:
+        from ic.platforms.aws.rds import info as rds_info
     rds_info.add_arguments(rds_info_parser)
     rds_info_parser.set_defaults(func=rds_info.main)
 
@@ -566,7 +643,10 @@ def main():
     s3_check_cmd.set_defaults(func=s3_tag_check.main)
 
     s3_info_parser = s3_subparsers.add_parser("info", help="S3 상세 정보 조회")
-    from src.ic.platforms.aws.s3 import info as s3_info
+    try:
+        from .platforms.aws.s3 import info as s3_info
+    except ImportError:
+        from ic.platforms.aws.s3 import info as s3_info
     s3_info.add_arguments(s3_info_parser)
     s3_info_parser.set_defaults(func=s3_info.main)
 

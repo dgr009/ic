@@ -8,7 +8,7 @@ import os
 from pathlib import Path
 from unittest.mock import Mock, patch, mock_open
 
-from src.ic.config.security import (
+from ic.config.security import (
     SecurityManager, 
     NCPSecurityValidator, 
     NCPComplianceChecker,

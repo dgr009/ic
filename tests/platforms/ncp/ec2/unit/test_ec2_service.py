@@ -10,8 +10,8 @@ from dataclasses import dataclass
 from typing import List, Dict, Any
 
 # Import NCP EC2 service classes - updated to use consolidated modules
-from src.ic.platforms.ncp.ec2.info import NCPInstance, fetch_ncp_ec2_info, print_ncp_ec2_table, format_memory_size, format_instance_type
-from src.ic.platforms.ncp.client import NCPClient, NCPAPIError
+from ic.platforms.ncp.ec2.info import NCPInstance, fetch_ncp_ec2_info, print_ncp_ec2_table, format_memory_size, format_instance_type
+from ic.platforms.ncp.client import NCPClient, NCPAPIError
 
 
 class TestNCPInstanceDataModel:

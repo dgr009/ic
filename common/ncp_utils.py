@@ -32,7 +32,7 @@ def get_ncp_config_path() -> Path:
     """NCP 설정 파일 경로 반환 (hierarchical lookup)"""
     # Import here to avoid circular imports
     try:
-        from src.ic.config.path_manager import ConfigPathManager
+        from ic.config.path_manager import ConfigPathManager
         path_manager = ConfigPathManager()
         config_path = path_manager.get_ncp_config_path()
         if config_path:
@@ -64,7 +64,7 @@ def load_ncp_config(profile: str = 'default') -> Dict[str, Any]:
     """
     try:
         # Try to use ConfigManager for hierarchical lookup
-        from src.ic.config.manager import ConfigManager
+        from ic.config.manager import ConfigManager
         config_manager = ConfigManager()
         
         # Monitor configuration access

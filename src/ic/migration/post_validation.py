@@ -527,7 +527,10 @@ class PostMigrationValidator:
                 "name": "NCP Config Loading",
                 "test_code": """
 try:
-    from src.ic.platforms.ncp.client import NCPClient
+    try:
+    from .platforms.ncp.client import NCPClient
+except ImportError:
+    from ic.platforms.ncp.client import NCPClient
     client = NCPClient()
     result = {"success": True, "message": "NCP client initialized successfully"}
 except Exception as e:
@@ -541,7 +544,10 @@ print(result)
                 "name": "NCPGOV Config Loading",
                 "test_code": """
 try:
-    from src.ic.platforms.ncpgov.client import NCPGovClient
+    try:
+    from .platforms.ncpgov.client import NCPGovClient
+except ImportError:
+    from ic.platforms.ncpgov.client import NCPGovClient
     client = NCPGovClient()
     result = {"success": True, "message": "NCPGOV client initialized successfully"}
 except Exception as e:
@@ -555,11 +561,26 @@ print(result)
                 "name": "NCP Module Imports",
                 "test_code": """
 try:
-    from src.ic.platforms.ncp.ec2 import info as ncp_ec2_info
-    from src.ic.platforms.ncp.s3 import info as ncp_s3_info
-    from src.ic.platforms.ncp.vpc import info as ncp_vpc_info
-    from src.ic.platforms.ncp.sg import info as ncp_sg_info
-    from src.ic.platforms.ncp.rds import info as ncp_rds_info
+    try:
+    from .platforms.ncp.ec2 import info as ncp_ec2_info
+except ImportError:
+    from ic.platforms.ncp.ec2 import info as ncp_ec2_info
+    try:
+    from .platforms.ncp.s3 import info as ncp_s3_info
+except ImportError:
+    from ic.platforms.ncp.s3 import info as ncp_s3_info
+    try:
+    from .platforms.ncp.vpc import info as ncp_vpc_info
+except ImportError:
+    from ic.platforms.ncp.vpc import info as ncp_vpc_info
+    try:
+    from .platforms.ncp.sg import info as ncp_sg_info
+except ImportError:
+    from ic.platforms.ncp.sg import info as ncp_sg_info
+    try:
+    from .platforms.ncp.rds import info as ncp_rds_info
+except ImportError:
+    from ic.platforms.ncp.rds import info as ncp_rds_info
     result = {"success": True, "message": "All NCP modules imported successfully"}
 except Exception as e:
     result = {"success": False, "message": f"NCP module import failed: {e}"}
@@ -572,11 +593,26 @@ print(result)
                 "name": "NCPGOV Module Imports",
                 "test_code": """
 try:
-    from src.ic.platforms.ncpgov.ec2 import info as ncpgov_ec2_info
-    from src.ic.platforms.ncpgov.s3 import info as ncpgov_s3_info
-    from src.ic.platforms.ncpgov.vpc import info as ncpgov_vpc_info
-    from src.ic.platforms.ncpgov.sg import info as ncpgov_sg_info
-    from src.ic.platforms.ncpgov.rds import info as ncpgov_rds_info
+    try:
+    from .platforms.ncpgov.ec2 import info as ncpgov_ec2_info
+except ImportError:
+    from ic.platforms.ncpgov.ec2 import info as ncpgov_ec2_info
+    try:
+    from .platforms.ncpgov.s3 import info as ncpgov_s3_info
+except ImportError:
+    from ic.platforms.ncpgov.s3 import info as ncpgov_s3_info
+    try:
+    from .platforms.ncpgov.vpc import info as ncpgov_vpc_info
+except ImportError:
+    from ic.platforms.ncpgov.vpc import info as ncpgov_vpc_info
+    try:
+    from .platforms.ncpgov.sg import info as ncpgov_sg_info
+except ImportError:
+    from ic.platforms.ncpgov.sg import info as ncpgov_sg_info
+    try:
+    from .platforms.ncpgov.rds import info as ncpgov_rds_info
+except ImportError:
+    from ic.platforms.ncpgov.rds import info as ncpgov_rds_info
     result = {"success": True, "message": "All NCPGOV modules imported successfully"}
 except Exception as e:
     result = {"success": False, "message": f"NCPGOV module import failed: {e}"}
@@ -685,7 +721,10 @@ print(result)
                 "expected_failure": False,
                 "test_code": """
 try:
-    from src.ic.platforms.ncp.ec2 import info
+    try:
+    from .platforms.ncp.ec2 import info
+except ImportError:
+    from ic.platforms.ncp.ec2 import info
     result = {"success": True, "message": "New import paths work correctly"}
 except Exception as e:
     result = {"success": False, "message": f"New import failed: {e}"}

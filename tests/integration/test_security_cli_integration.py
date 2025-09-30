@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest.mock import patch, Mock
 from io import StringIO
 
-from src.ic.commands.security import SecurityCommands
+from ic.commands.security import SecurityCommands
 
 
 class TestSecurityCLIIntegration:

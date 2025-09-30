@@ -400,10 +400,10 @@ class CLIUsageAnalyzer:
             old_import = f"from {imp.module_path} import {imp.imported_name}"
             if imp.module_path.startswith('ncp.'):
                 service = imp.module_path.split('.')[1]
-                new_import = f"from src.ic.platforms.ncp.{service} import {imp.imported_name}"
+                new_import = f"from ic.platforms.ncp.{service} import {imp.imported_name}"
             elif imp.module_path.startswith('ncp_module.'):
                 service = imp.module_path.split('.')[1]
-                new_import = f"from src.ic.platforms.ncp.{service} import {imp.imported_name}"
+                new_import = f"from ic.platforms.ncp.{service} import {imp.imported_name}"
             else:
                 new_import = old_import
             
@@ -413,10 +413,10 @@ class CLIUsageAnalyzer:
             old_import = f"from {imp.module_path} import {imp.imported_name}"
             if imp.module_path.startswith('ncpgov.'):
                 service = imp.module_path.split('.')[1]
-                new_import = f"from src.ic.platforms.ncpgov.{service} import {imp.imported_name}"
+                new_import = f"from ic.platforms.ncpgov.{service} import {imp.imported_name}"
             elif imp.module_path.startswith('ncpgov_module.'):
                 service = imp.module_path.split('.')[1]
-                new_import = f"from src.ic.platforms.ncpgov.{service} import {imp.imported_name}"
+                new_import = f"from ic.platforms.ncpgov.{service} import {imp.imported_name}"
             else:
                 new_import = old_import
             

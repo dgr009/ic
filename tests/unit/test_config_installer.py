@@ -13,7 +13,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 # Import modules to test
-from src.ic.config.installer import ConfigInstaller, DefaultConfigGenerator
+from ic.config.installer import ConfigInstaller, DefaultConfigGenerator
 
 
 class TestConfigInstaller(unittest.TestCase):

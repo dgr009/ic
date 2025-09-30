@@ -32,7 +32,10 @@ from common.ncpgov_utils import (
     validate_gov_compliance, log_audit_event, validate_api_response_security
 )
 from common.ncp_utils import apply_status_color
-from src.ic.platforms.ncpgov.client import NCPGovClient, NCPGovAPIError
+try:
+    from .platforms.ncpgov.client import NCPGovClient, NCPGovAPIError
+except ImportError:
+    from ic.platforms.ncpgov.client import NCPGovClient, NCPGovAPIError
 
 logger = logging.getLogger(__name__)
 console = Console()

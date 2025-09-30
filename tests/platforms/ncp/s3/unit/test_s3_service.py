@@ -10,8 +10,8 @@ from dataclasses import dataclass
 from typing import List, Dict, Any
 
 # Import NCP S3 service classes - updated to use consolidated modules
-from src.ic.platforms.ncp.s3.info import NCPBucket, fetch_ncp_s3_info, print_ncp_s3_table, format_bucket_size, format_object_count
-from src.ic.platforms.ncp.client import NCPClient, NCPAPIError
+from ic.platforms.ncp.s3.info import NCPBucket, fetch_ncp_s3_info, print_ncp_s3_table, format_bucket_size, format_object_count
+from ic.platforms.ncp.client import NCPClient, NCPAPIError
 
 
 class TestNCPBucketDataModel:
@@ -226,7 +226,7 @@ class TestNCPS3ServiceUtilities:
     
     def test_format_storage_class(self):
         """Test storage class formatting."""
-        from src.ic.platforms.ncp.s3.info import format_storage_class
+        from ic.platforms.ncp.s3.info import format_storage_class
         
         assert format_storage_class('STANDARD') == 'Standard'
         assert format_storage_class('STANDARD_IA') == 'Standard-IA'
@@ -236,7 +236,7 @@ class TestNCPS3ServiceUtilities:
     
     def test_format_access_control(self):
         """Test access control formatting."""
-        from src.ic.platforms.ncp.s3.info import format_access_control
+        from ic.platforms.ncp.s3.info import format_access_control
         
         # Note: These return rich markup, so we check for content
         private_result = format_access_control('PRIVATE')
@@ -253,7 +253,7 @@ class TestNCPS3ServiceUtilities:
     
     def test_format_feature_status(self):
         """Test feature status formatting."""
-        from src.ic.platforms.ncp.s3.info import format_feature_status
+        from ic.platforms.ncp.s3.info import format_feature_status
         
         # Enabled states
         enabled_result = format_feature_status('enabled')

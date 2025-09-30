@@ -11,7 +11,10 @@ Components:
 - MigrationManager: Unified interface for managing the complete migration process
 
 Usage:
-    from src.ic.migration import MigrationManager
+    try:
+    from .migration import MigrationManager
+except ImportError:
+    from ic.migration import MigrationManager
     
     manager = MigrationManager()
     

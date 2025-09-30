@@ -31,9 +31,15 @@ from common.ncpgov_utils import (
     load_ncpgov_config, handle_ncpgov_api_error, mask_sensitive_data,
     validate_gov_compliance, log_audit_event, validate_api_response_security
 )
-from src.ic.platforms.ncp.ec2.info import NCPInstance, format_memory_size, format_instance_type
+try:
+    from .platforms.ncp.ec2.info import NCPInstance, format_memory_size, format_instance_type
+except ImportError:
+    from ic.platforms.ncp.ec2.info import NCPInstance, format_memory_size, format_instance_type
 from common.ncp_utils import apply_status_color
-from src.ic.platforms.ncpgov.client import NCPGovClient, NCPGovAPIError
+try:
+    from .platforms.ncpgov.client import NCPGovClient, NCPGovAPIError
+except ImportError:
+    from ic.platforms.ncpgov.client import NCPGovClient, NCPGovAPIError
 
 logger = get_logger()
 console = Console()

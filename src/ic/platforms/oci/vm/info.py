@@ -13,7 +13,10 @@ from rich import box
 from rich.rule import Rule
 from common.log import log_info_non_console
 from common.progress_decorator import progress_bar, ManualProgress
-from src.ic.platforms.oci.common.utils import get_all_subscribed_regions, get_compartments
+try:
+    from .platforms.oci.common.utils import get_all_subscribed_regions, get_compartments
+except ImportError:
+    from ic.platforms.oci.common.utils import get_all_subscribed_regions, get_compartments
 
 # ###############################################################################
 # # CLI 인자 정의

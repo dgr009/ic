@@ -556,7 +556,7 @@ AZURE_SUBSCRIPTION_ID=sub-12345
                 mock_config_commands_class.return_value = mock_config_commands
                 
                 # Test command execution
-                from src.ic.cli import create_parser
+                from ic.cli import create_parser
                 parser = create_parser()
                 args = parser.parse_args(['config', 'show', '--aws'])
                 
@@ -582,7 +582,7 @@ AZURE_SUBSCRIPTION_ID=sub-12345
             mock_collector_class.return_value = mock_collector
             mock_collector.collect_profile_info.side_effect = FileNotFoundError("AWS config not found")
             
-            from src.ic.cli import create_parser
+            from ic.cli import create_parser
             parser = create_parser()
             args = parser.parse_args(['aws', 'profile', 'info'])
             
@@ -603,7 +603,7 @@ AZURE_SUBSCRIPTION_ID=sub-12345
     
     def test_cli_argument_parsing_integration(self):
         """Test CLI argument parsing for new commands."""
-        from src.ic.cli import create_parser
+        from ic.cli import create_parser
         parser = create_parser()
         
         # Test AWS profile command arguments

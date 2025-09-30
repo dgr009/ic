@@ -17,8 +17,8 @@ import sys
 from click.testing import CliRunner
 
 # Import NCP components for testing - updated to use consolidated modules
-from src.ic.platforms.ncp.client import NCPClient, NCPAPIError
-from src.ic.platforms.ncpgov.client import NCPGovClient
+from ic.platforms.ncp.client import NCPClient, NCPAPIError
+from ic.platforms.ncpgov.client import NCPGovClient
 
 
 class TestNCPCLIIntegration:
@@ -92,7 +92,7 @@ class TestNCPCLIIntegration:
         
         # Test the integration by calling the client directly
         from common.ncp_utils import load_ncp_config
-        from src.ic.platforms.ncp.client import NCPClient
+        from ic.platforms.ncp.client import NCPClient
         
         config = load_ncp_config()
         client = NCPClient(
@@ -125,7 +125,7 @@ class TestNCPCLIIntegration:
         }
         
         # Test with name filter
-        from src.ic.platforms.ncp.client import NCPClient
+        from ic.platforms.ncp.client import NCPClient
         client = NCPClient('test-key', 'test-secret', 'KR')
         result = client.get_server_instances(name_filter='test-server')
         

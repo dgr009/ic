@@ -40,7 +40,7 @@ def fix_consolidated_imports():
             # Fix imports in the content
             content = content.replace(
                 "from ncp_module.client import NCPClient, NCPAPIError",
-                "from src.ic.platforms.ncp.client import NCPClient, NCPAPIError"
+                "from ic.platforms.ncp.client import NCPClient, NCPAPIError"
             )
             
             # Write to consolidated location
@@ -68,11 +68,11 @@ def fix_consolidated_imports():
             # Fix imports in the content
             content = content.replace(
                 "from ncpgov_module.client import NCPGovClient, NCPAPIError",
-                "from src.ic.platforms.ncpgov.client import NCPGovClient, NCPAPIError"
+                "from ic.platforms.ncpgov.client import NCPGovClient, NCPAPIError"
             )
             content = content.replace(
                 "from ncp_module.client import NCPClient, NCPAPIError", 
-                "from src.ic.platforms.ncp.client import NCPClient, NCPAPIError"
+                "from ic.platforms.ncp.client import NCPClient, NCPAPIError"
             )
             
             # Write to consolidated location

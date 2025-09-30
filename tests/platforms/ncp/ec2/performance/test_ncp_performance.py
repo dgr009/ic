@@ -13,8 +13,8 @@ from unittest.mock import Mock, patch
 import json
 
 # Import NCP components - updated to use consolidated modules
-from src.ic.platforms.ncp.client import NCPClient, NCPAPIError
-from src.ic.platforms.ncpgov.client import NCPGovClient
+from ic.platforms.ncp.client import NCPClient, NCPAPIError
+from ic.platforms.ncpgov.client import NCPGovClient
 from common.ncp_utils import format_bytes, OutputFormatter
 from common.ncpgov_utils import mask_sensitive_data
 

@@ -7,7 +7,7 @@ from pathlib import Path
 import tempfile
 import os
 
-from src.ic.security import SecurityScanner, SensitiveDataDetector, SecurityConfig
+from ic.security import SecurityScanner, SensitiveDataDetector, SecurityConfig
 
 
 class TestSecuritySystem:
@@ -139,7 +139,7 @@ class TestSecuritySystem:
         scanner = SecurityScanner()
         
         # Create mock scan result
-        from src.ic.security.detector import Detection, ScanResult
+        from ic.security.detector import Detection, ScanResult
         
         detections = [
             Detection(

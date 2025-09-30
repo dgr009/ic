@@ -6,7 +6,7 @@ Tests NCP API client functionality, authentication, error handling, and data mod
 
 import pytest
 from unittest.mock import Mock, patch
-from src.ic.platforms.ncp.client import NCPClient, NCPAPIError
+from ic.platforms.ncp.client import NCPClient, NCPAPIError
 
 
 class TestNCPClient:

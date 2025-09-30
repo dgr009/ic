@@ -6,7 +6,7 @@ Tests NCP Gov API client functionality, authentication, error handling, and secu
 
 import pytest
 from unittest.mock import Mock, patch
-from src.ic.platforms.ncpgov.client import NCPGovClient, NCPGovAPIError
+from ic.platforms.ncpgov.client import NCPGovClient, NCPGovAPIError
 
 
 class TestNCPGovClient:

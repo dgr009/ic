@@ -420,7 +420,7 @@ class TestCloudFrontCLICommandIntegration:
     def test_cli_command_handler_structure(self):
         """Test that CLI command handler is properly structured."""
         # Import the CLI handler function
-        from src.ic.cli import handle_aws_cloudfront_info
+        from ic.cli import handle_aws_cloudfront_info
         
         # Verify function exists and is callable
         assert callable(handle_aws_cloudfront_info)
@@ -462,7 +462,7 @@ class TestCloudFrontCLICommandIntegration:
         }
         
         # Verify that the expected arguments can be processed
-        from src.ic.cli import handle_aws_cloudfront_info
+        from ic.cli import handle_aws_cloudfront_info
         
         mock_args = Mock()
         for key, value in expected_args.items():
