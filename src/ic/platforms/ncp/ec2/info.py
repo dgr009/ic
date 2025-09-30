@@ -25,13 +25,22 @@ from rich import box
 from rich.rule import Rule
 
 import logging
-from common.progress_decorator import progress_bar, ManualProgress
-from common.ncp_utils import (
-    load_ncp_config, handle_ncp_api_error, apply_status_color, 
-    filter_resources_by_name, validate_platform_support
-)
 try:
-    from .platforms.ncp.client import NCPClient, NCPAPIError
+    from ....common.progress_decorator import progress_bar, ManualProgress
+except ImportError:
+    from common.progress_decorator import progress_bar, ManualProgress
+try:
+    from ....common.ncp_utils import (
+        load_ncp_config, handle_ncp_api_error, apply_status_color, 
+    filter_resources_by_name, validate_platform_support
+    )
+except ImportError:
+    from common.ncp_utils import (
+        load_ncp_config, handle_ncp_api_error, apply_status_color, 
+    filter_resources_by_name, validate_platform_support
+    )
+try:
+    from ..client import NCPClient, NCPAPIError
 except ImportError:
     from ic.platforms.ncp.client import NCPClient, NCPAPIError
 

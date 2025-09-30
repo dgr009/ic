@@ -8,11 +8,31 @@ import paramiko
 # Paramiko 내부 디버그 로그를 별도 파일로 남겨 문제 파악을 쉽게 함
 # paramiko.util.log_to_file("ssh_paramiko_debug.log")
 
-from ic.config.manager import ConfigManager
-from ic.core.logging import ICLogger
+try:
+    from src.ic.config.manager import ConfigManager
+    from src.ic.core.logging import ICLogger
+except ImportError:
+    try:
+        from ic.config.manager import ConfigManager
+        from ic.core.logging import ICLogger
+    except ImportError:
+        # Legacy fallback for development
+        import sys
+        import os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+        from ic.config.manager import ConfigManager
+        from ic.core.logging import ICLogger
+
 from rich.table import Table
 from rich.console import Console
-from common.progress_decorator import concurrent_progress, ManualProgress
+
+try:
+    from src.common.progress_decorator import concurrent_progress, ManualProgress
+except ImportError:
+    try:
+        from common.progress_decorator import concurrent_progress, ManualProgress
+    except ImportError:
+        from ....common.progress_decorator import concurrent_progress, ManualProgress
 
 console = Console()
 # -----------------------------------------------------------------------------

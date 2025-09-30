@@ -178,7 +178,13 @@ tail -f ~/.ic/logs/ic.log
 ### 프로그래밍 API
 
 ```python
-from ic.config.manager import ConfigManager
+# Import with fallback for compatibility
+try:
+    from src.ic.config.manager import ConfigManager
+    from src.ic.platforms.aws.ec2 import info as aws_ec2_info
+except ImportError:
+    from ic.config.manager import ConfigManager
+    from ic.platforms.aws.ec2 import info as aws_ec2_info
 
 # 설정 로딩
 config_manager = ConfigManager()
@@ -186,12 +192,19 @@ config = config_manager.get_config()
 
 # 특정 설정 접근
 aws_region = config.get('aws', {}).get('region', 'us-west-2')
+
+# 서비스 모듈 사용
+args = type('Args', (), {'region': aws_region, 'format': 'table'})()
+result = aws_ec2_info.main(args, config_manager)
 ```
 
 ### 외부 설정 로딩
 
 ```python
-from ic.config.external import ExternalConfigLoader
+try:
+    from src.ic.config.external import ExternalConfigLoader
+except ImportError:
+    from ic.config.external import ExternalConfigLoader
 
 loader = ExternalConfigLoader()
 aws_config = loader.load_aws_config()  # ~/.aws/config 로딩
@@ -200,7 +213,10 @@ aws_config = loader.load_aws_config()  # ~/.aws/config 로딩
 ### 시크릿 관리
 
 ```python
-from ic.config.secrets import SecretsManager
+try:
+    from src.ic.config.secrets import SecretsManager
+except ImportError:
+    from ic.config.secrets import SecretsManager
 
 secrets_manager = SecretsManager()
 secrets = secrets_manager.load_secrets()

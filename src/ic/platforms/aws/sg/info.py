@@ -9,9 +9,18 @@ from rich.table import Table
 from rich.tree import Tree
 from rich.rule import Rule
 from rich import box
-from common.log import log_info_non_console
-from common.progress_decorator import ManualProgress
-from common.utils import get_profiles, create_session
+try:
+    from ....common.log import log_info_non_console
+except ImportError:
+    from common.log import log_info_non_console
+try:
+    from ....common.progress_decorator import ManualProgress
+except ImportError:
+    from common.progress_decorator import ManualProgress
+try:
+    from ....common.utils import get_profiles, create_session
+except ImportError:
+    from common.utils import get_profiles, create_session
 
 def add_arguments(parser):
     parser.add_argument("--name", "-n", default=None, help="이름 필터 (부분 일치)")

@@ -13,8 +13,13 @@ from pathlib import Path
 # Add the src directory to the Python path
 sys.path.insert(0, str(Path(__file__).parent.parent / 'src'))
 
-from ic.core.mcp_manager import MCPManager, create_default_mcp_config
-from ic.config.security import SecurityManager
+# Import with fallback for compatibility
+try:
+    from src.ic.core.mcp_manager import MCPManager, create_default_mcp_config
+    from src.ic.config.security import SecurityManager
+except ImportError:
+    from ic.core.mcp_manager import MCPManager, create_default_mcp_config
+    from ic.config.security import SecurityManager
 
 
 def main():

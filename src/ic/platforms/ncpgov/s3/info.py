@@ -25,19 +25,34 @@ from rich.table import Table
 from rich import box
 from rich.rule import Rule
 
-from common.log import get_logger
-from common.progress_decorator import progress_bar, ManualProgress
-from common.ncpgov_utils import (
-    load_ncpgov_config, handle_ncpgov_api_error, mask_sensitive_data,
+try:
+    from ....common.log import get_logger
+except ImportError:
+    from common.log import get_logger
+try:
+    from ....common.progress_decorator import progress_bar, ManualProgress
+except ImportError:
+    from common.progress_decorator import progress_bar, ManualProgress
+try:
+    from ....common.ncpgov_utils import (
+        load_ncpgov_config, handle_ncpgov_api_error, mask_sensitive_data,
     validate_gov_compliance, log_audit_event, validate_api_response_security
-)
+    )
+except ImportError:
+    from common.ncpgov_utils import (
+        load_ncpgov_config, handle_ncpgov_api_error, mask_sensitive_data,
+    validate_gov_compliance, log_audit_event, validate_api_response_security
+    )
 try:
     from .platforms.ncp.s3.info import format_bucket_size
 except ImportError:
     from ic.platforms.ncp.s3.info import format_bucket_size
-from common.ncp_utils import apply_status_color
 try:
-    from .platforms.ncpgov.client import NCPGovClient, NCPGovAPIError
+    from ....common.ncp_utils import apply_status_color
+except ImportError:
+    from common.ncp_utils import apply_status_color
+try:
+    from ..client import NCPGovClient, NCPGovAPIError
 except ImportError:
     from ic.platforms.ncpgov.client import NCPGovClient, NCPGovAPIError
 

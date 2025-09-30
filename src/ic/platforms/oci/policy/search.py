@@ -10,14 +10,30 @@ IC 프로젝트의 공용 모듈을 사용하도록 리팩토링되었습니다.
 import oci
 import os
 import re
-from ic.config.manager import ConfigManager
+try:
+    from src.ic.config.manager import ConfigManager
+except ImportError:
+    try:
+        from ic.config.manager import ConfigManager
+    except ImportError:
+        # Legacy fallback for development
+        import sys
+        import os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+        from ic.config.manager import ConfigManager
 from InquirerPy import inquirer
 from rich.console import Console
 from rich.tree import Tree
 from rich.prompt import Prompt
 
-from common.log import log_info, log_error, log_exception, console
-from common.progress_decorator import progress_bar, ManualProgress
+try:
+    from ....common.log import log_info, log_error, log_exception, console
+except ImportError:
+    from common.log import log_info, log_error, log_exception, console
+try:
+    from ....common.progress_decorator import progress_bar, ManualProgress
+except ImportError:
+    from common.progress_decorator import progress_bar, ManualProgress
 
 # Initialize config manager
 _config_manager = ConfigManager()

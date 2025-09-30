@@ -7,10 +7,16 @@ import time
 from rich.console import Console
 from rich.table import Table
 from rich import box
-from common.log import log_info_non_console
-from common.progress_decorator import progress_bar, ManualProgress
 try:
-    from .platforms.oci.common.utils import get_compartments, get_all_subscribed_regions
+    from ....common.log import log_info_non_console
+except ImportError:
+    from common.log import log_info_non_console
+try:
+    from ....common.progress_decorator import progress_bar, ManualProgress
+except ImportError:
+    from common.progress_decorator import progress_bar, ManualProgress
+try:
+    from ..common.utils import get_compartments, get_all_subscribed_regions
 except ImportError:
     from ic.platforms.oci.common.utils import get_compartments, get_all_subscribed_regions
 

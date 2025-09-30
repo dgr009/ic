@@ -21,7 +21,10 @@ import logging
 import sys
 from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
-from common.ncp_security_utils import ncp_data_masker, ncp_security_monitor
+try:
+    from ....common.ncp_security_utils import ncp_data_masker, ncp_security_monitor
+except ImportError:
+    from common.ncp_security_utils import ncp_data_masker, ncp_security_monitor
 
 logger = logging.getLogger(__name__)
 

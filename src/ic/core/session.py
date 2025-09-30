@@ -21,7 +21,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
 
-from ic.core.logging import get_logger
+try:
+    from src.ic.core.logging import get_logger
+except ImportError:
+    try:
+        from ic.core.logging import get_logger
+    except ImportError:
+        from .logging import get_logger
 
 logger = get_logger()
 

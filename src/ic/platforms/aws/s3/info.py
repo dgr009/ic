@@ -12,9 +12,18 @@ from rich.table import Table
 from rich import box
 from rich.rule import Rule
 
-from common.log import log_info_non_console
-from common.progress_decorator import ManualProgress
-from common.utils import get_env_accounts, get_profiles
+try:
+    from ....common.log import log_info_non_console
+except ImportError:
+    from common.log import log_info_non_console
+try:
+    from ....common.progress_decorator import ManualProgress
+except ImportError:
+    from common.progress_decorator import ManualProgress
+try:
+    from ....common.utils import get_env_accounts, get_profiles
+except ImportError:
+    from common.utils import get_env_accounts, get_profiles
 
 load_dotenv()
 console = Console()

@@ -15,7 +15,6 @@ from setuptools import setup, find_packages
 from setuptools.command.install import install
 from setuptools.command.develop import develop
 import os
-import sys
 
 # Read version from src/ic/__init__.py
 def get_version():
@@ -67,7 +66,6 @@ class PostInstallCommand(install):
             
             # Check if we should install default configs
             home_config_dir = os.path.expanduser("~/.ic/config")
-            local_config_dir = ".ic/config"
             
             # Try to install in user's home directory first
             if not os.path.exists(home_config_dir):
@@ -142,10 +140,21 @@ setup(
         "Configuration Guide": "https://github.com/dgr009/ic/blob/main/docs/configuration.md",
         "Migration Guide": "https://github.com/dgr009/ic/blob/main/docs/migration.md",
     },
-    packages=find_packages(where="src") + find_packages(include=["aws*", "azure_module*", "gcp*", "oci_module*", "ncp*", "ncp_module*", "ncpgov*", "ncpgov_module*", "ssh*", "cf*", "common*", "mcp*"]),
+    packages=find_packages(where="src", include=["ic*", "common*", "mcp*"]),
     package_dir={"": "src"},
     package_data={
-        "ic": ["config/*.yaml", "config/*.json", "config/examples/*.yaml"],
+        "ic": ["config/*.yaml", "config/*.yml", "config/*.json", "config/examples/*.yaml"],
+        "ic.security": ["*.md", "*.yaml", "*.yml", "*.json"],
+        "ic.platforms.aws": ["*.md", "*.yaml", "*.yml", "*.json"],
+        "ic.platforms.azure": ["*.md", "*.yaml", "*.yml", "*.json"],
+        "ic.platforms.gcp": ["*.md", "*.yaml", "*.yml", "*.json"],
+        "ic.platforms.oci": ["*.md", "*.yaml", "*.yml", "*.json"],
+        "ic.platforms.ncp": ["*.md", "*.yaml", "*.yml", "*.json"],
+        "ic.platforms.ncpgov": ["*.md", "*.yaml", "*.yml", "*.json"],
+        "ic.platforms.cloudflare": ["*.md", "*.yaml", "*.yml", "*.json"],
+        "ic.platforms.ssh": ["*.md", "*.yaml", "*.yml", "*.json"],
+        "common": ["*.yaml", "*.yml", "*.json"],
+        "mcp": ["*.yaml", "*.yml", "*.json"],
     },
     install_requires=[
         # Core dependencies - Python 3.9-3.12 compatible
@@ -228,7 +237,7 @@ setup(
         "configuration", "monitoring", "automation",
         "kubernetes", "containers", "serverless"
     ],
-    python_requires=">=3.9,<3.13",
+    python_requires=">=3.9,<3.15",
     cmdclass={
         'install': PostInstallCommand,
         'develop': PostDevelopCommand,

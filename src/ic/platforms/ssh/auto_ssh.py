@@ -12,7 +12,21 @@ from concurrent.futures import ThreadPoolExecutor
 import paramiko
 from paramiko.config import SSHConfig
 from tqdm import tqdm
-from ic.config.manager import ConfigManager
+try:
+    from src.ic.config.manager import ConfigManager
+    from src.ic.core.logging import ICLogger
+except ImportError:
+    try:
+        from ic.config.manager import ConfigManager
+        from ic.core.logging import ICLogger
+    except ImportError:
+        # Legacy fallback for development
+        import sys
+        import os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+        from ic.config.manager import ConfigManager
+        from ic.core.logging import ICLogger
+
 from rich.console import Console
 from rich.logging import RichHandler
 from rich.table import Table
@@ -34,7 +48,6 @@ def get_config_var(key, default=""):
 console = Console()
 
 # IC 로거 시스템 사용
-from ic.core.logging import ICLogger
 _ic_logger = ICLogger(_config)
 logger = _ic_logger.get_logger()
 logging.getLogger('paramiko').setLevel(logging.ERROR)
@@ -163,7 +176,17 @@ def get_hostname_via_ssh(ip, key_path, user, port):
         ssh = paramiko.SSHClient()
         # 보안 정책 설정: 설정 파일에서 정책을 읽어오거나 환경 변수 확인
         import os
-        from ic.config.manager import ConfigManager
+        try:
+            from src.ic.config.manager import ConfigManager
+        except ImportError:
+            try:
+                from ic.config.manager import ConfigManager
+            except ImportError:
+                # Legacy fallback for development
+                import sys
+                import os
+                sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+                from ic.config.manager import ConfigManager
         _config_manager = ConfigManager()
         _config = _config_manager.load_all_configs()
         _ssh_config = _config.get('ssh', {})
@@ -254,8 +277,17 @@ def check_ssh_connection(host):
     
     client = paramiko.SSHClient()
     # 보안 정책 설정: 설정 파일에서 정책을 읽어오거나 환경 변수 확인
-    import os
-    from ic.config.manager import ConfigManager
+    try:
+        from src.ic.config.manager import ConfigManager
+    except ImportError:
+        try:
+            from ic.config.manager import ConfigManager
+        except ImportError:
+            # Legacy fallback for development
+            import sys
+            import os
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+            from ic.config.manager import ConfigManager
     _config_manager = ConfigManager()
     _config = _config_manager.load_all_configs()
     _ssh_config = _config.get('ssh', {})

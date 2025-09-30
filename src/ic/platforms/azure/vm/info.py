@@ -14,16 +14,30 @@ from rich.table import Table
 from rich import box
 from rich.tree import Tree
 
-from common.log import log_info, log_error
-from common.azure_utils import (
-    get_azure_subscriptions,
+try:
+    from ....common.log import log_info, log_error
+except ImportError:
+    from common.log import log_info, log_error
+try:
+    from ....common.azure_utils import (
+        get_azure_subscriptions,
     get_azure_locations,
     create_azure_client,
     get_resource_groups,
     format_azure_output,
     get_azure_resource_tags,
     parallel_azure_operation
-)
+    )
+except ImportError:
+    from common.azure_utils import (
+        get_azure_subscriptions,
+    get_azure_locations,
+    create_azure_client,
+    get_resource_groups,
+    format_azure_output,
+    get_azure_resource_tags,
+    parallel_azure_operation
+    )
 
 load_dotenv()
 console = Console()

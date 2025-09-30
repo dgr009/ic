@@ -11,7 +11,10 @@ from rich.console import Console
 from rich.table import Table
 from botocore.exceptions import ClientError, NoCredentialsError
 
-from common.progress_decorator import ManualProgress
+try:
+    from ....common.progress_decorator import ManualProgress
+except ImportError:
+    from common.progress_decorator import ManualProgress
 import boto3
 
 

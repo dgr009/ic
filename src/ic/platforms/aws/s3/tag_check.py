@@ -5,11 +5,20 @@ import re
 import botocore
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from common.log import log_info, log_error, log_exception, log_decorator
-from common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
-from rich.console import Console
-from rich.table import Table
-from common.slack import send_slack_blocks_table_with_color
+try:
+    from ....common.log import log_info, log_error, log_exception, log_decorator
+except ImportError:
+    from common.log import log_info, log_error, log_exception, log_decorator
+try:
+    from ....common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
+except ImportError:
+    from common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
+    from rich.console import Console
+    from rich.table import Table
+try:
+    from ....common.slack import send_slack_blocks_table_with_color
+except ImportError:
+    from common.slack import send_slack_blocks_table_with_color
 
 # (주의) cli.py에서 load_dotenv()를 이미 한다면, 중복 호출일 수 있음
 load_dotenv()

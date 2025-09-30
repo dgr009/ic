@@ -24,7 +24,13 @@ try:
 except ImportError:
     RICH_AVAILABLE = False
 
-from ..config.security import SecurityManager
+try:
+    from src.ic.config.security import SecurityManager
+except ImportError:
+    try:
+        from ..config.security import SecurityManager
+    except ImportError:
+        from ic.config.security import SecurityManager
 
 
 class ICLogger:

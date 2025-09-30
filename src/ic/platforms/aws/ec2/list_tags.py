@@ -1,15 +1,34 @@
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from common.log import log_info, log_error, log_exception, log_decorator
-from common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
-from rich.console import Console
-from rich.table import Table
+try:
+    from ....common.log import log_info, log_error, log_exception, log_decorator
+except ImportError:
+    from common.log import log_info, log_error, log_exception, log_decorator
+try:
+    from ....common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
+except ImportError:
+    from common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
+    from rich.console import Console
+    from rich.table import Table
 
 # 새로운 설정 시스템 import
 try:
-    from ic.config.manager import ConfigManager
+    from src.ic.config.manager import ConfigManager
     config_manager = ConfigManager()
     config = config_manager.get_config()
+except ImportError:
+    try:
+        from ic.config.manager import ConfigManager
+        config_manager = ConfigManager()
+        config = config_manager.get_config()
+    except ImportError:
+        # Legacy fallback for development
+        import sys
+        import os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+        from ic.config.manager import ConfigManager
+        config_manager = ConfigManager()
+        config = config_manager.get_config()
 except ImportError:
     # 호환성을 위한 fallback
     from dotenv import load_dotenv

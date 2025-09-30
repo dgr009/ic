@@ -16,19 +16,13 @@ recursive-include docs *.md *.rst *.txt
 # Include scripts and tools
 recursive-include scripts *.py *.sh *.bat
 
-# Include source code
-recursive-include src *.py
-recursive-include src/ic/config *.yaml *.yml *.json
+# Include source code (already covered above)
 
-# Include service modules
-recursive-include aws *.py
-recursive-include azure_module *.py
-recursive-include gcp *.py
-recursive-include oci_module *.py
-recursive-include ssh *.py
-recursive-include cf *.py
-recursive-include common *.py
-recursive-include mcp *.py
+# Include all source modules and data files
+recursive-include src *.py *.yaml *.yml *.json *.md *.txt
+recursive-include src/ic/platforms *.py *.yaml *.yml *.json *.md *.txt
+recursive-include src/common *.py *.yaml *.yml *.json
+recursive-include src/mcp *.py *.yaml *.yml *.json
 
 # Include new configuration system files
 include requirements-updated.txt

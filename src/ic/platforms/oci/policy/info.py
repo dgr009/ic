@@ -6,9 +6,12 @@ import re
 from rich.console import Console
 from rich.table import Table
 from rich import box
-from common.progress_decorator import progress_bar, ManualProgress
 try:
-    from .platforms.oci.common.utils import get_compartments
+    from ....common.progress_decorator import progress_bar, ManualProgress
+except ImportError:
+    from common.progress_decorator import progress_bar, ManualProgress
+try:
+    from ..common.utils import get_compartments
 except ImportError:
     from ic.platforms.oci.common.utils import get_compartments
 

@@ -61,6 +61,9 @@ This directory contains comprehensive documentation for the IC (Infrastructure R
 ## Development
 
 - [Development Documentation](development/) - For contributors
+  - [Development Guide](development/development_guide.md) - Complete development setup and patterns
+  - [Import Patterns Guide](development/import_patterns.md) - Essential import patterns and best practices
+  - [Migration Guide](development/migration_guide.md) - Migration procedures and troubleshooting
 
 ## Documentation Templates
 

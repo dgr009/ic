@@ -13,7 +13,10 @@ from rich.text import Text
 from datetime import datetime
 
 from ..common.utils import get_compartments
-from common.progress_decorator import progress_bar, ManualProgress
+try:
+    from ....common.progress_decorator import progress_bar, ManualProgress
+except ImportError:
+    from common.progress_decorator import progress_bar, ManualProgress
 
 
 class CompartmentTreeBuilder:

@@ -92,6 +92,12 @@ def gather_env_for_command(platform: str, service: str = None, command: str = No
     
     # Import the original function for backward compatibility
     try:
+        try:
+    from ...common.gather_env import gather_env_for_command as original_gather_env
+except ImportError:
+    try:
+        from ..common.gather_env import gather_env_for_command as original_gather_env
+    except ImportError:
         from common.gather_env import gather_env_for_command as original_gather_env
         return original_gather_env(platform, service, command)
     except ImportError:
@@ -197,6 +203,12 @@ def get_azure_client_compat(service_type: str):
     
     # Import Azure utilities if available
     try:
+        try:
+    from ...common.azure_utils import get_azure_client
+except ImportError:
+    try:
+        from ..common.azure_utils import get_azure_client
+    except ImportError:
         from common.azure_utils import get_azure_client
         return get_azure_client(service_type)
     except ImportError:
@@ -222,6 +234,12 @@ def get_gcp_client_compat(service_type: str):
     
     # Import GCP utilities if available
     try:
+        try:
+    from ...common.gcp_utils import get_gcp_client
+except ImportError:
+    try:
+        from ..common.gcp_utils import get_gcp_client
+    except ImportError:
         from common.gcp_utils import get_gcp_client
         return get_gcp_client(service_type)
     except ImportError:

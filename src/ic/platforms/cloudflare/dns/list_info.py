@@ -11,13 +11,29 @@ import os
 import argparse
 import requests
 from datetime import datetime
-from ic.config.manager import ConfigManager
+try:
+    from src.ic.config.manager import ConfigManager
+except ImportError:
+    try:
+        from ic.config.manager import ConfigManager
+    except ImportError:
+        # Legacy fallback for development
+        import sys
+        import os
+        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+        from ic.config.manager import ConfigManager
 from rich.table import Table
 from rich import box
 
 # 공통 모듈
-from common.log import log_error, console
-from common.progress_decorator import progress_bar, ManualProgress
+try:
+    from ....common.log import log_error, console
+except ImportError:
+    from common.log import log_error, console
+try:
+    from ....common.progress_decorator import progress_bar, ManualProgress
+except ImportError:
+    from common.progress_decorator import progress_bar, ManualProgress
 
 # Initialize config manager
 _config_manager = ConfigManager()
@@ -268,3 +284,10 @@ if __name__ == "__main__":
     add_arguments(parser)
     parsed_args = parser.parse_args()
     info(parsed_args)
+
+def main(args):
+    """
+    Main entry point for CLI integration.
+    Calls the info function to maintain compatibility.
+    """
+    return info(args)

@@ -70,8 +70,8 @@ ic ncp --help      # Verify NCP support
 ic ncpgov --help   # Verify NCP Government Cloud support
 
 # Test NCP dependencies
-python -c "from ncp_module.client import NCPClient; print('NCP support: OK')"
-python -c "from ncpgov_module.client import NCPGovClient; print('NCP Gov support: OK')"
+python -c "from src.ic.platforms.ncp.client import NCPClient; print('NCP support: OK')"
+python -c "from src.ic.platforms.ncpgov.client import NCPGovClient; print('NCP Gov support: OK')"
 ```
 
 ### From Source (Development)
@@ -1560,16 +1560,15 @@ ic/
 │   ├── config/            # Configuration management system
 │   ├── core/              # Core utilities and logging
 │   └── commands/          # Command implementations
-├── aws/                   # AWS service modules
-├── oci_module/            # Oracle Cloud Infrastructure modules
-├── ncp_module/            # NCP (Naver Cloud Platform) modules
-├── ncpgov_module/         # NCP Government Cloud modules
-├── ncp/                   # NCP legacy modules (compatibility)
-├── ncpgov/                # NCP Gov legacy modules (compatibility)
-├── cf/                    # CloudFlare modules
-├── ssh/                   # SSH management modules
-├── azure_module/          # Azure modules (development)
-├── gcp/                   # Google Cloud Platform modules (development)
+├── platforms/             # Cloud platform modules
+│   ├── aws/              # Amazon Web Services
+│   ├── azure/            # Microsoft Azure
+│   ├── cf/               # CloudFlare
+│   ├── gcp/              # Google Cloud Platform
+│   ├── ncp/              # Naver Cloud Platform
+│   ├── ncpgov/           # NCP Government Cloud
+│   ├── oci/              # Oracle Cloud Infrastructure
+│   └── ssh/              # SSH management
 ├── common/                # Shared utilities and progress decorators
 ├── tests/                 # Test suite
 │   ├── unit/             # Unit tests

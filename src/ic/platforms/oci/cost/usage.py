@@ -6,7 +6,10 @@ from rich.console import Console
 from rich.table import Table
 from rich import box
 from datetime import datetime, timedelta
-from common.progress_decorator import progress_bar, ManualProgress
+try:
+    from ....common.progress_decorator import progress_bar, ManualProgress
+except ImportError:
+    from common.progress_decorator import progress_bar, ManualProgress
 
 def add_arguments(parser):
     parser.add_argument("--cost-start", default=None, help="비용 조회 시작 (YYYY-MM-DD)")

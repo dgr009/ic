@@ -10,9 +10,12 @@ from rich import box
 from rich.rule import Rule
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from common.progress_decorator import progress_bar, ManualProgress
 try:
-    from .platforms.oci.common.utils import get_all_subscribed_regions, get_compartments
+    from ....common.progress_decorator import progress_bar, ManualProgress
+except ImportError:
+    from common.progress_decorator import progress_bar, ManualProgress
+try:
+    from ..common.utils import get_all_subscribed_regions, get_compartments
 except ImportError:
     from ic.platforms.oci.common.utils import get_all_subscribed_regions, get_compartments
 

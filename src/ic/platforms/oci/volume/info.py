@@ -9,10 +9,16 @@ import oci
 from rich.console import Console
 from rich.table import Table
 from rich import box
-from common.log import log_info_non_console
-from common.progress_decorator import progress_bar, ManualProgress
 try:
-    from .platforms.oci.common.utils import get_all_subscribed_regions, get_compartments
+    from ....common.log import log_info_non_console
+except ImportError:
+    from common.log import log_info_non_console
+try:
+    from ....common.progress_decorator import progress_bar, ManualProgress
+except ImportError:
+    from common.progress_decorator import progress_bar, ManualProgress
+try:
+    from ..common.utils import get_all_subscribed_regions, get_compartments
 except ImportError:
     from ic.platforms.oci.common.utils import get_all_subscribed_regions, get_compartments
 

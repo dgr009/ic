@@ -14,11 +14,18 @@ from typing import Dict, Any, Optional, List, Union
 from pathlib import Path
 import logging
 
-from .security import SecurityManager
-from .secrets import SecretsManager
-from .external import ExternalConfigLoader
-from .migration import MigrationManager
-from .path_manager import ConfigPathManager
+try:
+    from src.ic.config.security import SecurityManager
+    from src.ic.config.secrets import SecretsManager
+    from src.ic.config.external import ExternalConfigLoader
+    from src.ic.config.migration import MigrationManager
+    from src.ic.config.path_manager import ConfigPathManager
+except ImportError:
+    from .security import SecurityManager
+    from .secrets import SecretsManager
+    from .external import ExternalConfigLoader
+    from .migration import MigrationManager
+    from .path_manager import ConfigPathManager
 
 logger = logging.getLogger(__name__)
 

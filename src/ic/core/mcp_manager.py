@@ -12,7 +12,13 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Union
 from dataclasses import dataclass
 
-from ..config.security import SecurityManager
+try:
+    from src.ic.config.security import SecurityManager
+except ImportError:
+    try:
+        from ..config.security import SecurityManager
+    except ImportError:
+        from ic.config.security import SecurityManager
 
 logger = logging.getLogger(__name__)
 

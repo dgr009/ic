@@ -22,11 +22,20 @@ from rich import box
 from rich.rule import Rule
 from rich.tree import Tree
 
-from common.gcp_utils import (
-    GCPAuthManager, GCPProjectManager, GCPResourceCollector,
+try:
+    from ....common.gcp_utils import (
+        GCPAuthManager, GCPProjectManager, GCPResourceCollector,
     create_gcp_client, format_gcp_output, get_gcp_resource_labels
-)
-from common.log import log_info, log_error, log_exception
+    )
+except ImportError:
+    from common.gcp_utils import (
+        GCPAuthManager, GCPProjectManager, GCPResourceCollector,
+    create_gcp_client, format_gcp_output, get_gcp_resource_labels
+    )
+try:
+    from ....common.log import log_info, log_error, log_exception
+except ImportError:
+    from common.log import log_info, log_error, log_exception
 
 # Import MCP integration
 try:

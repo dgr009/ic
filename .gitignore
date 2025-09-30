@@ -72,6 +72,8 @@ cover/
 analysis_output/
 test-results-ncp-unit.xml
 coverage-ncp-unit.xml
+test_env
+test_env/
 
 # Virtual environments
 .env
