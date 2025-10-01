@@ -65,7 +65,6 @@ def resolve_network_entity(network_client, entity_id):
         return entity_id
 
 
-@progress_bar("Collecting VCN and subnet information from compartment")
 def fetch_vcn_one_comp(config, region, comp, name_filter):
     """
     하나의 컴파트먼트에서 VCN 및 관련 리소스 정보를 가져옵니다.
@@ -128,12 +127,14 @@ def fetch_vcn_one_comp(config, region, comp, name_filter):
     return vcn_rows
 
 
-@progress_bar("Collecting VCN information across compartments and regions")
-def collect_vcn_parallel_fast(config, compartments, region_list, name_filter, console, max_workers=20):
+def collect_vcn_parallel_fast(config, compartments, region_list, name_filter, console, progress=None, max_workers=20):
     """
     ThreadPoolExecutor를 사용하여 여러 리전과 컴파트먼트에서 VCN 정보를 병렬로 수집합니다.
     """
     vcn_rows = []
+    total_jobs = len(compartments) * len(region_list)
+    completed_jobs = 0
+    
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
             executor.submit(fetch_vcn_one_comp, config, region, comp, name_filter): (region, comp.name)
@@ -143,9 +144,21 @@ def collect_vcn_parallel_fast(config, compartments, region_list, name_filter, co
 
         for future in as_completed(futures):
             try:
-                vcn_rows.extend(future.result())
+                result = future.result()
+                vcn_rows.extend(result)
+                completed_jobs += 1
+                
+                if progress:
+                    region, comp_name = futures[future]
+                    progress.update(
+                        f"Processed {comp_name} in {region} - Found {len(result)} VCNs ({completed_jobs}/{total_jobs})",
+                        advance=1
+                    )
             except Exception as e:
+                completed_jobs += 1
                 region, comp_name = futures[future]
+                if progress:
+                    progress.update(f"Failed {comp_name} in {region} ({completed_jobs}/{total_jobs})", advance=1)
                 console.print(f"[bold red]Error in thread for {comp_name} ({region}): {e}[/bold red]")
     return vcn_rows
 
@@ -216,33 +229,45 @@ def print_vcn_table(console, vcn_rows):
         
     console.print(table)
 
-@progress_bar("OCI VCN Information Collection")
 def main(args):
     """
     OCI VCN 정보 조회 메인 함수
     """
     console = Console()
     
-    try:
-        config = oci.config.from_file()
-        identity_client = oci.identity.IdentityClient(config)
-    except Exception as e:
-        console.print(f"[bold red]OCI 설정 파일 로드 실패: {e}[/bold red]")
-        sys.exit(1)
+    # Use single progress bar for the entire operation
+    with ManualProgress("Collecting OCI VCN Information", total=100) as progress:
+        try:
+            progress.update("Loading OCI configuration", advance=10)
+            config = oci.config.from_file()
+            identity_client = oci.identity.IdentityClient(config)
+        except Exception as e:
+            console.print(f"[bold red]OCI 설정 파일 로드 실패: {e}[/bold red]")
+            return {"error": str(e), "success": False}
 
-    # 컴파트먼트 및 리전 목록 가져오기
-    compartments = get_compartments(identity_client, config["tenancy"], args.compartment)
-    if args.regions:
-        region_list = args.regions.split(',')
-    else:
-        region_list = get_all_subscribed_regions(identity_client, config["tenancy"])
+        # 컴파트먼트 및 리전 목록 가져오기
+        progress.update("Discovering compartments and regions", advance=10)
+        compartments = get_compartments(identity_client, config["tenancy"], args.compartment)
+        if args.regions:
+            region_list = args.regions.split(',')
+        else:
+            region_list = get_all_subscribed_regions(identity_client, config["tenancy"])
 
-    vcn_data = collect_vcn_parallel_fast(config, compartments, region_list, args.name, console)
+        total_jobs = len(compartments) * len(region_list)
+        progress.update(f"Processing {len(compartments)} compartments across {len(region_list)} regions", advance=10)
+        
+        # Collect VCN data with progress tracking
+        vcn_data = collect_vcn_parallel_fast(config, compartments, region_list, args.name, console, progress)
+        
+        progress.update("Formatting results", advance=10)
 
     if vcn_data:
+        console.print(f"\n[bold green]Collection complete![/bold green] Found {len(vcn_data)} VCN entries.")
         print_vcn_table(console, vcn_data)
     else:
         console.print("[yellow]조회된 VCN 정보가 없습니다.[/yellow]")
+    
+    return {"success": True, "data": {"vcns": len(vcn_data)}, "message": f"Found {len(vcn_data)} VCN entries"}
     
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='OCI VCN Info')

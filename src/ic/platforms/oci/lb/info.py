@@ -36,7 +36,6 @@ def add_arguments(parser):
 ###############################################################################
 # LB 정보 수집
 ###############################################################################
-@progress_bar("Collecting load balancers from compartment")
 def fetch_lb_one_comp(config, region, comp, name_filter):
     console = Console()
     results = []
@@ -162,17 +161,27 @@ def fetch_lb_one_comp(config, region, comp, name_filter):
             results.extend(fut.result())
     return results
 
-@progress_bar("Collecting load balancers across compartments and regions")
-def collect_lb_parallel_fast(config, compartments, region_list, name_filter, console, max_workers=20):
+def collect_lb_parallel_fast(config, compartments, region_list, name_filter, console, progress=None, max_workers=20):
     start_ts = time.time()
     log_info_non_console("collect_lb_parallel_fast start")
     all_rows, jobs = [], [(reg, comp) for reg in region_list for comp in compartments]
+    completed = 0
+    
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         fut_map = {executor.submit(fetch_lb_one_comp, config, r, c, name_filter): (r, c) for r, c in jobs}
         for fut in concurrent.futures.as_completed(fut_map):
             try:
-                all_rows.extend(fut.result())
+                result = fut.result()
+                all_rows.extend(result)
+                completed += 1
+                if progress:
+                    region, comp = fut_map[fut]
+                    progress.update(f"Completed {comp.name} in {region} - Found {len(result)} LB entries ({completed}/{len(jobs)})", advance=1)
             except Exception as e:
+                completed += 1
+                if progress:
+                    region, comp = fut_map[fut]
+                    progress.update(f"Failed {comp.name} in {region} ({completed}/{len(jobs)})", advance=1)
                 console.print(f"[red]LB Job failed[/red] {fut_map[fut]}: {e}")
     elapsed = time.time() - start_ts
     log_info_non_console(f"collect_lb_parallel_fast complete ({elapsed:.2f}s)")
@@ -353,28 +362,44 @@ def print_lb_table(console, lb_rows):
 ###############################################################################
 # main
 ###############################################################################
-@progress_bar("OCI Load Balancer Information Collection")
 def main(args):
     console = Console()
-    try:
-        config = oci.config.from_file("~/.oci/config", "DEFAULT")
-        identity_client = oci.identity.IdentityClient(config)
-    except Exception as e:
-        console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]")
-        sys.exit(1)
+    
+    # Use single progress bar for the entire operation
+    with ManualProgress("Collecting OCI Load Balancer Information", total=100) as progress:
+        try:
+            progress.update("Loading OCI configuration", advance=10)
+            config = oci.config.from_file("~/.oci/config", "DEFAULT")
+            identity_client = oci.identity.IdentityClient(config)
+        except Exception as e:
+            console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]")
+            return {"error": str(e), "success": False}
 
-    if args.regions:
-        subscribed = get_all_subscribed_regions(identity_client, config["tenancy"])
-        region_list = [r.strip() for r in args.regions.split(',') if r.strip() and r in subscribed]
-        if not region_list:
-            console.print("[red]유효한 리전이 없어 종료합니다[/red]"); sys.exit(0)
-    else:
-        region_list = get_all_subscribed_regions(identity_client, config["tenancy"])
+        progress.update("Discovering regions", advance=10)
+        if args.regions:
+            subscribed = get_all_subscribed_regions(identity_client, config["tenancy"])
+            region_list = [r.strip() for r in args.regions.split(',') if r.strip() and r in subscribed]
+            if not region_list:
+                console.print("[red]유효한 리전이 없어 종료합니다[/red]")
+                return {"error": "No valid regions found", "success": False}
+        else:
+            region_list = get_all_subscribed_regions(identity_client, config["tenancy"])
 
-    compartments = get_compartments(identity_client, config["tenancy"], args.compartment.lower() if args.compartment else None, console)
-    lb_rows = collect_lb_parallel_fast(config, compartments, region_list, args.name.lower() if args.name else None, console)
+        progress.update("Discovering compartments", advance=10)
+        compartments = get_compartments(identity_client, config["tenancy"], args.compartment.lower() if args.compartment else None, console)
+        
+        total_jobs = len(compartments) * len(region_list)
+        progress.update(f"Processing {len(compartments)} compartments across {len(region_list)} regions", advance=10)
+        
+        lb_rows = collect_lb_parallel_fast(config, compartments, region_list, args.name.lower() if args.name else None, console, progress)
+        
+        progress.update("Formatting results", advance=10)
+    
+    console.print(f"\n[bold green]Collection complete![/bold green] Found {len(lb_rows)} load balancer entries.")
     
     if args.output == 'tree':
         print_lb_tree(console, lb_rows)
     else:
-        print_lb_table(console, lb_rows) 
+        print_lb_table(console, lb_rows)
+    
+    return {"success": True, "data": {"load_balancers": len(lb_rows)}, "message": f"Found {len(lb_rows)} load balancer entries"} 

@@ -28,7 +28,6 @@ def add_arguments(parser):
     parser.add_argument("--regions","-r", default=None, help="조회할 리전(,) 예: ap-seoul-1,us-ashburn-1")
     parser.add_argument("--output", default="table", choices=["tree", "table"], help="출력 형식 선택 (기본: table)")
 
-@progress_bar("Collecting network security groups from compartment")
 def fetch_nsg_one_comp(config, region, comp, name_filter):
     console = Console()
     results = []
@@ -73,17 +72,27 @@ def fetch_nsg_one_comp(config, region, comp, name_filter):
                 results.append({"region": region, "compartment_name": comp.name, "nsg_name": nsg.display_name, "desc": rule.description or "-", "proto": proto_str, "port_range": port_range, "source": source_str})
     return results
 
-@progress_bar("Collecting network security groups across compartments and regions")
-def collect_nsg_parallel_fast(config, compartments, region_list, name_filter, console, max_workers=20):
+def collect_nsg_parallel_fast(config, compartments, region_list, name_filter, console, progress=None, max_workers=20):
     start_ts = time.time()
     log_info_non_console("collect_nsg_parallel_fast start")
     all_rows, jobs = [], [(reg, comp) for reg in region_list for comp in compartments]
+    completed = 0
+    
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         fut_map = {executor.submit(fetch_nsg_one_comp, config, r, c, name_filter): (r, c) for r, c in jobs}
         for fut in concurrent.futures.as_completed(fut_map):
             try:
-                all_rows.extend(fut.result())
+                result = fut.result()
+                all_rows.extend(result)
+                completed += 1
+                if progress:
+                    region, comp = fut_map[fut]
+                    progress.update(f"Completed {comp.name} in {region} - Found {len(result)} NSGs ({completed}/{len(jobs)})", advance=1)
             except Exception as e:
+                completed += 1
+                if progress:
+                    region, comp = fut_map[fut]
+                    progress.update(f"Failed {comp.name} in {region} ({completed}/{len(jobs)})", advance=1)
                 console.print(f"[red]NSG Job failed[/red]: {fut_map[fut]}: {e}")
     elapsed = time.time() - start_ts
     log_info_non_console(f"collect_nsg_parallel_fast complete ({elapsed:.2f}s)")
@@ -194,27 +203,44 @@ def print_nsg_table(console, nsg_rows):
         t.add_row(comp_display, region_display, nsg_display, row["port_range"], row["source"], row["desc"], row["proto"])
     console.print(t)
 
-@progress_bar("OCI Network Security Group Information Collection")
 def main(args):
     console = Console()
-    try:
-        config = oci.config.from_file("~/.oci/config", "DEFAULT")
-        identity_client = oci.identity.IdentityClient(config)
-    except Exception as e:
-        console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]"); sys.exit(1)
-
-    if args.regions:
-        subscribed = get_all_subscribed_regions(identity_client, config["tenancy"])
-        region_list = [r.strip() for r in args.regions.split(',') if r.strip() and r in subscribed]
-        if not region_list:
-            console.print("[red]유효한 리전이 없어 종료합니다[/red]"); sys.exit(0)
-    else:
-        region_list = get_all_subscribed_regions(identity_client, config["tenancy"])
     
-    compartments = get_compartments(identity_client, config["tenancy"], args.compartment.lower() if args.compartment else None, console)
-    nsg_rows = collect_nsg_parallel_fast(config, compartments, region_list, args.name.lower() if args.name else None, console)
+    # Use single progress bar for the entire operation
+    with ManualProgress("Collecting OCI Network Security Group Information", total=100) as progress:
+        try:
+            progress.update("Loading OCI configuration", advance=10)
+            config = oci.config.from_file("~/.oci/config", "DEFAULT")
+            identity_client = oci.identity.IdentityClient(config)
+        except Exception as e:
+            console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]")
+            return {"error": str(e), "success": False}
+
+        progress.update("Discovering regions", advance=10)
+        if args.regions:
+            subscribed = get_all_subscribed_regions(identity_client, config["tenancy"])
+            region_list = [r.strip() for r in args.regions.split(',') if r.strip() and r in subscribed]
+            if not region_list:
+                console.print("[red]유효한 리전이 없어 종료합니다[/red]")
+                return {"error": "No valid regions found", "success": False}
+        else:
+            region_list = get_all_subscribed_regions(identity_client, config["tenancy"])
+        
+        progress.update("Discovering compartments", advance=10)
+        compartments = get_compartments(identity_client, config["tenancy"], args.compartment.lower() if args.compartment else None, console)
+        
+        total_jobs = len(compartments) * len(region_list)
+        progress.update(f"Processing {len(compartments)} compartments across {len(region_list)} regions", advance=10)
+        
+        nsg_rows = collect_nsg_parallel_fast(config, compartments, region_list, args.name.lower() if args.name else None, console, progress)
+        
+        progress.update("Formatting results", advance=10)
+    
+    console.print(f"\n[bold green]Collection complete![/bold green] Found {len(nsg_rows)} NSG entries.")
     
     if args.output == 'tree':
         print_nsg_tree(console, nsg_rows)
     else:
-        print_nsg_table(console, nsg_rows) 
+        print_nsg_table(console, nsg_rows)
+    
+    return {"success": True, "data": {"nsgs": len(nsg_rows)}, "message": f"Found {len(nsg_rows)} NSG entries"} 

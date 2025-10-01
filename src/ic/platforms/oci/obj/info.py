@@ -167,23 +167,40 @@ def print_object_table(console, buckets):
     
     console.print(table)
 
-@progress_bar("Initializing OCI object storage information collection")
 def main(args):
     console = Console()
-    try:
-        config = oci.config.from_file("~/.oci/config", "DEFAULT")
-        identity_client = oci.identity.IdentityClient(config)
-    except Exception as e:
-        console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]"); sys.exit(1)
+    
+    # Use single progress bar for the entire operation
+    with ManualProgress("Collecting OCI Object Storage Information", total=100) as progress:
+        try:
+            progress.update("Loading OCI configuration", advance=10)
+            config = oci.config.from_file("~/.oci/config", "DEFAULT")
+            identity_client = oci.identity.IdentityClient(config)
+        except Exception as e:
+            console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]")
+            return {"error": str(e), "success": False}
 
-    if args.regions:
-        subscribed = get_all_subscribed_regions(identity_client, config["tenancy"])
-        region_list = [r.strip() for r in args.regions.split(',') if r.strip() and r in subscribed]
-        if not region_list:
-            console.print("[red]유효한 리전이 없어 종료합니다[/red]"); sys.exit(0)
-    else:
-        region_list = get_all_subscribed_regions(identity_client, config["tenancy"])
+        progress.update("Discovering regions", advance=10)
+        if args.regions:
+            subscribed = get_all_subscribed_regions(identity_client, config["tenancy"])
+            region_list = [r.strip() for r in args.regions.split(',') if r.strip() and r in subscribed]
+            if not region_list:
+                console.print("[red]유효한 리전이 없어 종료합니다[/red]")
+                return {"error": "No valid regions found", "success": False}
+        else:
+            region_list = get_all_subscribed_regions(identity_client, config["tenancy"])
 
-    compartments = get_compartments(identity_client, config["tenancy"], args.compartment.lower() if args.compartment else None, console)
-    buckets = collect_buckets_parallel_fast(config, compartments, region_list, args.name.lower() if args.name else None, console)
-    print_object_table(console, buckets) 
+        progress.update("Discovering compartments", advance=10)
+        compartments = get_compartments(identity_client, config["tenancy"], args.compartment.lower() if args.compartment else None, console)
+        
+        progress.update(f"Processing {len(compartments)} compartments across {len(region_list)} regions", advance=10)
+        
+        # The collect_buckets_parallel_fast already has its own ManualProgress, so we advance the remaining 60%
+        buckets = collect_buckets_parallel_fast(config, compartments, region_list, args.name.lower() if args.name else None, console)
+        
+        progress.update("Formatting results", advance=60)
+    
+    console.print(f"\n[bold green]Collection complete![/bold green] Found {len(buckets)} buckets.")
+    print_object_table(console, buckets)
+    
+    return {"success": True, "data": {"buckets": len(buckets)}, "message": f"Found {len(buckets)} buckets"} 

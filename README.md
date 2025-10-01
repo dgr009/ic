@@ -1,6 +1,6 @@
 # IC CLI Tool
 
-[![Tests](https://github.com/dgr009/ic/workflows/Tests/badge.svg)](https://github.com/dgr009/ic/actions)
+<!-- [![Tests](https://github.com/dgr009/ic/workflows/Tests/badge.svg)](https://github.com/dgr009/ic/actions) -->
 [![PyPI version](https://badge.fury.io/py/ic-code.svg)](https://badge.fury.io/py/ic-code)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -20,25 +20,30 @@ A comprehensive Infrastructure Command Line Interface tool for managing cloud se
 ### Supported Services
 
 #### AWS Services (Production Ready)
+
 - **Compute**: EC2 instances, ECS services, EKS clusters, Fargate
 - **Storage**: S3 buckets, RDS databases
 - **Networking**: VPC, Load Balancers, Security Groups, VPN
 - **Other**: CloudFront distributions, MSK clusters, CodePipeline
 
 #### Oracle Cloud Infrastructure (Production Ready)
+
 - **Compute**: VM instances, Container Instances
 - **Networking**: VCN, Load Balancers, Network Security Groups
 - **Storage**: Block volumes, Object storage
 - **Management**: Compartments, Policies, Cost analysis
 
 #### CloudFlare (Production Ready)
+
 - **DNS**: Zone and record management with filtering
 
 #### SSH Management (Production Ready)
+
 - **Server Discovery**: Automatic server registration and information gathering
 - **Security**: Built-in security filtering and connection management
 
 #### NCP Services (Production Ready)
+
 - **Compute**: EC2 instances with detailed information and filtering
 - **Storage**: S3 buckets with size and object count information
 - **Networking**: VPC networks, subnets, and routing information
@@ -47,6 +52,7 @@ A comprehensive Infrastructure Command Line Interface tool for managing cloud se
 - **Government Cloud**: NCP Gov support with enhanced security compliance
 
 #### Development Status
+
 - **⚠️ Azure**: In development - usable but may contain bugs
 - **⚠️ GCP**: In development - usable but may contain bugs
 
@@ -100,6 +106,7 @@ ic --help
 IC CLI automatically validates all required dependencies on startup and provides clear error messages for missing packages. The tool supports **Python 3.9-3.12** with **Python 3.11.13** recommended for optimal performance.
 
 #### Automatic Validation
+
 ```bash
 # IC CLI validates dependencies automatically
 ic --help  # Will show dependency errors if any exist
@@ -112,6 +119,7 @@ python scripts/test_dependency_compatibility.py --report
 ```
 
 #### Troubleshooting Dependencies
+
 ```bash
 # Check Python version compatibility
 python --version  # Should be 3.9+ to 3.12
@@ -147,12 +155,14 @@ ic ncpgov ec2 info --dry-run  # Test NCP Gov API connectivity
 ```
 
 **Core NCP Dependencies (automatically installed):**
+
 - `requests>=2.28.0` - HTTP client for NCP API calls
 - `PyYAML>=6.0` - Configuration file parsing
 - `cryptography>=3.4.8` - HMAC-SHA256 signature generation
 - `rich>=12.0.0` - Terminal output formatting
 
 **Manual NCP Dependency Installation (if needed):**
+
 ```bash
 # Install NCP-specific dependencies manually
 pip install requests>=2.28.0 PyYAML>=6.0 cryptography>=3.4.8
@@ -165,6 +175,7 @@ python -c "import yaml; print('NCP YAML support: OK')"
 ```
 
 #### Supported Python Versions
+
 - **Python 3.9**: Minimum supported version
 - **Python 3.10**: Fully supported
 - **Python 3.11**: Recommended (tested with 3.11.13)
@@ -287,6 +298,7 @@ ssh:
 #### 4. Platform-Specific Setup
 
 **AWS Credentials:**
+
 ```bash
 # Configure AWS CLI (if not already done)
 aws configure
@@ -297,6 +309,7 @@ aws configure --profile development
 ```
 
 **OCI Configuration:**
+
 ```bash
 # Install OCI CLI and configure
 oci setup config
@@ -306,12 +319,14 @@ oci iam user get --user-id $(oci iam user list --query 'data[0].id' --raw-output
 ```
 
 **NCP Credentials:**
+
 1. Go to NCP Console → My Page → API Key Management
 2. Create Access Key and Secret Key
 3. Add credentials to secrets.yaml
 4. For NCP Gov: Use separate government cloud credentials
 
 **CloudFlare API Token:**
+
 1. Go to CloudFlare Dashboard → My Profile → API Tokens
 2. Create token with Zone:Read permissions
 3. Add token to secrets.yaml
@@ -345,6 +360,7 @@ All IC CLI commands feature rich progress bars that show real-time progress for 
 ### AWS Services
 
 #### Compute Services
+
 ```bash
 # EC2 instances with progress tracking
 ic aws ec2 info
@@ -367,6 +383,7 @@ ic aws fargate info      # Fargate service information
 ```
 
 #### Storage Services
+
 ```bash
 # S3 buckets with tag management
 ic aws s3 list_tags      # List all S3 buckets with tags
@@ -380,6 +397,7 @@ ic aws rds tag_check     # RDS tagging compliance
 ```
 
 #### Networking Services
+
 ```bash
 # VPC and networking
 ic aws vpc info          # VPC, subnet, and gateway information
@@ -399,6 +417,7 @@ ic aws vpn info          # VPN gateway and connection information
 ```
 
 #### Other AWS Services
+
 ```bash
 # CloudFront distributions
 ic aws cloudfront info   # CloudFront distribution details
@@ -415,6 +434,7 @@ ic aws codepipeline deploy  # Deployment pipeline information
 ### Oracle Cloud Infrastructure (OCI)
 
 #### Compute and Containers
+
 ```bash
 # VM instances across compartments
 ic oci vm info           # VM instances with detailed information
@@ -425,6 +445,7 @@ ic oci aci info          # Container instance details
 ```
 
 #### Networking
+
 ```bash
 # Virtual Cloud Networks
 ic oci vcn info          # VCN, subnet, and routing information
@@ -437,6 +458,7 @@ ic oci nsg info          # NSG rules and associations
 ```
 
 #### Storage and Management
+
 ```bash
 # Block and object storage
 ic oci volume info       # Block volume details
@@ -461,6 +483,7 @@ NCP services support both **Standard Cloud** and **Government Cloud** environmen
 #### NCP Standard Cloud Services
 
 **Compute Services**
+
 ```bash
 # EC2 instances with detailed information
 ic ncp ec2 info                           # All NCP EC2 instances
@@ -475,6 +498,7 @@ ic ncp ec2 info --status running          # Filter by instance status
 ```
 
 **Storage Services**
+
 ```bash
 # S3 object storage buckets
 ic ncp s3 info                            # All NCP S3 buckets
@@ -488,6 +512,7 @@ ic ncp s3 info --format json              # JSON format for automation
 ```
 
 **Networking Services**
+
 ```bash
 # VPC networking information
 ic ncp vpc info                           # All NCP VPCs and subnets
@@ -500,6 +525,7 @@ ic ncp vpc info --format json             # JSON output
 ```
 
 **Database Services**
+
 ```bash
 # RDS database instances
 ic ncp rds info                           # All NCP RDS instances
@@ -513,6 +539,7 @@ ic ncp rds info --engine mysql            # Filter by database engine
 ```
 
 **Security Services**
+
 ```bash
 # Security Groups (Access Control Groups)
 ic ncp sg info                            # All security groups
@@ -530,6 +557,7 @@ ic ncp sg info --rules inbound            # Show inbound rules only
 Government cloud services provide enhanced security, compliance features, and audit logging for sensitive workloads.
 
 **Government Cloud Compute**
+
 ```bash
 # Government cloud EC2 instances (enhanced security)
 ic ncpgov ec2 info                        # All NCP Gov EC2 instances
@@ -543,6 +571,7 @@ ic ncpgov ec2 info --audit-trail          # Include audit information
 ```
 
 **Government Cloud Storage**
+
 ```bash
 # Government cloud S3 storage (compliance features)
 ic ncpgov s3 info                         # All NCP Gov S3 buckets
@@ -556,6 +585,7 @@ ic ncpgov s3 info --access-audit          # Include access audit logs
 ```
 
 **Government Cloud Networking**
+
 ```bash
 # Government cloud VPC (policy compliance)
 ic ncpgov vpc info                        # All NCP Gov VPCs with compliance status
@@ -569,6 +599,7 @@ ic ncpgov vpc info --access-controls      # Show access control settings
 ```
 
 **Government Cloud Database**
+
 ```bash
 # Government cloud RDS with enhanced security
 ic ncpgov rds info                        # All NCP Gov RDS instances
@@ -578,6 +609,7 @@ ic ncpgov rds info --compliance-report    # Include compliance information
 ```
 
 **Government Cloud Security**
+
 ```bash
 # Government cloud security groups with enhanced policies
 ic ncpgov sg info                         # All government cloud security groups
@@ -591,6 +623,7 @@ ic ncpgov sg info --audit-trail           # Include security audit trail
 NCP supports two platform types with different capabilities:
 
 **VPC Platform (Recommended)**
+
 ```bash
 # VPC platform supports all modern services
 ic ncp ec2 info --platform vpc            # VPC-based EC2 instances
@@ -606,6 +639,7 @@ ic ncp sg info --platform vpc             # VPC security groups
 ```
 
 **Classic Platform (Legacy)**
+
 ```bash
 # Classic platform supports legacy services
 ic ncp ec2 info --platform classic       # Classic EC2 instances
@@ -625,6 +659,7 @@ ic ncp vpc info --platform classic       # Will show "VPC not available" message
 #### NCP Configuration Setup
 
 **Quick Setup**
+
 ```bash
 # Initialize NCP configuration with guided setup
 ic config init                           # Interactive setup includes NCP options
@@ -643,6 +678,7 @@ ic config init                           # Interactive setup includes NCP option
 ```
 
 **Manual Configuration**
+
 ```bash
 # Create NCP standard cloud configuration
 mkdir -p ~/.ncp
@@ -674,6 +710,7 @@ chmod 600 ~/.ncpgov/config
 ```
 
 **Configuration Validation**
+
 ```bash
 # Validate NCP configuration
 ic config validate --ncp                 # Validate standard cloud config
@@ -692,6 +729,7 @@ ic ncpgov ec2 info --dry-run             # Test NCP Gov API connectivity
 #### Multi-Region and Multi-Account Examples
 
 **Multi-Region Operations**
+
 ```bash
 # Query resources across different regions
 ic ncp ec2 info --region KR              # Korea region
@@ -704,6 +742,7 @@ ic ncp s3 info --region US --format json > us_buckets.json
 ```
 
 **Multi-Profile Configuration**
+
 ```yaml
 # ~/.ncp/config - Multiple profiles
 production:
@@ -947,6 +986,7 @@ NCP offers two platform types with different capabilities and service availabili
 The VPC (Virtual Private Cloud) platform is the modern, recommended platform for new deployments:
 
 **Features:**
+
 - Modern networking with VPC and subnets
 - Enhanced security groups with advanced rules
 - Load balancers with advanced features
@@ -954,6 +994,7 @@ The VPC (Virtual Private Cloud) platform is the modern, recommended platform for
 - Support for all modern NCP services
 
 **Supported Services:**
+
 ```bash
 ic ncp ec2 info --platform vpc     # VPC-based EC2 instances
 ic ncp s3 info --platform vpc      # Object storage (available on both platforms)
@@ -963,6 +1004,7 @@ ic ncp sg info --platform vpc      # VPC security groups with advanced features
 ```
 
 **Configuration Example:**
+
 ```yaml
 # ~/.ncp/config - VPC Platform
 default:
@@ -977,12 +1019,14 @@ default:
 The Classic platform is the legacy platform maintained for backward compatibility:
 
 **Features:**
+
 - Legacy networking model
 - Basic security groups
 - Limited load balancer features
 - Some modern services not available
 
 **Supported Services:**
+
 ```bash
 ic ncp ec2 info --platform classic # Classic EC2 instances
 ic ncp s3 info --platform classic  # Object storage (available on both platforms)
@@ -992,6 +1036,7 @@ ic ncp sg info --platform classic  # Basic security groups
 ```
 
 **Configuration Example:**
+
 ```yaml
 # ~/.ncp/config - Classic Platform
 default:
@@ -1021,6 +1066,7 @@ ic ncp ec2 info --platform vpc --format json > vpc_instances.json
 ```
 
 **Migration Benefits:**
+
 - Access to modern networking features
 - Enhanced security capabilities
 - Better performance and reliability
@@ -1034,17 +1080,20 @@ NCP Government Cloud provides enhanced security and compliance features:
 #### Security Features
 
 **Enhanced Authentication:**
+
 - API Gateway authentication
 - Multi-factor authentication support
 - Enhanced access controls
 
 **Data Protection:**
+
 - Automatic data encryption
 - Sensitive data masking in logs
 - Audit trail logging
 - Compliance reporting
 
 **Configuration Example:**
+
 ```yaml
 # ~/.ncpgov/config - Government Cloud Security
 default:
@@ -1063,6 +1112,7 @@ default:
 #### Compliance Features
 
 **Audit and Monitoring:**
+
 ```bash
 # Check compliance status
 ic ncpgov ec2 info --compliance-check
@@ -1075,6 +1125,7 @@ ic ncpgov sg info --policy-compliance
 ```
 
 **Security Validation:**
+
 ```bash
 # Validate security settings
 ic config validate --ncpgov --security
@@ -1091,6 +1142,7 @@ ic ncpgov vpc info --access-controls
 ### Security Best Practices
 
 **Configuration Security:**
+
 ```bash
 # Always use proper file permissions for configuration files
 chmod 600 ~/.ncp/config ~/.ncpgov/config
@@ -1109,6 +1161,7 @@ export NCP_SECRET_KEY="${{ secrets.NCP_SECRET_KEY }}"
 ```
 
 **API Key Management:**
+
 ```bash
 # Rotate API keys regularly
 # 1. Generate new keys in NCP Console
@@ -1124,6 +1177,7 @@ export NCP_SECRET_KEY="${{ secrets.NCP_SECRET_KEY }}"
 ```
 
 **Government Cloud Security:**
+
 ```bash
 # Always enable all security features for government cloud
 ic config set ncpgov.security.encryption_enabled true
@@ -1140,6 +1194,7 @@ ic ncpgov ec2 info --compliance-check
 ### Performance Best Practices
 
 **Efficient Resource Queries:**
+
 ```bash
 # Use name filters to reduce data transfer
 ic ncp ec2 info --name "prod-*"        # Filter production instances
@@ -1155,6 +1210,7 @@ ic ncp s3 info --limit 20               # Limit to 20 buckets
 ```
 
 **Multi-Region Optimization:**
+
 ```bash
 # Query specific regions instead of all regions
 ic ncp ec2 info --region KR             # Korea region only
@@ -1167,6 +1223,7 @@ wait  # Wait for both to complete
 ```
 
 **Caching for Repeated Queries:**
+
 ```bash
 # Enable caching for repeated queries
 export NCP_CACHE_ENABLED=true
@@ -1180,6 +1237,7 @@ ic ncp ec2 info  # Second call - uses cache (if within TTL)
 ### Automation Best Practices
 
 **CI/CD Integration:**
+
 ```yaml
 # GitHub Actions example
 name: NCP Infrastructure Check
@@ -1206,6 +1264,7 @@ jobs:
 ```
 
 **Scripting Best Practices:**
+
 ```bash
 #!/bin/bash
 # ncp_audit_script.sh - Example audit script
@@ -1245,6 +1304,7 @@ echo "NCP audit completed successfully"
 ```
 
 **Error Handling in Scripts:**
+
 ```bash
 #!/bin/bash
 # ncp_with_error_handling.sh
@@ -1272,12 +1332,14 @@ echo "All NCP operations completed successfully"
 ### NCP-Specific Troubleshooting
 
 For NCP (Naver Cloud Platform) specific issues:
+
 - **Installation Guide**: [NCP Installation Guide](docs/ncp_installation_guide.md)
 - **Troubleshooting**: [NCP Troubleshooting Guide](docs/ncp_troubleshooting_guide.md)
 
 #### Quick NCP Troubleshooting
 
 **Configuration Issues:**
+
 ```bash
 # Check if NCP configuration exists
 ls -la ~/.ncp/config ~/.ncpgov/config
@@ -1296,6 +1358,7 @@ ic ncpgov ec2 info --dry-run
 ```
 
 **Authentication Issues:**
+
 ```bash
 # Verify NCP credentials in console
 # NCP Console → My Page → API Key Management
@@ -1310,6 +1373,7 @@ ic ncp ec2 info
 ```
 
 **Platform-Specific Issues:**
+
 ```bash
 # Check platform configuration
 ic config get ncp.platform        # Should be "VPC" or "Classic"
@@ -1322,6 +1386,7 @@ ic config set ncp.platform "VPC"
 ```
 
 **Government Cloud Issues:**
+
 ```bash
 # Verify API Gateway key is configured
 ic config get ncpgov.apigw_key
@@ -1334,6 +1399,7 @@ ic config set ncpgov.security.compliance_mode true
 ```
 
 **Regional Issues:**
+
 ```bash
 # Check supported regions
 ic config get ncp.region          # Should be KR, US, or JP
@@ -1351,6 +1417,7 @@ ic ncp ec2 info --region JP
 #### Installation Issues
 
 **Problem**: `pip install ic-code` fails with dependency conflicts
+
 ```bash
 # Solution: Use a virtual environment
 python -m venv ic-env
@@ -1360,6 +1427,7 @@ pip install ic-code
 ```
 
 **Problem**: Python version compatibility issues
+
 ```bash
 # Check Python version (3.9+ required, 3.11.13 recommended)
 python --version
@@ -1372,6 +1440,7 @@ pyenv local 3.11.13
 #### Configuration Issues
 
 **Problem**: `ic config validate` shows validation errors
+
 ```bash
 # Check configuration file syntax
 ic config show --verbose
@@ -1384,6 +1453,7 @@ ic config migrate
 ```
 
 **Problem**: AWS credentials not found
+
 ```bash
 # Configure AWS CLI
 aws configure
@@ -1396,6 +1466,7 @@ ic config show --aws
 ```
 
 **Problem**: OCI configuration issues
+
 ```bash
 # Verify OCI CLI configuration
 oci setup config
@@ -1410,6 +1481,7 @@ ic config get oci.config_file
 #### Runtime Issues
 
 **Problem**: Commands hang or timeout
+
 ```bash
 # Check network connectivity
 ping aws.amazon.com
@@ -1421,6 +1493,7 @@ ic config set oci.timeout 60
 ```
 
 **Problem**: Permission denied errors
+
 ```bash
 # Check file permissions
 ls -la ~/.ic/config/
@@ -1431,6 +1504,7 @@ chmod 755 ~/.ic/config/
 ```
 
 **Problem**: Progress bars not displaying correctly
+
 ```bash
 # Check terminal compatibility
 echo $TERM
@@ -1443,16 +1517,19 @@ ic aws ec2 info
 #### Platform-Specific Issues
 
 **AWS Issues:**
+
 - Ensure AWS CLI is configured: `aws configure`
 - Check account access: `aws sts get-caller-identity`
 - Verify region availability: `aws ec2 describe-regions`
 
 **OCI Issues:**
+
 - Verify OCI CLI setup: `oci setup config`
 - Check compartment access: `oci iam compartment list`
 - Validate API key: `oci iam user get --user-id <user-id>`
 
 **NCP Issues:**
+
 - Ensure NCP dependencies are installed: `pip install ic-code` (includes NCP support)
 - Check API credentials in NCP Console → My Page → API Key Management
 - Verify configuration files exist: `~/.ncp/config` and `~/.ncpgov/config`
@@ -1464,6 +1541,7 @@ ic aws ec2 info
 - Verify platform-specific services: VPC services not available on Classic platform
 
 **CloudFlare Issues:**
+
 - Verify API token permissions in CloudFlare dashboard
 - Check zone access: Test with CloudFlare API directly
 - Ensure account/zone filters are correct in configuration
@@ -1521,6 +1599,7 @@ tail -f ~/.ic/logs/ic.log
 ## 🚧 Development Status
 
 ### Production Ready Platforms
+
 - ✅ **AWS**: Fully tested and production ready
 - ✅ **OCI**: Fully tested and production ready
 - ✅ **NCP**: Fully tested and production ready (Standard and Government Cloud)
@@ -1528,6 +1607,7 @@ tail -f ~/.ic/logs/ic.log
 - ✅ **SSH**: Fully tested and production ready
 
 ### Development Platforms
+
 - ⚠️ **Azure**: In active development
   - Basic functionality implemented
   - May contain bugs or incomplete features
@@ -1662,4 +1742,3 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ---
 
 **Made with ❤️ for infrastructure engineers and cloud administrators**$`
-

@@ -124,7 +124,7 @@ def main(args, config=None):
     console.print(f"[cyan]Starting collection from {total_servers} servers...[/cyan]")
     
     try:
-        # Collect server information
+        # Collect server information with progress tracking
         results = collect_all_server_info(server_configs)
         
         # Calculate processing time
@@ -134,7 +134,7 @@ def main(args, config=None):
         failed_count = sum(1 for result in results if result[2] == "Connection Fail")
         success_count = total_servers - failed_count
         
-        console.print(f"[green]✓ Collection completed in {processing_time:.2f}s[/green]")
+        console.print(f"\n[green]✓ Collection completed in {processing_time:.2f}s[/green]")
         console.print(f"[cyan]Results:[/cyan] [green]{success_count} successful[/green], [red]{failed_count} failed[/red]")
         
         # Display results

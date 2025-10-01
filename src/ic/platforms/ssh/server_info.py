@@ -343,7 +343,6 @@ def fetch_server_info(cfg: dict):
         )
 
 
-@concurrent_progress("Collecting SSH server information", max_workers=MAX_WORKER)
 def collect_all_server_info(server_configs: list) -> list:
     """
     Collect information from all servers using concurrent execution with progress tracking.
@@ -355,30 +354,41 @@ def collect_all_server_info(server_configs: list) -> list:
         List of server information tuples
     """
     results = []
+    total_servers = len(server_configs)
+    completed = 0
     
-    with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKER) as executor:
-        # Submit all tasks
-        future_to_server = {
-            executor.submit(fetch_server_info, config): config 
-            for config in server_configs
-        }
-        
-        # Process completed tasks
-        for future in concurrent.futures.as_completed(future_to_server):
-            try:
-                result = future.result()
-                results.append(result)
-            except Exception as e:
-                cfg = future_to_server[future]
-                logger.exception(e)
-                console.print(f"[bold red]에러:[/bold red] {cfg['servername']} 처리 중 오류: {e}")
-                # Add failed result to maintain consistency
-                results.append((
-                    cfg["servername"],
-                    cfg["hostname"],
-                    "Connection Fail",
-                    "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"
-                ))
+    with ManualProgress(f"Collecting SSH server information from {total_servers} servers", total=total_servers) as progress:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=MAX_WORKER) as executor:
+            # Submit all tasks
+            future_to_server = {
+                executor.submit(fetch_server_info, config): config 
+                for config in server_configs
+            }
+            
+            # Process completed tasks
+            for future in concurrent.futures.as_completed(future_to_server):
+                try:
+                    result = future.result()
+                    results.append(result)
+                    completed += 1
+                    
+                    cfg = future_to_server[future]
+                    status = "✓" if result[2] != "Connection Fail" else "✗"
+                    progress.update(f"{status} {cfg['servername']} ({completed}/{total_servers})", advance=1)
+                    
+                except Exception as e:
+                    cfg = future_to_server[future]
+                    logger.exception(e)
+                    console.print(f"[bold red]에러:[/bold red] {cfg['servername']} 처리 중 오류: {e}")
+                    # Add failed result to maintain consistency
+                    results.append((
+                        cfg["servername"],
+                        cfg["hostname"],
+                        "Connection Fail",
+                        "N/A", "N/A", "N/A", "N/A", "N/A", "N/A"
+                    ))
+                    completed += 1
+                    progress.update(f"✗ {cfg['servername']} - Error ({completed}/{total_servers})", advance=1)
     
     return results
 
@@ -605,15 +615,16 @@ def main(args) -> None:
         failed_count = sum(1 for result in results if result[2] == "Connection Fail")
         success_count = total_servers - failed_count
         
-        console.print(f"[green]✓ Collection completed in {processing_time:.2f}s[/green]")
+        console.print(f"\n[green]✓ Collection completed in {processing_time:.2f}s[/green]")
         console.print(f"[cyan]Results:[/cyan] [green]{success_count} successful[/green], [red]{failed_count} failed[/red]")
+        
+        # Display results
+        display_server_info(results, headers)
         
     except Exception as e:
         logger.exception(f"Error during server information collection: {e}")
         console.print(f"[bold red]에러:[/bold red] 서버 정보 수집 중 예기치 못한 오류가 발생했습니다: {e}")
         return
-
-    display_server_info(results, headers)
     # log_info("server_info 스크립트 완료")
 
 # if __name__ == "__main__":

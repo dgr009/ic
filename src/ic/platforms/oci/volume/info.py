@@ -143,23 +143,41 @@ def print_volume_table(console, rows, title):
         table.add_row(row["compartment_name"], row["region"], row["volume_name"], row["state"], str(row["size_gb"]), row["vpu"], row["attached"])
     console.print(table)
 
-@progress_bar("Initializing OCI volume information collection")
 def main(args):
     console = Console()
-    try:
-        config = oci.config.from_file("~/.oci/config", "DEFAULT")
-        identity_client = oci.identity.IdentityClient(config)
-    except Exception as e:
-        console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]"); sys.exit(1)
-
-    if args.regions:
-        subscribed = get_all_subscribed_regions(identity_client, config["tenancy"])
-        region_list = [r.strip() for r in args.regions.split(',') if r.strip() and r in subscribed]
-        if not region_list: console.print("[red]유효한 리전이 없어 종료합니다[/red]"); sys.exit(0)
-    else:
-        region_list = get_all_subscribed_regions(identity_client, config["tenancy"])
     
-    compartments = get_compartments(identity_client, config["tenancy"], args.compartment.lower() if args.compartment else None, console)
-    boot_rows, block_rows = collect_volumes_parallel_fast(config, compartments, region_list, args.name.lower() if args.name else None, console)
+    # Use single progress bar for the entire operation
+    with ManualProgress("Collecting OCI Volume Information", total=100) as progress:
+        try:
+            progress.update("Loading OCI configuration", advance=10)
+            config = oci.config.from_file("~/.oci/config", "DEFAULT")
+            identity_client = oci.identity.IdentityClient(config)
+        except Exception as e:
+            console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]")
+            return {"error": str(e), "success": False}
+
+        progress.update("Discovering regions", advance=10)
+        if args.regions:
+            subscribed = get_all_subscribed_regions(identity_client, config["tenancy"])
+            region_list = [r.strip() for r in args.regions.split(',') if r.strip() and r in subscribed]
+            if not region_list:
+                console.print("[red]유효한 리전이 없어 종료합니다[/red]")
+                return {"error": "No valid regions found", "success": False}
+        else:
+            region_list = get_all_subscribed_regions(identity_client, config["tenancy"])
+        
+        progress.update("Discovering compartments", advance=10)
+        compartments = get_compartments(identity_client, config["tenancy"], args.compartment.lower() if args.compartment else None, console)
+        
+        progress.update(f"Processing {len(compartments)} compartments across {len(region_list)} regions", advance=10)
+        
+        # The collect_volumes_parallel_fast already has its own ManualProgress, so we advance the remaining 60%
+        boot_rows, block_rows = collect_volumes_parallel_fast(config, compartments, region_list, args.name.lower() if args.name else None, console)
+        
+        progress.update("Formatting results", advance=60)
+    
+    console.print(f"\n[bold green]Collection complete![/bold green] Found {len(boot_rows)} boot volumes and {len(block_rows)} block volumes.")
     print_volume_table(console, boot_rows, "Boot Volumes")
-    print_volume_table(console, block_rows, "Block Volumes") 
+    print_volume_table(console, block_rows, "Block Volumes")
+    
+    return {"success": True, "data": {"boot_volumes": len(boot_rows), "block_volumes": len(block_rows)}, "message": f"Found {len(boot_rows)} boot volumes and {len(block_rows)} block volumes"} 
