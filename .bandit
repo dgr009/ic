@@ -9,7 +9,6 @@ skips:
   - B603  # subprocess calls (acceptable with proper input validation)
   - B607  # subprocess calls (acceptable with proper input validation)
   - B507  
-  - B113
 
 # Paths to exclude from scanning
 exclude_dirs:

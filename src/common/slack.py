@@ -2,7 +2,6 @@ import os
 import json
 import re
 import requests
-import time
 from rich.console import Console
 from rich.table import Table
 try:
@@ -61,7 +60,8 @@ def send_slack_blocks_table_with_color(title, headers, rows, max_attachments=30)
         response = requests.post(
             webhook_url,
             json=payload,
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
+            timeout=30
         )
         if response.status_code != 200:
             log_error(
@@ -122,7 +122,8 @@ def send_slack_blocks_table_with_color(title, headers, rows, max_attachments=30)
     response = requests.post(
         webhook_url,
         json=payload,
-        headers={"Content-Type": "application/json"}
+        headers={"Content-Type": "application/json"},
+        timeout=30
     )
 
     if response.status_code != 200:
@@ -176,7 +177,8 @@ def send_slack_blocks_table(title, headers, rows):
         response = requests.post(
             os.getenv("SLACK_WEBHOOK_URL"),
             json=payload,
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
+            timeout=30
         )
 
         if response.status_code != 200:
@@ -194,7 +196,7 @@ def send_slack_message(message):
 
     payload = {"text": message}
     try:
-        response = requests.post(os.getenv("SLACK_WEBHOOK_URL"), data=json.dumps(payload), headers={'Content-Type': 'application/json'})
+        response = requests.post(os.getenv("SLACK_WEBHOOK_URL"), data=json.dumps(payload), headers={'Content-Type': 'application/json'}, timeout=30)
         if response.status_code != 200:
             log_error(f"Slack 메시지 전송 실패: {response.status_code}, {response.text}")
         else:
@@ -225,7 +227,7 @@ def send_slack_table(title, headers, data):
     }
 
     try:
-        response = requests.post(os.getenv("SLACK_WEBHOOK_URL"), data=json.dumps(payload), headers={'Content-Type': 'application/json'})
+        response = requests.post(os.getenv("SLACK_WEBHOOK_URL"), data=json.dumps(payload), headers={'Content-Type': 'application/json'}, timeout=30)
         if response.status_code != 200:
             log_error(f"Slack 테이블 전송 실패: {response.status_code}, {response.text}")
         else:
