@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 import sys
-import datetime
 import concurrent.futures
 import time
 
@@ -12,17 +11,45 @@ from rich.table import Table
 from rich import box
 from rich.rule import Rule
 try:
-    from ....common.log import log_info_non_console
+    from src.ic.common.log import log_info_non_console
 except ImportError:
-    from common.log import log_info_non_console
+    try:
+        from common.log import log_info_non_console
+    except ImportError:
+        # Fallback for missing log module
+        def log_info_non_console(msg):
+            pass
+
 try:
-    from ....common.progress_decorator import progress_bar, ManualProgress
+    from src.ic.common.progress_decorator import progress_bar, ManualProgress
 except ImportError:
-    from common.progress_decorator import progress_bar, ManualProgress
+    try:
+        from common.progress_decorator import progress_bar, ManualProgress
+    except ImportError:
+        # Fallback progress decorators
+        def progress_bar(desc):
+            def decorator(func):
+                return func
+            return decorator
+        
+        class ManualProgress:
+            def __init__(self, desc, total=100):
+                self.desc = desc
+                self.total = total
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                pass
+            def update(self, desc, advance=1):
+                pass
+
 try:
-    from ..common.utils import get_all_subscribed_regions, get_compartments
+    from src.ic.platforms.oci.common.utils import get_all_subscribed_regions, get_compartments
 except ImportError:
-    from ic.platforms.oci.common.utils import get_all_subscribed_regions, get_compartments
+    try:
+        from ..common.utils import get_all_subscribed_regions, get_compartments
+    except ImportError:
+        from ic.platforms.oci.common.utils import get_all_subscribed_regions, get_compartments
 
 # ###############################################################################
 # # CLI 인자 정의
@@ -249,7 +276,7 @@ def print_instance_table(console, inst_rows, verbose):
 # main
 ###############################################################################
 @progress_bar("OCI VM Information Collection")
-def main(args):
+def main(args, config=None):
     console = Console()
     name_filter = args.name.lower() if args.name else None
     compartment_filter = args.compartment.lower() if args.compartment else None
@@ -258,33 +285,35 @@ def main(args):
     with ManualProgress("Initializing OCI configuration and discovering resources", total=4) as progress:
         try:
             progress.update("Loading OCI configuration", advance=1)
-            config = oci.config.from_file("~/.oci/config", "DEFAULT")
-            identity_client = oci.identity.IdentityClient(config)
+            oci_config = oci.config.from_file("~/.oci/config", "DEFAULT")
+            identity_client = oci.identity.IdentityClient(oci_config)
         except Exception as e:
             console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]")
-            sys.exit(1)
+            return {"error": str(e), "success": False}
 
         progress.update("Discovering available regions", advance=1)
         if args.regions:
-            subscribed = get_all_subscribed_regions(identity_client, config["tenancy"])
+            subscribed = get_all_subscribed_regions(identity_client, oci_config["tenancy"])
             region_list = [r.strip() for r in args.regions.split(',') if r.strip() and r in subscribed]
             if not region_list:
                 console.print("[red]유효한 리전이 없어 종료합니다[/red]")
-                sys.exit(0)
+                return {"error": "No valid regions found", "success": False}
         else:
-            region_list = get_all_subscribed_regions(identity_client, config["tenancy"])
+            region_list = get_all_subscribed_regions(identity_client, oci_config["tenancy"])
 
         progress.update("Discovering compartments", advance=1)
-        compartments = get_compartments(identity_client, config["tenancy"], compartment_filter, console)
+        compartments = get_compartments(identity_client, oci_config["tenancy"], compartment_filter, console)
         
         progress.update(f"Found {len(compartments)} compartments and {len(region_list)} regions", advance=1)
 
     # Collect instance information with progress tracking
-    inst_rows = collect_instances_parallel_fast(config, compartments, region_list, name_filter, console)
+    inst_rows = collect_instances_parallel_fast(oci_config, compartments, region_list, name_filter, console)
     
     # Display results
     console.print(f"\n[bold green]Collection complete![/bold green] Found {len(inst_rows)} instances.")
     print_instance_table(console, inst_rows, args.verbose)
+    
+    return {"success": True, "data": {"instances": len(inst_rows)}, "message": f"Found {len(inst_rows)} instances"}
 
 if __name__ == '__main__':
     import argparse
