@@ -94,134 +94,21 @@ jobs:
       
       - name: Detect platforms to test
         id: detect-platforms
+        env:
+          COMMIT_MSG: ${{ github.event.head_commit.message }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.sha }}
         run: |
-          # All available platforms with tests
-          ALL_PLATFORMS=("ncp" "ncpgov" "oci" "azure" "aws" "gcp" "ssh" "cf")
-          DETECTED_PLATFORMS=()
-          
-          # Get commit message
-          COMMIT_MSG="${{ github.event.head_commit.message }}"
-          if [ -z "$COMMIT_MSG" ]; then
-            COMMIT_MSG=$(git log -1 --pretty=%B)
-          fi
-          
-          echo "Commit message: $COMMIT_MSG"
-          
-          # Check for platform tags in commit message [platform] or (platform)
-          for platform in "${ALL_PLATFORMS[@]}"; do
-            if echo "$COMMIT_MSG" | grep -iE "\[${platform}\]|\(${platform}\)|${platform}:" > /dev/null; then
-              echo "✓ Found platform tag in commit message: $platform"
-              DETECTED_PLATFORMS+=("$platform")
-            fi
-          done
-          
-          # Check changed files if no platform tags found
-          if [ ${#DETECTED_PLATFORMS[@]} -eq 0 ]; then
-            echo "No platform tags in commit message, checking changed files..."
-            
-            # Get changed files
-            if [ "${{ github.event_name }}" = "pull_request" ]; then
-              CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
-            else
-              CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
-            fi
-            
-            echo "Changed files:"
-            echo "$CHANGED_FILES"
-            
-            # Detect platforms from changed files
-            for platform in "${ALL_PLATFORMS[@]}"; do
-              if echo "$CHANGED_FILES" | grep -E "src/ic/platforms/${platform}/|tests/platforms/${platform}/" > /dev/null; then
-                echo "✓ Found changes in platform: $platform"
-                DETECTED_PLATFORMS+=("$platform")
-              fi
-            done
-          fi
-          
-          # Check for [all] or [test-all] tag to test everything
-          if echo "$COMMIT_MSG" | grep -iE "\[all\]|\[test-all\]" > /dev/null; then
-            echo "✓ Found [all] tag, testing all platforms"
-            DETECTED_PLATFORMS=("${ALL_PLATFORMS[@]}")
-          fi
-          
-          # If still no platforms detected, use default (ncp, ncpgov)
-          if [ ${#DETECTED_PLATFORMS[@]} -eq 0 ]; then
-            echo "No platforms detected, using defaults: ncp, ncpgov"
-            DETECTED_PLATFORMS=("ncp" "ncpgov")
-          fi
-          
-          # Remove duplicates and filter platforms that have tests
-          PLATFORMS_WITH_TESTS=()
-          for platform in "${DETECTED_PLATFORMS[@]}"; do
-            if [ -d "tests/platforms/$platform" ]; then
-              # Check if platform has any test files
-              if find "tests/platforms/$platform" -name "test_*.py" -type f | grep -q .; then
-                if [[ ! " ${PLATFORMS_WITH_TESTS[@]} " =~ " ${platform} " ]]; then
-                  PLATFORMS_WITH_TESTS+=("$platform")
-                  echo "✓ Platform $platform has tests"
-                fi
-              else
-                echo "⚠ Platform $platform directory exists but has no test files"
-              fi
-            else
-              echo "⚠ Platform $platform has no test directory"
-            fi
-          done
-          
-          # Convert to JSON array
-          PLATFORMS_JSON=$(printf '%s\n' "${PLATFORMS_WITH_TESTS[@]}" | jq -R . | jq -s .)
-          echo "platforms=$PLATFORMS_JSON" >> $GITHUB_OUTPUT
-          
-          # Set flag for whether to run tests
-          if [ ${#PLATFORMS_WITH_TESTS[@]} -gt 0 ]; then
-            echo "should-run-tests=true" >> $GITHUB_OUTPUT
-            echo "Will test platforms: ${PLATFORMS_WITH_TESTS[*]}"
-          else
-            echo "should-run-tests=false" >> $GITHUB_OUTPUT
-            echo "No platforms to test"
-          fi
+          python3 scripts/ci-detect-platforms.py
       
       - name: Setup test matrix
         id: setup-matrix
+        env:
+          TEST_TYPES: ${{ github.event.inputs.test_type == 'all' || github.event.inputs.test_type == '' && '["unit", "integration", "performance"]' || format('["{0}"]', github.event.inputs.test_type) }}
+          PLATFORMS: ${{ github.event.inputs.platform != '' && github.event.inputs.platform != 'all' && format('["{0}"]', github.event.inputs.platform) || steps.detect-platforms.outputs.platforms }}
         run: |
-          # Determine test types to run
-          if [ "${{ github.event.inputs.test_type }}" = "all" ] || [ -z "${{ github.event.inputs.test_type }}" ]; then
-            TEST_TYPES='["unit", "integration", "performance"]'
-          else
-            TEST_TYPES='["${{ github.event.inputs.test_type }}"]'
-          fi
-          
-          # Get platforms from detection step or manual input
-          if [ -n "${{ github.event.inputs.platform }}" ] && [ "${{ github.event.inputs.platform }}" != "all" ]; then
-            PLATFORMS='["${{ github.event.inputs.platform }}"]'
-          else
-            PLATFORMS='${{ steps.detect-platforms.outputs.platforms }}'
-          fi
-          
-          # Create matrix using inline Python
-          MATRIX=$(python -c "
-          import json
-          import sys
-          test_types = $TEST_TYPES
-          platforms = $PLATFORMS
-          # Only test key Python versions to save CI resources
-          python_versions = ['3.11', '3.12']
-          matrix = []
-          for python_version in python_versions:
-              for platform in platforms:
-                  for test_type in test_types:
-                      matrix.append({
-                          'python-version': python_version,
-                          'platform': platform,
-                          'test-type': test_type,
-                          'os': 'ubuntu-latest'
-                      })
-          print(json.dumps({'include': matrix}))
-          ")
-          
-          echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
-          echo "test-types=$TEST_TYPES" >> $GITHUB_OUTPUT
-          echo "platforms=$PLATFORMS" >> $GITHUB_OUTPUT
+          python3 scripts/ci-generate-matrix.py
       
       - name: Validate configurations
         run: |
