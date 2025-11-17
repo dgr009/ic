@@ -14,6 +14,21 @@ from rich.console import Console
 from rich.table import Table
 
 
+###############################################################################
+# CLI 인자 정의
+###############################################################################
+def add_arguments(parser):
+    """AWS Profile Info에 필요한 인자 추가"""
+    parser.add_argument(
+        "--config",
+        help="AWS config 파일 경로 (기본: ~/.aws/config)"
+    )
+    parser.add_argument(
+        "--credentials",
+        help="AWS credentials 파일 경로 (기본: ~/.aws/credentials)"
+    )
+
+
 class AWSProfileParser:
     """Parses AWS configuration and credentials files."""
     
@@ -309,3 +324,37 @@ class ProfileTableRenderer:
         if missing_accounts:
             self.console.print(f"\n⚠️  Profiles without account ID: {', '.join(missing_accounts)}")
             self.console.print("💡 Consider adding role_arn or account_id to these profiles")
+
+
+###############################################################################
+# main
+###############################################################################
+def main(args, config=None):
+    """
+    AWS Profile 정보를 조회하고 출력합니다.
+    
+    Args:
+        args: CLI 인자
+        config: 설정 정보 (선택사항)
+    """
+    console = Console()
+    
+    try:
+        # Profile 정보 수집
+        collector = ProfileInfoCollector()
+        
+        # 사용자 지정 경로가 있으면 사용
+        if hasattr(args, 'config') and args.config:
+            collector.parser.aws_config_path = Path(args.config)
+        if hasattr(args, 'credentials') and args.credentials:
+            collector.parser.aws_credentials_path = Path(args.credentials)
+        
+        profiles = collector.collect_profile_info()
+        
+        # 테이블 렌더링
+        renderer = ProfileTableRenderer()
+        console.print()  # 빈 줄 추가
+        renderer.render_profiles(profiles)
+        
+    except Exception as e:
+        console.print(f"❌ AWS Profile 조회 중 오류 발생: {e}")

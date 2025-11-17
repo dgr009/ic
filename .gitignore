@@ -187,7 +187,14 @@ local_secrets.yaml
 backup
 backup/*
 activate_new_env.sh
+
+# Project-specific temporary/generated files
 CHANGELOG.md
+PROJECT_SUMMARY.md
+IC_CLI_Portfolio.html
+test_version_reading.py
+*_Portfolio.html
+*_SUMMARY.md
 
 # Local-only documentation (internal, historical, development notes)
 .local-docs/

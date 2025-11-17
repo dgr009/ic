@@ -6,17 +6,25 @@ hierarchies in a tree structure format with Rich formatting.
 """
 
 import oci
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any
 from rich.console import Console
 from rich.tree import Tree
 from rich.text import Text
-from datetime import datetime
 
 from ..common.utils import get_compartments
-try:
-    from ....common.progress_decorator import progress_bar, ManualProgress
-except ImportError:
-    from common.progress_decorator import progress_bar, ManualProgress
+
+
+###############################################################################
+# CLI 인자 정의
+###############################################################################
+def add_arguments(parser):
+    """Compartment Info에 필요한 인자 추가"""
+    parser.add_argument(
+        "-f", "--format",
+        choices=["tree", "list"],
+        default="tree",
+        help="출력 형식 (tree: 계층 구조, list: 평면 목록)"
+    )
 
 
 class CompartmentTreeBuilder:
@@ -25,7 +33,6 @@ class CompartmentTreeBuilder:
     def __init__(self):
         self.console = Console()
     
-    @progress_bar("Building OCI compartment tree")
     def build_compartment_tree(self, identity_client: oci.identity.IdentityClient, tenancy_ocid: str) -> Dict[str, Any]:
         """
         Build compartment tree structure from OCI API.
@@ -37,28 +44,14 @@ class CompartmentTreeBuilder:
         Returns:
             Dictionary representing the compartment tree structure
         """
-        import time
-        
         try:
-            with ManualProgress("Building compartment hierarchy", total=3) as progress:
-                
-                # Step 1: Fetch compartments from OCI API
-                progress.update("Fetching compartments from OCI Identity API")
-                start_time = time.time()
-                compartments = get_compartments(identity_client, tenancy_ocid)
-                progress.advance(1)
-                
-                # Step 2: Organize compartments by hierarchy
-                progress.update(f"Building hierarchy for {len(compartments)} compartments")
-                tree_data = self.organize_compartments_by_hierarchy(compartments, tenancy_ocid)
-                progress.advance(1)
-                
-                # Step 3: Finalize tree structure
-                processing_time = time.time() - start_time
-                progress.update(f"Completed compartment tree in {processing_time:.2f}s")
-                progress.advance(1)
-                
-                return tree_data
+            # Fetch compartments from OCI API
+            compartments = get_compartments(identity_client, tenancy_ocid)
+            
+            # Organize compartments by hierarchy
+            tree_data = self.organize_compartments_by_hierarchy(compartments, tenancy_ocid)
+            
+            return tree_data
             
         except Exception as e:
             self.console.print(f"❌ Failed to build compartment tree: {e}")
@@ -75,62 +68,50 @@ class CompartmentTreeBuilder:
         Returns:
             Dictionary representing hierarchical compartment structure
         """
-        with ManualProgress("Organizing compartment hierarchy", total=3) as progress:
-            
-            # Step 1: Create compartment lookup by OCID
-            progress.update(f"Creating lookup table for {len(compartments)} compartments")
-            compartment_lookup = {}
-            for comp in compartments:
-                # Handle both OCI compartment objects and dictionaries (for testing)
-                if isinstance(comp, dict):
-                    # Dictionary format (used in tests)
-                    compartment_lookup[comp['id']] = {
-                        'id': comp['id'],
-                        'name': comp['name'],
-                        'description': comp.get('description', ''),
-                        'parent_id': comp.get('compartment_id', None),
-                        'lifecycle_state': comp.get('lifecycle_state', 'ACTIVE'),
-                        'time_created': comp.get('time_created', None),
-                        'children': []
-                    }
-                else:
-                    # OCI compartment object format (real API)
-                    compartment_lookup[comp.id] = {
-                        'id': comp.id,
-                        'name': comp.name,
-                        'description': getattr(comp, 'description', ''),
-                        'parent_id': getattr(comp, 'compartment_id', None),
-                        'lifecycle_state': getattr(comp, 'lifecycle_state', 'ACTIVE'),
-                        'time_created': getattr(comp, 'time_created', None),
-                        'children': []
-                    }
-            progress.advance(1)
-            
-            # Step 2: Add root compartment (tenancy)
-            progress.update("Adding root compartment (tenancy)")
-            root_compartment = {
-                'id': tenancy_ocid,
-                'name': 'Root Compartment (Tenancy)',
-                'description': 'Root compartment of the tenancy',
-                'parent_id': None,
-                'lifecycle_state': 'ACTIVE',
-                'time_created': None,
-                'children': []
-            }
-            compartment_lookup[tenancy_ocid] = root_compartment
-            progress.advance(1)
-            
-            # Step 3: Build parent-child relationships
-            progress.update("Building parent-child relationships")
-            relationship_count = 0
-            for comp_id, comp_data in compartment_lookup.items():
-                parent_id = comp_data['parent_id']
-                if parent_id and parent_id in compartment_lookup:
-                    compartment_lookup[parent_id]['children'].append(comp_data)
-                    relationship_count += 1
-            
-            progress.update(f"Built {relationship_count} parent-child relationships")
-            progress.advance(1)
+        # Create compartment lookup by OCID
+        compartment_lookup = {}
+        for comp in compartments:
+            # Handle both OCI compartment objects and dictionaries (for testing)
+            if isinstance(comp, dict):
+                # Dictionary format (used in tests)
+                compartment_lookup[comp['id']] = {
+                    'id': comp['id'],
+                    'name': comp['name'],
+                    'description': comp.get('description', ''),
+                    'parent_id': comp.get('compartment_id', None),
+                    'lifecycle_state': comp.get('lifecycle_state', 'ACTIVE'),
+                    'time_created': comp.get('time_created', None),
+                    'children': []
+                }
+            else:
+                # OCI compartment object format (real API)
+                compartment_lookup[comp.id] = {
+                    'id': comp.id,
+                    'name': comp.name,
+                    'description': getattr(comp, 'description', ''),
+                    'parent_id': getattr(comp, 'compartment_id', None),
+                    'lifecycle_state': getattr(comp, 'lifecycle_state', 'ACTIVE'),
+                    'time_created': getattr(comp, 'time_created', None),
+                    'children': []
+                }
+        
+        # Add root compartment (tenancy)
+        root_compartment = {
+            'id': tenancy_ocid,
+            'name': 'Root Compartment (Tenancy)',
+            'description': 'Root compartment of the tenancy',
+            'parent_id': None,
+            'lifecycle_state': 'ACTIVE',
+            'time_created': None,
+            'children': []
+        }
+        compartment_lookup[tenancy_ocid] = root_compartment
+        
+        # Build parent-child relationships
+        for comp_data in compartment_lookup.values():
+            parent_id = comp_data['parent_id']
+            if parent_id and parent_id in compartment_lookup:
+                compartment_lookup[parent_id]['children'].append(comp_data)
         
         return root_compartment
 
@@ -141,7 +122,6 @@ class CompartmentTreeRenderer:
     def __init__(self):
         self.console = Console()
     
-    @progress_bar("Rendering compartment tree")
     def render_tree(self, tree_data: Dict[str, Any]) -> None:
         """
         Render compartment tree using Rich Tree widget.
@@ -153,28 +133,19 @@ class CompartmentTreeRenderer:
             self.console.print("📋 No compartment data available.")
             return
         
-        with ManualProgress("Rendering compartment tree display", total=4) as progress:
-            
-            # Step 1: Create Rich tree root
-            progress.update("Creating tree root node")
-            tree = Tree(self.format_compartment_node(tree_data))
-            progress.advance(1)
-            
-            # Step 2: Add child compartments recursively
-            progress.update(f"Adding {len(tree_data['children'])} child compartments")
-            self._add_children_to_tree(tree, tree_data['children'])
-            progress.advance(1)
-            
-            # Step 3: Display the tree
-            progress.update("Displaying compartment tree")
-            self.console.print(tree)
-            progress.advance(1)
-            
-            # Step 4: Display summary statistics
-            progress.update("Calculating tree statistics")
-            total_compartments = self._count_compartments(tree_data) - 1  # Exclude root
-            self.console.print(f"\n📊 Total compartments: {total_compartments}")
-            progress.advance(1)
+        # Create Rich tree root
+        tree = Tree(self.format_compartment_node(tree_data))
+        
+        # Add child compartments recursively
+        self._add_children_to_tree(tree, tree_data['children'])
+        
+        # Display the tree with a newline before for clean output
+        self.console.print()
+        self.console.print(tree)
+        
+        # Display summary statistics
+        total_compartments = self._count_compartments(tree_data) - 1  # Exclude root
+        self.console.print(f"\n📊 Total compartments: {total_compartments}")
     
     def _add_children_to_tree(self, parent_node: Tree, children: List[Dict[str, Any]]) -> None:
         """
@@ -230,3 +201,72 @@ class CompartmentTreeRenderer:
         for child in compartment['children']:
             count += self._count_compartments(child)
         return count
+
+
+###############################################################################
+# main
+###############################################################################
+def main(args, config=None):
+    """
+    OCI Compartment 정보를 조회하고 출력합니다.
+    
+    Args:
+        argfig: 설정 정보 (선택사항)
+        config: 설정 정보 (선택사항)
+    """
+    console = Console()
+    
+    try:
+        # OCI 설정 및 클라이언트 초기화
+        oci_config = oci.config.from_file()
+        identity_client = oci.identity.IdentityClient(oci_config)
+        tenancy_ocid = oci_config["tenancy"]
+        
+        # Compartment 트리 빌드
+        builder = CompartmentTreeBuilder()
+        tree_data = builder.build_compartment_tree(identity_client, tenancy_ocid)
+        
+        if not tree_data:
+            console.print("❌ Compartment 정보를 가져올 수 없습니다.")
+            return
+        
+        # 출력 형식에 따라 렌더링
+        if args.format == "tree":
+            renderer = CompartmentTreeRenderer()
+            renderer.render_tree(tree_data)
+        else:
+            # List 형식으로 출력
+            console.print()
+            _render_list(tree_data, console)
+            
+    except oci.exceptions.ConfigFileNotFound:
+        console.print("❌ OCI 설정 파일을 찾을 수 없습니다. ~/.oci/config 파일을 확인하세요.")
+    except oci.exceptions.InvalidConfig as e:
+        console.print(f"❌ OCI 설정이 올바르지 않습니다: {e}")
+    except Exception as e:
+        console.print(f"❌ Compartment 조회 중 오류 발생: {e}")
+
+
+def _render_list(tree_data: Dict[str, Any], console: Console, level: int = 0) -> None:
+    """
+    Compartment를 평면 목록 형식으로 출력합니다.
+    
+    Args:
+        tree_data: Compartment 트리 데이터
+        console: Rich Console 객체
+        level: 들여쓰기 레벨
+    """
+    indent = "  " * level
+    name = tree_data['name']
+    ocid = tree_data['id']
+    state = tree_data['lifecycle_state']
+    
+    # 상태에 따른 아이콘
+    state_icon = "✓" if state == "ACTIVE" else "✗"
+    
+    console.print(f"{indent}{state_icon} {name}")
+    console.print(f"{indent}  OCID: {ocid}", style="dim")
+    
+    # 자식 compartment 재귀 출력
+    for child in tree_data['children']:
+        _render_list(child, console, level + 1)
