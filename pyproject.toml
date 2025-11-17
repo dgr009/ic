@@ -30,15 +30,15 @@ classifiers = [
 ]
 keywords = ["cli", "infrastructure", "aws", "oci", "gcp", "azure", "ncp", "naver-cloud", "cloudflare", "ssh", "devops", "multi-cloud"]
 dependencies = [
-    # Core Cloud SDKs - Compatible with Python 3.9-3.12
+    # Core Cloud SDKs - Compatible with Python 3.9-3.13
     "boto3>=1.26.0,<2.0.0",              # AWS SDK for Python
     "botocore>=1.29.0,<2.0.0",           # AWS SDK core library
     "oci>=2.149.0,<3.0.0",               # Oracle Cloud Infrastructure SDK
     "requests>=2.28.0,<3.0.0",           # HTTP library for API calls (required for NCP REST API)
-    "kubernetes>=29.0.0,<31.0.0",        # Kubernetes Python client
+    "kubernetes>=29.0.0,<32.0.0",        # Kubernetes Python client
     "awscli>=1.42.0,<2.0.0",             # AWS CLI for additional functionality
     
-    # Google Cloud SDKs - Compatible with Python 3.9-3.12
+    # Google Cloud SDKs - Compatible with Python 3.9-3.13
     "google-cloud-compute>=1.36.0,<2.0.0",      # Google Compute Engine API
     "google-cloud-container>=2.44.0,<3.0.0",    # Google Kubernetes Engine API
     "google-cloud-storage>=2.18.0,<3.0.0",      # Google Cloud Storage API
@@ -50,17 +50,17 @@ dependencies = [
     "google-auth-oauthlib>=1.2.0,<2.0.0",       # Google OAuth2 authentication
     "google-auth-httplib2>=0.2.0,<1.0.0",       # Google HTTP transport for authentication
     
-    # Azure SDKs - Compatible with Python 3.9-3.12
+    # Azure SDKs - Compatible with Python 3.9-3.13
     "azure-identity>=1.15.0,<2.0.0",            # Azure identity and authentication
-    "azure-mgmt-compute>=29.1.0,<31.0.0",       # Azure Virtual Machines management
-    "azure-mgmt-network>=24.0.0,<26.0.0",       # Azure networking management
+    "azure-mgmt-compute>=29.0.0,<32.0.0",       # Azure Virtual Machines management
+    "azure-mgmt-network>=24.0.0,<27.0.0",       # Azure networking management
     "azure-mgmt-containerinstance>=10.1.0,<11.0.0",  # Azure Container Instances
-    "azure-mgmt-containerservice>=28.0.0,<30.0.0",   # Azure Kubernetes Service
+    "azure-mgmt-containerservice>=28.0.0,<31.0.0",   # Azure Kubernetes Service
     "azure-mgmt-storage>=21.1.0,<22.0.0",       # Azure Storage management
     "azure-mgmt-sql>=3.0.1,<4.0.0",             # Azure SQL management
     "azure-mgmt-rdbms>=10.1.0,<11.0.0",         # Azure Database services
     "azure-mgmt-eventhub>=10.1.0,<11.0.0",      # Azure Event Hubs
-    "azure-mgmt-resource>=22.0.0,<24.0.0",      # Azure Resource Manager
+    "azure-mgmt-resource>=22.0.0,<25.0.0",      # Azure Resource Manager
     "azure-mgmt-subscription>=3.1.1,<4.0.0",    # Azure Subscription management
     
     # SSH and Network - Compatible with Python 3.9-3.12
@@ -72,26 +72,26 @@ dependencies = [
     "InquirerPy>=0.3.4,<1.0.0",          # Interactive command line prompts
     "tqdm>=4.67.0,<5.0.0",               # Progress bars
     
-    # Configuration and Utilities - Compatible with Python 3.9-3.12
+    # Configuration and Utilities - Compatible with Python 3.9-3.13
     "python-dotenv>=0.19.0,<2.0.0",      # Environment variable loading
     "python-dateutil>=2.8.0,<3.0.0",     # Date/time utilities
-    "PyYAML>=6.0,<7.0.0",               # YAML parser (required for NCP config files)
+    "PyYAML>=6.0,<8.0.0",                # YAML parser (required for NCP config files)
     "click>=8.0.0,<9.0.0",               # Command line interface framework
     "docutils>=0.19,<1.0.0",             # Documentation utilities
     "invoke>=2.2.0,<3.0.0",              # Task execution library
     
-    # Security and Validation - Compatible with Python 3.9-3.12
+    # Security and Validation - Compatible with Python 3.9-3.13
     "jsonschema>=4.23.0,<5.0.0",         # JSON schema validation
     "cryptography>=3.4.8,<50.0.0",       # Cryptographic recipes and primitives (required for NCP HMAC-SHA256 signatures)
     
-    # Additional dependencies for new config system (v2.0) - Compatible with Python 3.9-3.12
-    "watchdog>=3.0.0,<4.0.0",            # File change monitoring
+    # Additional dependencies for new config system (v2.0) - Compatible with Python 3.9-3.13
+    "watchdog>=3.0.0,<6.0.0",            # File change monitoring
     "cerberus>=1.3.4,<2.0.0",            # Schema validation
     "pydantic>=2.0.0,<3.0.0",            # Data validation and settings management
     
     # Package management and compatibility
     "packaging>=21.0,<25.0",              # Version parsing and comparison
-    "setuptools>=61.0,<71.0",            # Package building tools
+    "setuptools>=61.0,<75.0",            # Package building tools
 ]
 
 [project.optional-dependencies]
