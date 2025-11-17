@@ -70,9 +70,12 @@ jobs:
       matrix: ${{ steps.setup-matrix.outputs.matrix }}
       test-types: ${{ steps.setup-matrix.outputs.test-types }}
       platforms: ${{ steps.setup-matrix.outputs.platforms }}
+      should-run-tests: ${{ steps.detect-platforms.outputs.should-run-tests }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for changed files detection
       
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -89,6 +92,95 @@ jobs:
         run: |
           python tests/ci/setup_ci_environment.py --force-ci --summary
       
+      - name: Detect platforms to test
+        id: detect-platforms
+        run: |
+          # All available platforms with tests
+          ALL_PLATFORMS=("ncp" "ncpgov" "oci" "azure" "aws" "gcp" "ssh" "cf")
+          DETECTED_PLATFORMS=()
+          
+          # Get commit message
+          COMMIT_MSG="${{ github.event.head_commit.message }}"
+          if [ -z "$COMMIT_MSG" ]; then
+            COMMIT_MSG=$(git log -1 --pretty=%B)
+          fi
+          
+          echo "Commit message: $COMMIT_MSG"
+          
+          # Check for platform tags in commit message [platform] or (platform)
+          for platform in "${ALL_PLATFORMS[@]}"; do
+            if echo "$COMMIT_MSG" | grep -iE "\[${platform}\]|\(${platform}\)|${platform}:" > /dev/null; then
+              echo "✓ Found platform tag in commit message: $platform"
+              DETECTED_PLATFORMS+=("$platform")
+            fi
+          done
+          
+          # Check changed files if no platform tags found
+          if [ ${#DETECTED_PLATFORMS[@]} -eq 0 ]; then
+            echo "No platform tags in commit message, checking changed files..."
+            
+            # Get changed files
+            if [ "${{ github.event_name }}" = "pull_request" ]; then
+              CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.sha }})
+            else
+              CHANGED_FILES=$(git diff --name-only HEAD~1 HEAD)
+            fi
+            
+            echo "Changed files:"
+            echo "$CHANGED_FILES"
+            
+            # Detect platforms from changed files
+            for platform in "${ALL_PLATFORMS[@]}"; do
+              if echo "$CHANGED_FILES" | grep -E "src/ic/platforms/${platform}/|tests/platforms/${platform}/" > /dev/null; then
+                echo "✓ Found changes in platform: $platform"
+                DETECTED_PLATFORMS+=("$platform")
+              fi
+            done
+          fi
+          
+          # Check for [all] or [test-all] tag to test everything
+          if echo "$COMMIT_MSG" | grep -iE "\[all\]|\[test-all\]" > /dev/null; then
+            echo "✓ Found [all] tag, testing all platforms"
+            DETECTED_PLATFORMS=("${ALL_PLATFORMS[@]}")
+          fi
+          
+          # If still no platforms detected, use default (ncp, ncpgov)
+          if [ ${#DETECTED_PLATFORMS[@]} -eq 0 ]; then
+            echo "No platforms detected, using defaults: ncp, ncpgov"
+            DETECTED_PLATFORMS=("ncp" "ncpgov")
+          fi
+          
+          # Remove duplicates and filter platforms that have tests
+          PLATFORMS_WITH_TESTS=()
+          for platform in "${DETECTED_PLATFORMS[@]}"; do
+            if [ -d "tests/platforms/$platform" ]; then
+              # Check if platform has any test files
+              if find "tests/platforms/$platform" -name "test_*.py" -type f | grep -q .; then
+                if [[ ! " ${PLATFORMS_WITH_TESTS[@]} " =~ " ${platform} " ]]; then
+                  PLATFORMS_WITH_TESTS+=("$platform")
+                  echo "✓ Platform $platform has tests"
+                fi
+              else
+                echo "⚠ Platform $platform directory exists but has no test files"
+              fi
+            else
+              echo "⚠ Platform $platform has no test directory"
+            fi
+          done
+          
+          # Convert to JSON array
+          PLATFORMS_JSON=$(printf '%s\n' "${PLATFORMS_WITH_TESTS[@]}" | jq -R . | jq -s .)
+          echo "platforms=$PLATFORMS_JSON" >> $GITHUB_OUTPUT
+          
+          # Set flag for whether to run tests
+          if [ ${#PLATFORMS_WITH_TESTS[@]} -gt 0 ]; then
+            echo "should-run-tests=true" >> $GITHUB_OUTPUT
+            echo "Will test platforms: ${PLATFORMS_WITH_TESTS[*]}"
+          else
+            echo "should-run-tests=false" >> $GITHUB_OUTPUT
+            echo "No platforms to test"
+          fi
+      
       - name: Setup test matrix
         id: setup-matrix
         run: |
@@ -99,28 +191,19 @@ jobs:
             TEST_TYPES='["${{ github.event.inputs.test_type }}"]'
           fi
           
-          # Determine platforms to test (only platforms with actual tests)
-          if [ "${{ github.event.inputs.platform }}" = "all" ] || [ -z "${{ github.event.inputs.platform }}" ]; then
-            PLATFORMS='["ncp", "ncpgov"]'
+          # Get platforms from detection step or manual input
+          if [ -n "${{ github.event.inputs.platform }}" ] && [ "${{ github.event.inputs.platform }}" != "all" ]; then
+            PLATFORMS='["${{ github.event.inputs.platform }}"]'
           else
-            # Only allow platforms that have tests
-            case "${{ github.event.inputs.platform }}" in
-              "ncp"|"ncpgov")
-                PLATFORMS='["${{ github.event.inputs.platform }}"]'
-                ;;
-              *)
-                echo "Warning: Platform ${{ github.event.inputs.platform }} has no tests, using default platforms"
-                PLATFORMS='["ncp", "ncpgov"]'
-                ;;
-            esac
+            PLATFORMS='${{ steps.detect-platforms.outputs.platforms }}'
           fi
           
           # Create matrix using inline Python
           MATRIX=$(python -c "
           import json
           import sys
-          test_types = eval(sys.argv[1])
-          platforms = eval(sys.argv[2])
+          test_types = $TEST_TYPES
+          platforms = $PLATFORMS
           # Only test key Python versions to save CI resources
           python_versions = ['3.11', '3.12']
           matrix = []
@@ -134,7 +217,7 @@ jobs:
                           'os': 'ubuntu-latest'
                       })
           print(json.dumps({'include': matrix}))
-          " "$TEST_TYPES" "$PLATFORMS")
+          ")
           
           echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
           echo "test-types=$TEST_TYPES" >> $GITHUB_OUTPUT
@@ -148,6 +231,7 @@ jobs:
     name: Test ${{ matrix.platform }} (${{ matrix.test-type }}, Python ${{ matrix.python-version }})
     runs-on: ${{ matrix.os }}
     needs: setup
+    if: needs.setup.outputs.should-run-tests == 'true'
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.setup.outputs.matrix) }}
@@ -185,13 +269,32 @@ jobs:
           python tests/ci/setup_ci_environment.py --force-ci
           
           # Set platform-specific environment variables
-          if [ "${{ matrix.platform }}" = "ncp" ]; then
-            echo "NCP_ACCESS_KEY=MOCK_NCP_ACCESS_KEY" >> $GITHUB_ENV
-            echo "NCP_SECRET_KEY=MOCK_NCP_SECRET_KEY" >> $GITHUB_ENV
-          elif [ "${{ matrix.platform }}" = "ncpgov" ]; then
-            echo "NCPGOV_ACCESS_KEY=MOCK_NCPGOV_ACCESS_KEY" >> $GITHUB_ENV
-            echo "NCPGOV_SECRET_KEY=MOCK_NCPGOV_SECRET_KEY" >> $GITHUB_ENV
-          fi
+          case "${{ matrix.platform }}" in
+            "ncp")
+              echo "NCP_ACCESS_KEY=MOCK_NCP_ACCESS_KEY" >> $GITHUB_ENV
+              echo "NCP_SECRET_KEY=MOCK_NCP_SECRET_KEY" >> $GITHUB_ENV
+              ;;
+            "ncpgov")
+              echo "NCPGOV_ACCESS_KEY=MOCK_NCPGOV_ACCESS_KEY" >> $GITHUB_ENV
+              echo "NCPGOV_SECRET_KEY=MOCK_NCPGOV_SECRET_KEY" >> $GITHUB_ENV
+              ;;
+            "oci")
+              echo "OCI_CONFIG_FILE=~/.oci/config" >> $GITHUB_ENV
+              echo "OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=True" >> $GITHUB_ENV
+              ;;
+            "aws")
+              echo "AWS_ACCESS_KEY_ID=MOCK_AWS_ACCESS_KEY" >> $GITHUB_ENV
+              echo "AWS_SECRET_ACCESS_KEY=MOCK_AWS_SECRET_KEY" >> $GITHUB_ENV
+              echo "AWS_DEFAULT_REGION=us-east-1" >> $GITHUB_ENV
+              ;;
+            "azure")
+              echo "AZURE_SUBSCRIPTION_ID=00000000-0000-0000-0000-000000000000" >> $GITHUB_ENV
+              echo "AZURE_TENANT_ID=00000000-0000-0000-0000-000000000000" >> $GITHUB_ENV
+              ;;
+            "gcp")
+              echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/mock-gcp-credentials.json" >> $GITHUB_ENV
+              ;;
+          esac
       
       - name: Create mock credential files
         run: |
