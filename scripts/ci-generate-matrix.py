@@ -22,7 +22,7 @@ def main():
         return 1
     
     # Python versions to test
-    python_versions = ["3.12", "3.13"]
+    python_versions = ["3.9", "3.11", "3.13"]
     
     # Generate matrix
     matrix = []

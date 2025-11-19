@@ -86,7 +86,7 @@ class DependencyValidator:
     
     # Python version compatibility
     MIN_PYTHON_VERSION = (3, 9)
-    MAX_PYTHON_VERSION = (3, 12)
+    MAX_PYTHON_VERSION = (3, 13)
     RECOMMENDED_PYTHON_VERSION = (3, 11, 13)
     
     def __init__(self):
