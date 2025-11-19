@@ -40,18 +40,30 @@ console = Console()
 # 새로운 설정 시스템에서 태그 키 가져오기
 def get_tag_keys():
     """설정에서 태그 키를 가져옵니다."""
+    # DEBUG: 설정 로드 상태 확인
+    print(f"DEBUG: config type = {type(config)}")
+    print(f"DEBUG: config keys = {config.keys() if isinstance(config, dict) else 'N/A'}")
+    
     if config and 'aws' in config and 'tags' in config['aws']:
+        print("DEBUG: Using YAML config for tags")
         aws_tags = config['aws']['tags']
         required_tags = aws_tags.get('required', [])
         optional_tags = aws_tags.get('optional', [])
+        print(f"DEBUG: Required tags from YAML: {required_tags}")
+        print(f"DEBUG: Optional tags from YAML: {optional_tags}")
     else:
+        print("DEBUG: Falling back to environment variables")
         # Fallback to environment variables
         env_required = os.getenv("REQUIRED_TAGS", "User,Team,Environment")
         env_optional = os.getenv("OPTIONAL_TAGS", "Service,Application")
         required_tags = [t.strip() for t in env_required.split(",") if t.strip()]
         optional_tags = [t.strip() for t in env_optional.split(",") if t.strip()]
+        print(f"DEBUG: Required tags from ENV: {required_tags}")
+        print(f"DEBUG: Optional tags from ENV: {optional_tags}")
     
-    return required_tags + optional_tags
+    final_tags = required_tags + optional_tags
+    print(f"DEBUG: Final TAG_KEYS = {final_tags}")
+    return final_tags
 
 TAG_KEYS = get_tag_keys()
 
