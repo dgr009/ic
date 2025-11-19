@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ic-code"
-version = "1.2.3"
+version = "1.2.4"
 authors = [
     {name = "sykim", email = "cruiser594@gmail.com"},
 ]
