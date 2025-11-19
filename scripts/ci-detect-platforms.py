@@ -120,8 +120,8 @@ def main():
     
     # Use defaults if nothing detected
     if not detected_platforms:
-        print("No platforms detected, using defaults: ncp, ncpgov")
-        detected_platforms = ["ncp", "ncpgov"]
+        print("No platforms detected, using default: aws")
+        detected_platforms = ["aws"]
     
     # Filter platforms that have tests
     platforms_with_tests = filter_platforms_with_tests(detected_platforms)
