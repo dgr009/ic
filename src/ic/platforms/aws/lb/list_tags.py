@@ -14,41 +14,42 @@ except ImportError:
     from rich.console import Console
     from rich.table import Table
 
-# 새로운 설정 시스템 import
-try:
-    from src.ic.config.manager import ConfigManager
-    config_manager = ConfigManager()
-    config = config_manager.get_config()
-except ImportError:
-    try:
-        from ic.config.manager import ConfigManager
-        config_manager = ConfigManager()
-        config = config_manager.get_config()
-    except ImportError:
-        # Legacy fallback for development
-        import sys
-        import os
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-        from ic.config.manager import ConfigManager
-        config_manager = ConfigManager()
-        config = config_manager.get_config()
-except ImportError:
-    # 호환성을 위한 fallback
-    from dotenv import load_dotenv
-    load_dotenv()
-    config = {}
-
 console = Console()
 
 # 새로운 설정 시스템에서 태그 키 가져오기
 def get_tag_keys():
     """설정에서 태그 키를 가져옵니다."""
+    try:
+        from src.ic.config.manager import ConfigManager
+        config_manager = ConfigManager()
+        config_manager.load_config()
+        secrets = config_manager.load_secrets_config()
+        config = config_manager.get_config()
+        
+        if secrets and 'aws' in secrets:
+            if 'aws' not in config:
+                config['aws'] = {}
+            config['aws'].update(secrets['aws'])
+    except ImportError:
+        try:
+            from ic.config.manager import ConfigManager
+            config_manager = ConfigManager()
+            config_manager.load_config()
+            secrets = config_manager.load_secrets_config()
+            config = config_manager.get_config()
+            
+            if secrets and 'aws' in secrets:
+                if 'aws' not in config:
+                    config['aws'] = {}
+                config['aws'].update(secrets['aws'])
+        except ImportError:
+            config = {}
+    
     if config and 'aws' in config and 'tags' in config['aws']:
         aws_tags = config['aws']['tags']
         required_tags = aws_tags.get('required', [])
         optional_tags = aws_tags.get('optional', [])
     else:
-        # Fallback to environment variables
         env_required = os.getenv("REQUIRED_TAGS", "User,Team,Environment")
         env_optional = os.getenv("OPTIONAL_TAGS", "Service,Application")
         required_tags = [t.strip() for t in env_required.split(",") if t.strip()]

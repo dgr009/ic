@@ -464,11 +464,23 @@ def main():
         usage="ic <platform|config> <service> <command> [options]",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
+    
+    # Add version argument
+    try:
+        from . import __version__
+    except ImportError:
+        from ic import __version__
+    parser.add_argument('--version', '-v', action='version', version=f'ic-code {__version__}')
+    
     platform_subparsers = parser.add_subparsers(
         dest="platform",
-        required=True,
+        required=False,
         help="클라우드 플랫폼 (aws, oci, cf, ssh, azure, gcp) 또는 config 관리"
     )
+    
+    # Add version command
+    version_parser = platform_subparsers.add_parser('version', help='Show IC version')
+    version_parser.set_defaults(func=lambda args: print(f'ic-code {__version__}'))
     
     # Add config commands
     try:
