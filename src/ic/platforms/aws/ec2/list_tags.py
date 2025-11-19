@@ -42,8 +42,8 @@ def get_tag_keys():
     """설정에서 태그 키를 가져옵니다."""
     if config and 'aws' in config and 'tags' in config['aws']:
         aws_tags = config['aws']['tags']
-        required_tags = aws_tags.get('required', ['User', 'Team', 'Environment'])
-        optional_tags = aws_tags.get('optional', ['Service', 'Application'])
+        required_tags = aws_tags.get('required', [])
+        optional_tags = aws_tags.get('optional', [])
     else:
         # Fallback to environment variables
         env_required = os.getenv("REQUIRED_TAGS", "User,Team,Environment")
