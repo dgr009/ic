@@ -40,6 +40,7 @@ Each platform has its own configuration directory and files:
 
 - **AWS**: See [AWS Configuration Guide](../aws/configuration.md)
 - **Azure**: See [Azure Configuration Guide](../azure/configuration.md)
+- **CloudFlare**: See [CloudFlare Configuration Examples](../cloudflare_configuration_example.md)
 - **GCP**: See [GCP Configuration Guide](../gcp/configuration.md)
 - **NCP**: See [NCP Configuration Guide](../ncp/configuration.md)
 - **NCPGOV**: See [NCPGOV Configuration Guide](../ncpgov/configuration.md)

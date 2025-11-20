@@ -47,6 +47,10 @@ This directory contains comprehensive documentation for the IC (Infrastructure R
 - [OCI Usage](oci/usage.md) - How to use OCI commands
 - [OCI Troubleshooting](oci/troubleshooting.md) - OCI-specific troubleshooting
 
+### CloudFlare
+- [CloudFlare Platform README](../src/ic/platforms/cloudflare/README.md) - Complete CloudFlare integration guide
+- [CloudFlare Configuration Examples](cloudflare_configuration_example.md) - Detailed configuration examples and use cases
+
 ## Advanced Topics
 
 - [MCP Integration](mcp_integration.md) - Model Context Protocol integration
@@ -80,6 +84,14 @@ ic aws s3 info
 # Azure  
 ic azure vm info
 ic azure storage info
+
+# CloudFlare
+ic cf account info
+ic cf zone info
+ic cf dns info
+ic cf traffic info
+ic cf waf info
+ic cf rules info
 
 # GCP
 ic gcp compute info

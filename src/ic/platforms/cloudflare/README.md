@@ -1,120 +1,564 @@
-# Cloudflare DNS Info 조회 스크립트
+# CloudFlare Platform Integration
 
-이 Python 스크립트는 Cloudflare 계정의 DNS 정보를 보기 쉽게 조회하여 Rich Table 형태로 정리하여 보여줍니다.
-
----
-
-## 🚀 주요 기능
-
-- CloudFlare API를 이용한 DNS record 목록 조회
-- .env 셋팅으로 필요한 어카운트 및 도메인호스트 필터링
+Comprehensive CloudFlare management commands for the IC CLI tool. Manage accounts, zones, DNS records, traffic analytics, WAF rules, and page rules across your CloudFlare infrastructure.
 
 ---
 
-## 🛠️ 필요 환경
+## 🚀 Features
 
-- Python 3.8 이상
-- Cloudflare 계정 및 API 키
+- **Account Management**: View and filter CloudFlare accounts
+- **Zone Management**: List zones with detailed information grouped by account
+- **DNS Records**: View DNS records for zones with filtering
+- **Traffic Analytics**: Monitor bandwidth, requests, cache performance, and threats
+- **WAF Rules**: Display and audit Web Application Firewall security rules
+- **Page Rules**: View URL-based behavior configurations
+- **Configuration Filtering**: Filter accounts and zones via configuration file
+- **Rich Terminal UI**: Beautiful tables, trees, and progress indicators
+- **License Support**: Handles both Enterprise and Free CloudFlare zones
 
 ---
 
-## 📌 사전 준비 및 설정
+## 📋 Available Commands
 
-### 1️⃣ Python 패키지 설치
+All CloudFlare commands follow the pattern: `ic cf <service> <command> [options]`
 
-아래 명령어를 통해 필요한 Python 패키지를 설치합니다.
+| Service | Command | Description |
+|---------|---------|-------------|
+| `account` | `info` | Display CloudFlare account information |
+| `zone` | `info` | List zones with details grouped by account |
+| `dns` | `info` | View DNS records for zones |
+| `traffic` | `info` | Show traffic analytics with configurable time windows |
+| `waf` | `info` | Display WAF/firewall security rules |
+| `rules` | `info` | Show page rules for zones |
 
+---
+
+## 🛠️ Installation & Setup
+
+### Prerequisites
+
+- Python 3.9 or higher
+- IC CLI tool installed (`pip install ic-code`)
+- CloudFlare account with API access
+
+### Configuration
+
+Configure CloudFlare credentials in `~/.ic/config/secrets.yaml`:
+
+```yaml
+cloudflare:
+  email: "your-email@example.com"
+  api_token: "your_cloudflare_api_token"
+  
+  # Optional: Filter accounts (show only matching accounts)
+  # Comment out or leave empty to show all accounts
+  cloudflare_accounts:
+    - "Production"
+    - "Development"
+  # Or use comma-separated format:
+  # cloudflare_accounts: "Production,Development"
+  
+  # Optional: Filter zones (show only matching zones)
+  # Comment out or leave empty to show all zones
+  cloudflare_zones:
+    - "example.com"
+    - "test.com"
+  # Or use comma-separated format:
+  # cloudflare_zones: "example.com,test.com"
+```
+
+**📖 For detailed configuration examples and explanations, see:**
+- [CloudFlare Configuration Examples](../../../docs/cloudflare_configuration_example.md) - Comprehensive guide with multiple use cases
+
+### Getting Your API Token
+
+1. Go to [CloudFlare Dashboard > My Profile > API Tokens](https://dash.cloudflare.com/profile/api-tokens)
+2. Click "Create Token"
+3. Use "Read all resources" template or create custom token with:
+   - **Account**: `Account Settings - Read`
+   - **Zone**: `Zone - Read`, `DNS - Read`, `Analytics - Read`, `Firewall Services - Read`
+4. Copy the generated token to your `secrets.yaml`
+
+---
+
+## 📖 Command Usage & Examples
+
+### Account Info
+
+Display CloudFlare account information with optional filtering.
+
+**Basic Usage:**
 ```bash
-pip install python-dotenv requests rich
+# Show all accounts (respects config filters)
+ic cf account info
+
+# Filter by account name (overrides config)
+ic cf account info -a Production
+ic cf account info --account "Dev"
 ```
 
-### 2️⃣ 환경 변수 설정 (`.env` 파일)
-
-스크립트와 동일한 디렉터리에 `.env` 파일을 만들고 아래의 환경 변수를 설정합니다.
-
-```env
-CLOUDFLARE_EMAIL=your-email@example.com
-CLOUDFLARE_API_TOKEN=your-api-token
-
-# (선택적) 특정 account, zone만 검색할 경우
-ACCOUNTS=account1,account2
-ZONES=example.com,example.org
+**Output Example:**
+```
+CloudFlare Accounts
+┌──────────────────────────────────────┬─────────────────────┬────────────┬────────────┐
+│ Account ID                           │ Name                │ Type       │ Settings   │
+├──────────────────────────────────────┼─────────────────────┼────────────┼────────────┤
+│ abc123def456...                      │ Production Account  │ Enterprise │ 2FA: ✓     │
+│ ghi789jkl012...                      │ Development Account │ Free       │ 2FA: ✗     │
+└──────────────────────────────────────┴─────────────────────┴────────────┴────────────┘
 ```
 
-### 🔑 API 토큰 생성법
-
-Cloudflare 대시보드에서 [My Profile > API Tokens](https://dash.cloudflare.com/profile/api-tokens) 메뉴에서 생성할 수 있습니다.
-
-권장하는 최소 권한:
-- Account: `Account Settings - Read`
-- Zone: `DNS - Read`
+**CLI Options:**
+- `-a, --account <name>`: Filter accounts by name (case-insensitive substring match)
 
 ---
 
-## ⚙️ 사용 방법
+### Zone Info
 
-스크립트 기본 실행법 (Default - 전체조회):
+List zones with detailed information grouped by account.
 
+**Basic Usage:**
 ```bash
-python cf_info.py
+# Show all zones (respects config filters)
+ic cf zone info
+
+# Filter by account
+ic cf zone info -a Production
+
+# Filter by zone name
+ic cf zone info -z example.com
+
+# Combine filters
+ic cf zone info -a Production -z example
 ```
 
-특정 계정이나 도메인(zone)을 필터링하여 조회:
+**Output Example:**
+```
+Production Account
+┌──────────────────────────────────────┬─────────────────┬────────┬────────────┬─────────────────────┐
+│ Zone ID                              │ Name            │ Status │ License    │ Nameservers         │
+├──────────────────────────────────────┼─────────────────┼────────┼────────────┼─────────────────────┤
+│ zone123abc...                        │ example.com     │ active │ Enterprise │ ns1.cloudflare.com  │
+│ zone456def...                        │ api.example.com │ active │ Enterprise │ ns2.cloudflare.com  │
+└──────────────────────────────────────┴─────────────────┴────────┴────────────┴─────────────────────┘
 
+Development Account
+┌──────────────────────────────────────┬─────────────────┬────────┬────────────┬─────────────────────┐
+│ Zone ID                              │ Name            │ Status │ License    │ Nameservers         │
+├──────────────────────────────────────┼─────────────────┼────────┼────────────┼─────────────────────┤
+│ zone789ghi...                        │ test.com        │ active │ Free       │ ns3.cloudflare.com  │
+└──────────────────────────────────────┴─────────────────┴────────┴────────────┴─────────────────────┘
+```
+
+**CLI Options:**
+- `-a, --account <name>`: Filter by account name
+- `-z, --zone <name>`: Filter by zone name
+
+---
+
+### DNS Records
+
+View DNS records for zones with filtering support.
+
+**Basic Usage:**
 ```bash
-python cf_info.py --account <계정명 일부> --zone <도메인 일부>
+# Show DNS records for all zones (respects config filters)
+ic cf dns info
+
+# Filter by account
+ic cf dns info -a Production
+
+# Filter by zone
+ic cf dns info -z example.com
+
+# Combine filters
+ic cf dns info -a Production -z example
 ```
 
-예시:
+**Output Example:**
+```
+Production Account - example.com
+┌──────┬──────────────┬─────────────────┬──────────┬───────┬─────┬────────────────────┐
+│ Type │ Name         │ Content         │ Priority │ Proxy │ TTL │ Modified           │
+├──────┼──────────────┼─────────────────┼──────────┼───────┼─────┼────────────────────┤
+│ A    │ @            │ 192.0.2.1       │ -        │ ✓     │ Auto│ 2024-11-15 10:30   │
+│ CNAME│ www          │ example.com     │ -        │ ✓     │ Auto│ 2024-11-15 10:30   │
+│ MX   │ @            │ mail.example.com│ 10       │ ✗     │ 3600│ 2024-11-10 14:22   │
+│ TXT  │ @            │ v=spf1 ...      │ -        │ ✗     │ 3600│ 2024-11-01 09:15   │
+└──────┴──────────────┴─────────────────┴──────────┴───────┴─────┴────────────────────┘
+```
 
+**CLI Options:**
+- `-a, --account <name>`: Filter by account name
+- `-z, --zone <name>`: Filter by zone name
+
+**Note:** The `list_info` command is deprecated. Use `info` instead.
+
+---
+
+### Traffic Analytics
+
+Monitor traffic analytics with configurable time windows. Supports both Enterprise and Free zones with appropriate data availability.
+
+**Basic Usage:**
 ```bash
-python cf_info.py --account exam --zone ple
+# Show analytics for last 8 hours (default)
+ic cf traffic info
+
+# Custom time window
+ic cf traffic info -t 24h
+ic cf traffic info -t 1d
+ic cf traffic info -t 30m
+
+# Filter by account/zone
+ic cf traffic info -a Production -t 12h
+ic cf traffic info -z example.com -t 1d
 ```
 
-위 명령은 계정명에 "exam"가 포함되고, 도메인명에 "ple"가 포함된 모든 계정과 도메인의 DNS 정보를 출력합니다.
+**Time Window Formats:**
+- `5m`, `30m` - Minutes (e.g., last 5 minutes, last 30 minutes)
+- `1h`, `8h`, `24h` - Hours (e.g., last 1 hour, last 8 hours, last 24 hours)
+- `1d`, `7d`, `30d` - Days (e.g., last 1 day, last 7 days, last 30 days)
 
-환경 변수에 설정된 계정과 도메인이 있을 경우 해당 설정이 우선 적용됩니다.
-
-환경 변수에 설정된 내용이 없고 option 필터링이 없을경우 기본 전체 검색이 적용됩니다.
-
-필터링 우선순위 : Argment > ENV > Default(all)
-
----
-
-## 🗂️ 로그 파일
-
-로그는 아래 경로에 기록됩니다.
-
+**Output Example:**
 ```
-logs/cloudflare_dns_info.log
+Traffic Analytics (Last 8 hours)
+
+Production Account - example.com [Enterprise]
+┌─────────────────┬──────────────┬────────────┬───────────────┬─────────────────┐
+│ Metric          │ Value        │ Change     │ Peak          │ Cache Hit Ratio │
+├─────────────────┼──────────────┼────────────┼───────────────┼─────────────────┤
+│ Total Requests  │ 1,234,567    │ +12.5%     │ 45,678/hour   │ 87.3%           │
+│ Bandwidth       │ 123.4 GB     │ +8.2%      │ 5.2 GB/hour   │ -               │
+│ Unique Visitors │ 45,678       │ +15.3%     │ 2,345/hour    │ -               │
+│ Threats Blocked │ 1,234        │ -5.2%      │ 67/hour       │ -               │
+└─────────────────┴──────────────┴────────────┴───────────────┴─────────────────┘
+
+Development Account - test.com [Free]
+┌─────────────────┬──────────────┬────────────┬───────────────┬─────────────────┐
+│ Metric          │ Value        │ Change     │ Peak          │ Cache Hit Ratio │
+├─────────────────┼──────────────┼────────────┼───────────────┼─────────────────┤
+│ Total Requests  │ 12,345       │ +5.2%      │ 456/hour      │ Limited data    │
+│ Bandwidth       │ 1.2 GB       │ +3.1%      │ 52 MB/hour    │ -               │
+│ Unique Visitors │ N/A          │ N/A        │ N/A           │ -               │
+│ Threats Blocked │ N/A          │ N/A        │ N/A           │ -               │
+└─────────────────┴──────────────┴────────────┴───────────────┴─────────────────┘
+```
+
+**CLI Options:**
+- `-a, --account <name>`: Filter by account name
+- `-z, --zone <name>`: Filter by zone name
+- `-t, --time <window>`: Time window (default: 8h)
+
+**License-Specific Data:**
+- **Enterprise zones**: Full analytics including unique visitors, threats, detailed cache metrics
+- **Free zones**: Basic analytics (requests, bandwidth), limited or unavailable advanced metrics
+
+---
+
+### WAF Security Rules
+
+Display Web Application Firewall rules in a hierarchical tree structure with color coding.
+
+**Basic Usage:**
+```bash
+# Show WAF rules for all zones (respects config filters)
+ic cf waf info
+
+# Filter by account/zone
+ic cf waf info -a Production
+ic cf waf info -z example.com
+```
+
+**Output Example:**
+```
+Production Account - example.com
+
+WAF Security Rules
+├── [ENABLED] Block SQL Injection (Priority: 1)
+│   ├── Action: block
+│   ├── Expression: (http.request.uri.query contains "union select")
+│   └── Description: Blocks common SQL injection patterns
+├── [ENABLED] Challenge Suspicious Bots (Priority: 2)
+│   ├── Action: challenge
+│   ├── Expression: (cf.bot_management.score lt 30)
+│   └── Description: Challenges low-scoring bot traffic
+└── [DISABLED] Rate Limit API (Priority: 3)
+    ├── Action: block
+    ├── Expression: (http.request.uri.path contains "/api/")
+    └── Description: Rate limits API endpoints (currently disabled)
+
+Development Account - test.com
+No WAF rules configured
+```
+
+**CLI Options:**
+- `-a, --account <name>`: Filter by account name
+- `-z, --zone <name>`: Filter by zone name
+
+**Color Coding:**
+- **Block actions**: Red (bright if enabled, dim if disabled)
+- **Challenge actions**: Yellow (bright if enabled, dim if disabled)
+- **Allow actions**: Green (bright if enabled, dim if disabled)
+
+---
+
+### Page Rules
+
+Display CloudFlare page rules in a hierarchical tree structure showing URL patterns and actions.
+
+**Basic Usage:**
+```bash
+# Show page rules for all zones (respects config filters)
+ic cf rules info
+
+# Filter by account/zone
+ic cf rules info -a Production
+ic cf rules info -z example.com
+```
+
+**Output Example:**
+```
+Production Account - example.com
+
+Page Rules
+├── [ENABLED] Cache Everything for Static Assets (Priority: 1)
+│   ├── URL Pattern: *example.com/static/*
+│   ├── Actions:
+│   │   ├── Cache Level: cache_everything
+│   │   ├── Edge Cache TTL: 86400
+│   │   └── Browser Cache TTL: 14400
+│   └── Status: active
+├── [ENABLED] Force HTTPS (Priority: 2)
+│   ├── URL Pattern: http://*example.com/*
+│   ├── Actions:
+│   │   └── Always Use HTTPS: on
+│   └── Status: active
+└── [DISABLED] Redirect Old Domain (Priority: 3)
+    ├── URL Pattern: *old.example.com/*
+    ├── Actions:
+    │   └── Forwarding URL: 301 to https://example.com/$1
+    └── Status: disabled
+
+Development Account - test.com
+No page rules configured
+```
+
+**CLI Options:**
+- `-a, --account <name>`: Filter by account name
+- `-z, --zone <name>`: Filter by zone name
+
+---
+
+## 🔧 Configuration Details
+
+### Filter Behavior
+
+**Account Filters (`cloudflare_accounts`):**
+- Supports both list format and comma-separated string
+- Case-insensitive substring matching
+- Empty or commented = show all accounts
+- CLI `-a` option overrides configuration
+
+**Zone Filters (`cloudflare_zones`):**
+- Supports both list format and comma-separated string
+- Case-insensitive substring matching
+- Empty or commented = show all zones
+- CLI `-z` option overrides configuration
+- Applied after account filtering
+
+**Filter Priority:**
+```
+CLI Arguments > Configuration File > Default (show all)
+```
+
+### Configuration Examples
+
+**List Format:**
+```yaml
+cloudflare:
+  cloudflare_accounts:
+    - "Production"
+    - "Development"
+    - "Staging"
+  cloudflare_zones:
+    - "example.com"
+    - "api.example.com"
+```
+
+**Comma-Separated Format:**
+```yaml
+cloudflare:
+  cloudflare_accounts: "Production,Development,Staging"
+  cloudflare_zones: "example.com,api.example.com"
+```
+
+**Show All (No Filtering):**
+```yaml
+cloudflare:
+  # cloudflare_accounts:  # Commented out = show all
+  # cloudflare_zones:     # Commented out = show all
 ```
 
 ---
 
-## 📖 테이블 출력 예시
+## 🗂️ Logging
 
-Rich Table을 활용한 명확한 테이블로 표시됩니다.
+All CloudFlare operations are logged to the IC CLI log file with detailed information:
 
-| Type | Name | Contents | Priority | Proxy | TTL | Created | Modified | Message |
-|------|------|----------|----------|-------|-----|---------|----------|---------|
-| A    | test | 192.0.2.1 | -        | True  | 3600 | 2024-05-10 15:30 | 2024-05-12 14:22 | example comment |
+**Log Location:** `~/.ic/logs/ic_YYYYMMDD.log` or `src/logs/ic_YYYYMMDD.log`
+
+**Logged Information:**
+- API request details (endpoints, parameters)
+- Response times for performance monitoring
+- Filter application (accounts, zones)
+- Result counts (accounts fetched, zones processed)
+- Error details with full tracebacks
+- **Note:** Credentials are never logged
+
+**Console Output:**
+- Minimal, clean output focused on results
+- Progress indicators for long operations
+- User-friendly error messages
+- Rich tables and trees for data visualization
 
 ---
 
-## ⚠️ 주의사항
+## ⚠️ Troubleshooting
 
-- 과도한 API 호출은 Cloudflare API 호출 제한에 도달할 수 있으니 유의하세요.
-- 보안상 API 키는 절대 외부에 노출하지 마세요.
+### Authentication Errors
+
+**Problem:** `❌ CloudFlare authentication failed`
+
+**Solutions:**
+1. Verify credentials in `~/.ic/config/secrets.yaml`:
+   ```yaml
+   cloudflare:
+     email: "your-email@example.com"
+     api_token: "your_token_here"
+   ```
+2. Check that your API token has required permissions:
+   - Account: `Account Settings - Read`
+   - Zone: `Zone - Read`, `DNS - Read`, `Analytics - Read`, `Firewall Services - Read`
+3. Verify token is not expired in CloudFlare dashboard
+4. Ensure email matches the account associated with the token
+
+### Rate Limit Errors
+
+**Problem:** `⚠️ CloudFlare API rate limit exceeded`
+
+**Solutions:**
+1. Wait for the suggested retry time (shown in error message)
+2. Reduce the number of zones/accounts being queried using filters
+3. Increase time between API calls
+4. Consider upgrading CloudFlare plan for higher rate limits
+
+### Network Errors
+
+**Problem:** `❌ Network error connecting to CloudFlare API`
+
+**Solutions:**
+1. Check internet connectivity
+2. Verify firewall/proxy settings allow HTTPS to `api.cloudflare.com`
+3. Check if CloudFlare API is experiencing outages: https://www.cloudflarestatus.com/
+4. Try again after a few moments
+
+### Configuration Errors
+
+**Problem:** `❌ CloudFlare configuration error`
+
+**Solutions:**
+1. Verify `secrets.yaml` syntax is valid YAML
+2. Check that `email` and `api_token` fields are present
+3. Ensure filter formats are correct (list or comma-separated string)
+4. Run `ic config validate` to check configuration
+
+### No Data Returned
+
+**Problem:** Commands run successfully but show no data
+
+**Solutions:**
+1. Check if filters are too restrictive:
+   ```bash
+   # Try without filters
+   ic cf account info
+   ic cf zone info
+   ```
+2. Verify your CloudFlare account has zones/resources
+3. Check API token permissions include read access
+4. Review log file for detailed error messages
+
+### Missing Analytics Data
+
+**Problem:** Traffic analytics show "N/A" or "Limited data"
+
+**Solutions:**
+1. **Free zones**: Some metrics are only available on paid plans
+   - Unique visitors, threats blocked, detailed cache metrics require Enterprise
+2. **New zones**: Analytics may not be available for newly created zones
+3. **Time window**: Try a longer time window (e.g., `-t 24h` instead of `-t 1h`)
+4. **Enterprise zones**: Verify GraphQL Analytics API is enabled
+
+### Deprecated Command Warning
+
+**Problem:** `⚠️ The 'list_info' command is deprecated`
+
+**Solution:**
+- Use the new command name: `ic cf dns info` instead of `ic cf dns list_info`
+- Update any scripts or documentation to use the new command
+- The old command will be removed in a future version
 
 ---
 
-## 📞 지원 및 문의
+## 📊 Performance Considerations
 
-스크립트 사용 중 문제가 발생하거나 추가 기능 요청이 있으면 개발자에게 문의하세요.
+**API Call Optimization:**
+- Filters are applied before making API calls when possible
+- Pagination is handled automatically for large result sets
+- Connection pooling for multiple API requests
+- 30-second timeout for all API requests
+
+**Expected Performance:**
+- Account retrieval: < 2 seconds for 10 accounts
+- Zone retrieval: < 5 seconds for 100 zones
+- DNS records: < 3 seconds for 1000 records per zone
+- Analytics retrieval: < 10 seconds for 10 zones
+- WAF rules: < 5 seconds for 100 rules per zone
+- Page rules: < 3 seconds for 50 rules per zone
 
 ---
 
-## 📄 라이센스
+## 🔒 Security Best Practices
 
-이 스크립트는 MIT 라이센스로 제공됩니다. 자유롭게 수정 및 배포할 수 있습니다.
+1. **Never commit credentials**: Keep `secrets.yaml` out of version control
+2. **Use API tokens**: Prefer API tokens over Global API Keys
+3. **Minimal permissions**: Grant only required permissions to API tokens
+4. **Rotate tokens**: Regularly rotate API tokens
+5. **Audit logs**: Review log files for suspicious activity
+6. **Secure storage**: Ensure `~/.ic/config/` has appropriate file permissions (600)
+
+---
+
+## 📞 Support & Resources
+
+**Documentation:**
+- IC CLI Documentation: See main README.md
+- CloudFlare API Docs: https://developers.cloudflare.com/api/
+
+**Getting Help:**
+- Check log files for detailed error information
+- Review this troubleshooting section
+- Verify configuration with `ic config validate`
+- Contact your system administrator for access issues
+
+**CloudFlare Resources:**
+- Dashboard: https://dash.cloudflare.com/
+- API Tokens: https://dash.cloudflare.com/profile/api-tokens
+- Status Page: https://www.cloudflarestatus.com/
+
+---
+
+## 📄 License
+
+This module is part of the IC CLI tool and follows the same license terms.
 
