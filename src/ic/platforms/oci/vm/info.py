@@ -198,11 +198,11 @@ def collect_instances_parallel_fast(config, compartments, region_list, name_filt
                 all_rows.extend(result)
                 completed += 1
                 if progress:
-                    progress.update(f"Completed {comp.name} in {region} - Found {len(result)} instances ({completed}/{len(jobs)})", advance=1)
+                    progress.update(f"Completed {comp.name} in {region} - Found {len(result)} instances", advance=1)
             except Exception as e:
                 completed += 1
                 if progress:
-                    progress.update(f"Failed {comp.name} in {region} ({completed}/{len(jobs)})", advance=1)
+                    progress.update(f"Failed {comp.name} in {region}", advance=1)
                 console.print(f"[red]Job failed[/red] {comp.name} in {region}: {e}")
     
     elapsed = time.time() - start_ts
@@ -274,36 +274,38 @@ def main(args, config=None):
     name_filter = args.name.lower() if args.name else None
     compartment_filter = args.compartment.lower() if args.compartment else None
 
-    # Use single progress bar for the entire operation
-    with ManualProgress("Collecting OCI VM Information", total=100) as progress:
-        try:
-            progress.update("Loading OCI configuration", advance=10)
-            oci_config = oci.config.from_file("~/.oci/config", "DEFAULT")
-            identity_client = oci.identity.IdentityClient(oci_config)
-        except Exception as e:
-            console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]")
-            return {"error": str(e), "success": False}
+    # First, get configuration to calculate total jobs
+    try:
+        oci_config = oci.config.from_file("~/.oci/config", "DEFAULT")
+        identity_client = oci.identity.IdentityClient(oci_config)
+    except Exception as e:
+        console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]")
+        return {"error": str(e), "success": False}
 
-        progress.update("Discovering available regions", advance=10)
-        if args.regions:
-            subscribed = get_all_subscribed_regions(identity_client, oci_config["tenancy"])
-            region_list = [r.strip() for r in args.regions.split(',') if r.strip() and r in subscribed]
-            if not region_list:
-                console.print("[red]유효한 리전이 없어 종료합니다[/red]")
-                return {"error": "No valid regions found", "success": False}
-        else:
-            region_list = get_all_subscribed_regions(identity_client, oci_config["tenancy"])
+    # Get regions
+    if args.regions:
+        subscribed = get_all_subscribed_regions(identity_client, oci_config["tenancy"])
+        region_list = [r.strip() for r in args.regions.split(',') if r.strip() and r in subscribed]
+        if not region_list:
+            console.print("[red]유효한 리전이 없어 종료합니다[/red]")
+            return {"error": "No valid regions found", "success": False}
+    else:
+        region_list = get_all_subscribed_regions(identity_client, oci_config["tenancy"])
 
-        progress.update("Discovering compartments", advance=10)
-        compartments = get_compartments(identity_client, oci_config["tenancy"], compartment_filter, console)
-        
-        total_jobs = len(compartments) * len(region_list)
-        progress.update(f"Processing {len(compartments)} compartments across {len(region_list)} regions", advance=10)
+    # Get compartments
+    compartments = get_compartments(identity_client, oci_config["tenancy"], compartment_filter, console)
+    
+    # Calculate total jobs for accurate progress bar
+    total_jobs = len(compartments) * len(region_list)
+    
+    # Use single progress bar with correct total
+    with ManualProgress("Collecting OCI VM Information", total=total_jobs) as progress:
+        progress.set_description(f"Processing {len(compartments)} compartments across {len(region_list)} regions")
 
         # Collect instance information with progress tracking
         inst_rows = collect_instances_parallel_fast(oci_config, compartments, region_list, name_filter, console, progress)
         
-        progress.update("Formatting results", advance=10)
+        progress.set_description("Collection complete!")
     
     # Display results
     console.print(f"\n[bold green]Collection complete![/bold green] Found {len(inst_rows)} instances.")
