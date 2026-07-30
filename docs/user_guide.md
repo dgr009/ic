@@ -2,258 +2,112 @@
 
 ## 개요
 
-IC는 통합 클라우드 인프라 관리 도구로, AWS, GCP, Azure, OCI, CloudFlare 등 다양한 클라우드 서비스를 하나의 도구로 관리할 수 있습니다.
+IC는 통합 클라우드 인프라 관리 CLI 도구로, **AWS**, **GCP**, **OCI**, **CloudFlare**, **SSH** 등 다양한 멀티 클라우드 및 서버 리소스를 단일 CLI 환경에서 손쉽게 조회하고 관리할 수 있습니다.
 
-## 새로운 기능 (v2.0)
+## 주요 특징 (v1.2.6+)
 
-### YAML 기반 설정 시스템
-- 구조화된 설정 관리
-- 민감한 정보와 일반 설정 분리
-- 환경변수 지원
-- 외부 설정 파일 자동 로딩
+- **YAML 기반 보안 설정 시스템**: 민감한 자격 증명(`secrets.yaml`)과 일반 설정(`default.yaml`)의 명확한 분리
+- **실시간 프로그레스 바**: 리전 및 계정별 리소스 수집 진행 상황 시각화
+- **보안 중심 탐색**: AWS Security Group Ingress/Egress 규칙 분석 및 Tree 형식 지원 (`-o tree`)
+- **다중 플랫폼 완벽 지원**: AWS, GCP (Compute, Storage, VPC, GKE, SQL), OCI, CloudFlare, SSH
 
 ## 빠른 시작
 
 ### 1. 설치
 
 ```bash
-# 저장소 클론
-git clone <repository-url>
-cd ic
+# PyPI를 통한 설치 (권장)
+pip install ic-code
 
-# 가상환경 생성 및 활성화
-python -m venv venv
-source venv/bin/activate  # Linux/Mac
-
-# 의존성 설치
-pip install -r requirements.txt
+# 버전에 대한 설치 확인
+ic --version
+ic --help
 ```
 
-### 2. 설정
-
-#### 새로운 설정 시스템 사용 (권장)
+### 2. 설정 초기화
 
 ```bash
-# 기본 설정 파일 생성
+# 기본 설정 생성
 ic config init
 
-# 기존 .env 파일에서 마이그레이션
-ic config migrate
-```
-
-#### 설정 파일 구조
-
-```
-config/
-├── default.yaml    # 일반 설정
-└── secrets.yaml    # 민감한 정보
-```
-
-### 3. 기본 사용법
-
-```bash
-# 설정 확인
+# 설정 검증 및 현재 설정 확인
+ic config validate
 ic config show
-
-# AWS 서비스
-ic aws ec2 list
-ic aws s3 list
-
-# GCP 서비스  
-ic gcp compute list
-ic gcp storage list
-
-# SSH 관리
-ic ssh scan
-ic ssh connect <hostname>
 ```
 
-## 설정 관리
+### 3. 설정 파일 구조 (`~/.ic/config/`)
 
-### YAML 설정 파일
-
-#### .ic/config/default.yaml
-
-**Note**: IC now uses `.ic/config/` as the preferred configuration directory. The legacy `config/` directory is still supported for backward compatibility.
-```yaml
-aws:
-  region: us-west-2
-  profile: default
-  
-gcp:
-  project_id: my-project
-  region: us-central1
-  
-azure:
-  subscription_id: your-subscription-id
-  resource_group: my-resource-group
+```
+~/.ic/config/
+├── default.yaml    # 콘솔/파일 로그 레벨 등 기본 옵션
+└── secrets.yaml    # AWS 프로필, GCP 자격 증명 경로, OCI 설정 경로, CloudFlare 토큰 등
 ```
 
-#### .ic/config/secrets.yaml
+#### `.ic/config/secrets.yaml` 예시
 ```yaml
 aws:
-  access_key_id: ${AWS_ACCESS_KEY_ID}
-  secret_access_key: ${AWS_SECRET_ACCESS_KEY}
-  
+  accounts:
+    - "123456789012"
+  profiles:
+    default: "my-aws-profile"
+  regions:
+    - "ap-northeast-2"
+    - "us-east-1"
+
 gcp:
-  service_account_key_path: ${GCP_SERVICE_ACCOUNT_KEY_PATH}
-  
+  project_id: "my-gcp-project-id"
+  credentials_file: "~/.config/gcloud/application_default_credentials.json"
+  regions:
+    - "asia-northeast3"
+
+oci:
+  config_file: "~/.oci/config"
+  profile: "DEFAULT"
+
 cloudflare:
-  api_token: ${CLOUDFLARE_API_TOKEN}
+  api_token: "your-cloudflare-api-token"
+
+ssh:
+  key_dir: "~/.ssh"
+  skip_prefixes:
+    - "bastion"
 ```
 
-### 환경변수
+## 주요 명령어 안내
 
-민감한 정보는 환경변수로 관리하세요:
+### 설정 및 보안
+- `ic config init` - 기본 설정 파일 가이드 생성
+- `ic config show` - 현재 설정 표시 (민감 정보 자동 마스킹)
+- `ic config validate` - 설정 파일 무결성 및 경로 검증
+- `ic security scan` - 프로젝트 코드 내 하드코딩된 시크릿 탐지
+- `ic security install-hooks` - Git Pre-commit 보안 훅 설치
 
-```bash
-export AWS_ACCESS_KEY_ID=your-access-key
-export AWS_SECRET_ACCESS_KEY=your-secret-key
-export GCP_SERVICE_ACCOUNT_KEY_PATH=/path/to/service-account.json
-export CLOUDFLARE_API_TOKEN=your-api-token
-```
+### AWS 서비스
+- `ic aws ec2 info` - EC2 인스턴스 정보 조회
+- `ic aws sg info` - Security Group 인바운드/아웃바운드 룰 조회
+  - `--ingress` (`-i`): 인바운드 규칙만 출력
+  - `--egress` (`-e`): 아웃바운드 규칙만 출력
+  - `-o tree`: 방향 화살표(`←`, `→`)가 포함된 시각적 트리 구조 출력
+- `ic aws s3 info` / `ic aws s3 tag_check` - S3 버킷 및 태깅 준수 검사
+- `ic aws rds info` - RDS 인스턴스 및 클러스터 정보
+- `ic aws vpc info` / `ic aws lb info` - VPC 네트워크 및 로드밸런서
+- `ic aws eks info` / `ic aws ecs info` - Kubernetes 및 컨테이너 서비스
 
-## 주요 명령어
+### GCP 서비스
+- `ic gcp compute info` - Compute Engine VM 인스턴스 정보
+- `ic gcp storage info` - Cloud Storage 버킷 정보
+- `ic gcp vpc info` - VPC 네트워크 및 서브넷 정보
+- `ic gcp gke info` - GKE 클러스터 구성 정보
+- `ic gcp sql info` - Cloud SQL 인스턴스 정보
 
-### 설정 관리
-- `ic config init` - 기본 설정 파일 생성
-- `ic config show` - 현재 설정 표시
-- `ic config validate` - 설정 검증
-- `ic config migrate` - .env에서 YAML로 마이그레이션
+### OCI 서비스
+- `ic oci vm info` - Compute VM 인스턴스
+- `ic oci vcn info` - Virtual Cloud Network
+- `ic oci lb info` / `ic oci nsg info` - 로드밸런서 및 NSG 보안 그룹
+- `ic oci volume info` / `ic oci obj info` - 스토리지 볼륨 및 버킷
+- `ic oci cost usage` - 비용 분석 및 크레딧 잔액
 
-### AWS 명령어
-- `ic aws ec2 list` - EC2 인스턴스 목록
-- `ic aws s3 list` - S3 버킷 목록
-- `ic aws rds list` - RDS 인스턴스 목록
-- `ic aws iam list-users` - IAM 사용자 목록
-
-### GCP 명령어
-- `ic gcp compute list` - Compute Engine 인스턴스 목록
-- `ic gcp storage list` - Cloud Storage 버킷 목록
-- `ic gcp sql list` - Cloud SQL 인스턴스 목록
-
-### Azure 명령어
-- `ic azure vm list` - Virtual Machine 목록
-- `ic azure storage list` - Storage Account 목록
-
-### SSH 관리
-- `ic ssh scan` - SSH 서버 스캔
-- `ic ssh connect <host>` - SSH 자동 연결
-- `ic ssh list` - 연결 가능한 서버 목록
-
-## 문제 해결
-
-### 일반적인 문제
-
-1. **설정 파일을 찾을 수 없음**
-   ```bash
-   ic config init  # 기본 설정 파일 생성
-   ```
-
-2. **권한 오류**
-   ```bash
-   chmod 600 .ic/config/secrets.yaml
-   # Or for legacy location:
-   chmod 600 config/secrets.yaml
-   ```
-
-3. **마이그레이션 문제**
-   ```bash
-   ic config migrate --dry-run  # 미리보기
-   ic config migrate --force    # 강제 실행
-   ```
-
-### 로그 확인
-
-```bash
-# 로그 레벨 설정
-export LOG_LEVEL=DEBUG
-
-# 로그 파일 위치
-tail -f ~/.ic/logs/ic.log
-```
-
-## 고급 사용법
-
-### 프로그래밍 API
-
-```python
-# Import with fallback for compatibility
-try:
-    from src.ic.config.manager import ConfigManager
-    from src.ic.platforms.aws.ec2 import info as aws_ec2_info
-except ImportError:
-    from ic.config.manager import ConfigManager
-    from ic.platforms.aws.ec2 import info as aws_ec2_info
-
-# 설정 로딩
-config_manager = ConfigManager()
-config = config_manager.get_config()
-
-# 특정 설정 접근
-aws_region = config.get('aws', {}).get('region', 'us-west-2')
-
-# 서비스 모듈 사용
-args = type('Args', (), {'region': aws_region, 'format': 'table'})()
-result = aws_ec2_info.main(args, config_manager)
-```
-
-### 외부 설정 로딩
-
-```python
-try:
-    from src.ic.config.external import ExternalConfigLoader
-except ImportError:
-    from ic.config.external import ExternalConfigLoader
-
-loader = ExternalConfigLoader()
-aws_config = loader.load_aws_config()  # ~/.aws/config 로딩
-```
-
-### 시크릿 관리
-
-```python
-try:
-    from src.ic.config.secrets import SecretsManager
-except ImportError:
-    from ic.config.secrets import SecretsManager
-
-secrets_manager = SecretsManager()
-secrets = secrets_manager.load_secrets()
-```
-
-## 보안 고려사항
-
-1. **파일 권한**
-   ```bash
-   chmod 600 .ic/config/secrets.yaml
-   chmod 600 config/secrets.yaml  # Legacy location
-   chmod 600 .env
-   ```
-
-2. **환경변수 사용**
-   - 민감한 정보는 항상 환경변수 사용
-   - 설정 파일에 하드코딩 금지
-
-3. **Git 관리**
-   ```gitignore
-   .ic/config/secrets.yaml
-   config/secrets.yaml
-   .env
-   *.log
-   ```
-
-## 지원 및 문의
-
-- GitHub Issues: [프로젝트 이슈 페이지]
-- 문서: `docs/` 디렉토리
-- 예제: `examples/` 디렉토리
-
-## 변경 로그
-
-### v2.0.0
-- ✨ YAML 기반 설정 시스템
-- ✨ 자동 마이그레이션 도구
-- ✨ 보안 강화
-- ✨ 성능 최적화
-- 🔧 모든 서비스 모듈 업데이트
+### CloudFlare & SSH
+- `ic cf zone info` - DNS 존 및 도메인 정보
+- `ic cf dns info` - DNS 레코드 상세 정보
+- `ic ssh info` - SSH 서버 스캔 및 정보 수집

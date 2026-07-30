@@ -5,9 +5,6 @@ on:
     types: [published]
   workflow_dispatch:  # Manual trigger
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 jobs:
   build:
     runs-on: ubuntu-latest

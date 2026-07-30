@@ -31,7 +31,6 @@ on:
           - ssh
 
 env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   # CI Environment Detection
   CI: true
   GITHUB_ACTIONS: true

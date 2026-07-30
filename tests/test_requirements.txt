@@ -39,7 +39,6 @@ pyyaml>=6.0.1
 
 # Platform-specific test dependencies
 boto3>=1.28.0  # AWS testing
-azure-identity>=1.14.0  # Azure testing
 google-auth>=2.23.0  # GCP testing
 oci>=2.112.0  # OCI testing
 

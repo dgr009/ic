@@ -109,6 +109,33 @@ def resolve_accounts(account_input=None) -> list:
 
     return result
 
+def get_valid_accounts(account_input=None) -> list:
+    """
+    입력받은 계정 ID/프로필명/부분문자열을 (account_id, profile_name) 튜플 리스트로 변환합니다.
+    """
+    accounts = resolve_accounts(account_input)
+    profiles_map = get_profiles()
+    valid = []
+    
+    for acct in accounts:
+        profile_name = profiles_map.get(acct)
+        acct_id = acct
+        if not profile_name:
+            for a_id, p_name in profiles_map.items():
+                if p_name.lower() == str(acct).lower() or str(a_id).lower() == str(acct).lower():
+                    profile_name = p_name
+                    acct_id = a_id
+                    break
+        if not profile_name:
+            profile_name = acct
+        valid.append((acct_id, profile_name))
+        
+    if not valid and profiles_map:
+        for a_id, p_name in profiles_map.items():
+            valid.append((a_id, p_name))
+            
+    return valid
+
 def ensure_directory_exists(directory):
     """지정된 경로에 디렉터리가 없으면 생성합니다."""
     if not os.path.exists(directory):

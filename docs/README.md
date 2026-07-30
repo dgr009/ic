@@ -13,101 +13,53 @@ This directory contains comprehensive documentation for the IC (Infrastructure R
 
 ### AWS (Amazon Web Services)
 - [AWS Installation](aws/installation.md) - Install and setup AWS integration
-- [AWS Configuration](aws/configuration.md) - Configure AWS credentials and settings
-- [AWS Usage](aws/usage.md) - How to use AWS commands
-- [AWS Troubleshooting](aws/troubleshooting.md) - AWS-specific troubleshooting
-
-### Azure (Microsoft Azure)
-- [Azure Installation](azure/installation.md) - Install and setup Azure integration
-- [Azure Configuration](azure/configuration.md) - Configure Azure credentials and settings
-- [Azure Usage](azure/usage.md) - How to use Azure commands
-- [Azure Troubleshooting](azure/troubleshooting.md) - Azure-specific troubleshooting
+- [AWS Usage Guide](aws/README.md) - ECS, EKS, Fargate, S3, RDS, Security Groups (Ingress & Egress)
 
 ### GCP (Google Cloud Platform)
-- [GCP Installation](gcp/installation.md) - Install and setup GCP integration
-- [GCP Configuration](gcp/configuration.md) - Configure GCP credentials and settings
-- [GCP Usage](gcp/usage.md) - How to use GCP commands
-- [GCP Troubleshooting](gcp/troubleshooting.md) - GCP-specific troubleshooting
-
-### NCP (Naver Cloud Platform)
-- [NCP Installation](ncp/installation.md) - Install and setup NCP integration
-- [NCP Configuration](ncp/configuration.md) - Configure NCP credentials and settings
-- [NCP Usage](ncp/usage.md) - How to use NCP commands
-- [NCP Troubleshooting](ncp/troubleshooting.md) - NCP-specific troubleshooting
-
-### NCPGOV (Naver Cloud Platform Government)
-- [NCPGOV Installation](ncpgov/installation.md) - Install and setup NCPGOV integration
-- [NCPGOV Configuration](ncpgov/configuration.md) - Configure NCPGOV credentials and settings
-- [NCPGOV Usage](ncpgov/usage.md) - How to use NCPGOV commands
-- [NCPGOV Troubleshooting](ncpgov/troubleshooting.md) - NCPGOV-specific troubleshooting
+- [GCP Configuration Guide](gcp/GCP_CONFIGURATION_GUIDE.md) - Configure GCP credentials and settings
+- [GCP Security Best Practices](gcp/GCP_SECURITY_BEST_PRACTICES.md) - Security guidelines for GCP
+- [GCP Platform Overview](gcp/README.md) - Compute, Storage, VPC, GKE, and Cloud SQL
 
 ### OCI (Oracle Cloud Infrastructure)
 - [OCI Installation](oci/installation.md) - Install and setup OCI integration
-- [OCI Configuration](oci/configuration.md) - Configure OCI credentials and settings
-- [OCI Usage](oci/usage.md) - How to use OCI commands
-- [OCI Troubleshooting](oci/troubleshooting.md) - OCI-specific troubleshooting
+- [OCI Usage Guide](oci/README.md) - VM, VCN, LB, NSG, Volumes, and IAM Policies
 
 ### CloudFlare
-- [CloudFlare Platform README](../src/ic/platforms/cloudflare/README.md) - Complete CloudFlare integration guide
-- [CloudFlare Configuration Examples](cloudflare_configuration_example.md) - Detailed configuration examples and use cases
+- [CloudFlare Integration Guide](../src/ic/platforms/cloudflare/README.md) - Complete CloudFlare integration guide
+- [CloudFlare Configuration Examples](cloudflare_configuration_example.md) - Configuration examples and use cases
 
-## Advanced Topics
-
-- [MCP Integration](mcp_integration.md) - Model Context Protocol integration
-- [Deployment](deployment.md) - Deployment strategies
-- [Troubleshooting](troubleshooting.md) - General troubleshooting guide
-
-## Migration and Updates
-
-- [Migration Guide](migration_guide.md) - Migrating from older versions
-- [Config Migration](config_migration.md) - Configuration migration guide
-
-## Development
-
-- [Development Documentation](development/) - For contributors
-  - [Development Guide](development/development_guide.md) - Complete development setup and patterns
-  - [Import Patterns Guide](development/import_patterns.md) - Essential import patterns and best practices
-  - [Migration Guide](development/migration_guide.md) - Migration procedures and troubleshooting
-
-## Documentation Templates
-
-- [Templates](_templates/) - Documentation templates for consistency
+### SSH Server Management
+- [SSH Configuration Guide](ssh/configuration.md) - Configure SSH key directories, rules, and connection options
+- [SSH Integration Guide](../src/ic/platforms/ssh/README.md) - Server discovery and connection management
 
 ## Quick Reference
 
 ### Platform Commands
 ```bash
-# AWS
+# AWS Services
 ic aws ec2 info
+ic aws sg info --ingress
+ic aws sg info --egress -o tree
 ic aws s3 info
 
-# Azure  
-ic azure vm info
-ic azure storage info
-
-# CloudFlare
-ic cf account info
-ic cf zone info
-ic cf dns info
-ic cf traffic info
-ic cf waf info
-ic cf rules info
-
-# GCP
+# GCP Services
 ic gcp compute info
 ic gcp storage info
+ic gcp vpc info
+ic gcp gke info
+ic gcp sql info
 
-# NCP
-ic ncp ec2 info
-ic ncp s3 info
+# OCI Services
+ic oci vm info
+ic oci vcn info
+ic oci lb info
 
-# NCPGOV
-ic ncpgov ec2 info
-ic ncpgov s3 info
+# CloudFlare
+ic cf zone info
+ic cf dns info
 
-# OCI
-ic oci compute info
-ic oci storage info
+# SSH Server Management
+ic ssh info
 ```
 
 ### Configuration Commands
@@ -124,18 +76,5 @@ ic config show
 
 ---
 
-## 한국어 문서 (Korean Documentation)
-
-### 시작하기
-- [메인 README](../README.md) - 프로젝트 전체 개요 및 사용법
-
-### AWS 기능
-- [AWS 서비스 사용법](aws/README.md) - ECS, EKS, Fargate, CodePipeline 등 AWS 서비스 사용 가이드
-
-### 개발 가이드
-- [개발 환경 설정](../.cursor/rules.md) - 프로젝트 엔지니어링 핸드북 및 AI 협업 규칙
-
----
-
-**Last Updated**: 2024  
+**Last Updated**: 2026  
 **Maintainer**: IC CLI Team

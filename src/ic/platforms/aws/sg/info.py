@@ -11,7 +11,7 @@ from rich.rule import Rule
 from rich import box
 from common.log import log_info_non_console
 from common.progress_decorator import ManualProgress
-from common.utils import get_profiles, create_session
+from common.utils import get_profiles, create_session, resolve_accounts
 
 def add_arguments(parser):
     parser.add_argument("--name", "-n", default=None, help="이름 필터 (부분 일치)")
@@ -117,11 +117,26 @@ def fetch_sg_one_account_region(profile_name, account_id, region, name_filter, r
         return results
 
     for sg in sg_list:
-        sg_name = sg.get('GroupName', sg['GroupId'])
-        if name_filter and name_filter not in sg_name.lower():
-            continue
-            
         sg_id = sg['GroupId']
+        group_name = sg.get('GroupName', '')
+        tag_name = ""
+        for tag in sg.get('Tags', []):
+            if tag.get('Key') == 'Name':
+                tag_name = tag.get('Value', '')
+                break
+
+        if group_name and group_name != sg_id:
+            sg_name = f"{group_name} ({sg_id})"
+        else:
+            sg_name = sg_id
+
+        if name_filter:
+            nf = name_filter.lower()
+            if (nf not in group_name.lower() and 
+                nf not in sg_id.lower() and 
+                nf not in tag_name.lower() and 
+                nf not in sg_name.lower()):
+                continue
 
         # Process Ingress Rules
         if rule_type in ['all', 'ingress']:
@@ -184,9 +199,15 @@ def collect_sg_parallel_fast(profiles, account_filter, region_list, name_filter,
     all_rows = []
     jobs = []
     
+    target_accounts = resolve_accounts(account_filter) if account_filter else []
+    af = str(account_filter).lower() if account_filter else ""
+    
     for account_id, profile_name in profiles.items():
-        if account_filter and account_filter not in account_id:
-            continue
+        if account_filter:
+            if (account_id not in target_accounts and 
+                af not in str(account_id).lower() and 
+                af not in str(profile_name).lower()):
+                continue
         for region in region_list:
             jobs.append((profile_name, account_id, region))
     

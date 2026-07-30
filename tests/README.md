@@ -1,192 +1,71 @@
 # IC CLI Test Suite
 
-## 📁 테스트 구조 (최적화됨 - 2025.09.25)
+## 📁 Test Structure & Status
 
-### 현재 테스트 상태
+### Supported Platforms & Test Coverage
 
-#### ✅ 완전히 구현된 플랫폼 (CI에서 테스트됨)
-- **NCP (Naver Cloud Platform)**: `platforms/ncp/`
-  - EC2, S3, VPC, Security Group, RDS 서비스
-  - Unit, Integration, Performance 테스트 완료
-- **NCPGov (NCP Government)**: `platforms/ncpgov/`
-  - EC2 서비스 테스트 완료
+#### ✅ Supported Platforms (Tested in CI)
+- **AWS**: Security Group rules (Ingress/Egress/Tree), EC2, S3, RDS, VPC, EKS, ECS, Fargate
+- **GCP**: Compute Engine, Cloud Storage, VPC networks, GKE, Cloud SQL
+- **OCI**: VM instances, VCN, Load Balancers, NSG, Volumes, IAM policies
+- **CloudFlare**: Zones, DNS records, Accounts
+- **SSH**: Server discovery, rule checking, connection management
 
-#### 🚧 개발 중인 플랫폼 (테스트 없음)
-- **AWS**: 구조만 존재, 실제 테스트 파일 없음
-- **Azure**: 구조만 존재, 실제 테스트 파일 없음  
-- **GCP**: 구조만 존재, 실제 테스트 파일 없음
-- **OCI**: 구조만 존재, 실제 테스트 파일 없음
+### Validation & Test Directories
 
-### 플랫폼별 테스트 구조
-```
-platforms/
-├── ncp/           # ✅ 완전 구현
-│   ├── ec2/
-│   │   ├── unit/           # 단위 테스트
-│   │   ├── integration/    # 통합 테스트
-│   │   └── performance/    # 성능 테스트
-│   ├── s3/
-│   ├── vpc/
-│   ├── sg/
-│   └── rds/
-├── ncpgov/        # ✅ 부분 구현
-│   └── ec2/
-│       └── unit/
-└── [aws|azure|gcp|oci]/  # 🚧 개발 중 (테스트 없음)
-```
+#### `validation/` - End-to-End Validation
+- `end_to_end_cli_validation.py` - Complete CLI import, config, and command suite validation
+- `ci_cd_pipeline_validation.py` - CI/CD pipeline and runner environment validation
+- `security_performance_validation.py` - Security scanning and performance validation
 
-#### `validation/` - 검증 테스트 (최신)
-- `end_to_end_cli_validation.py` - CLI 전체 검증
-- `ci_cd_pipeline_validation.py` - CI/CD 파이프라인 검증
-- `security_performance_validation.py` - 보안 및 성능 검증
-- `run_all_validations.py` - 모든 검증 실행
+#### `security/` - Security Test Suite
+- `test_basic_security.py` - Basic security checks
+- `test_configuration_security.py` - Configuration security and permissions validation
+- `test_credential_handling.py` - Secret masking and environment variable protection
+- `test_git_security_hooks.py` - Git pre-commit security hook checks
+- `test_sensitive_data_masking.py` - Sensitive data log masking
 
-#### `security/` - 보안 테스트
-- `test_basic_security.py` - 기본 보안 테스트
-- `test_configuration_security.py` - 설정 보안 테스트
-- `test_credential_handling.py` - 자격증명 처리 테스트
-- `test_git_security_hooks.py` - Git 보안 훅 테스트
-- `test_sensitive_data_masking.py` - 민감 데이터 마스킹 테스트
+#### `integration/` & `unit/`
+- `test_basic_integration.py` - Core component integration
+- `test_cli_integration.py` - CLI subcommand integration
+- `test_config_manager.py` - Configuration manager unit tests
+- `test_security_manager.py` - Security manager unit tests
 
-#### `integration/` - 통합 테스트 (정리됨)
-- ✅ `test_basic_integration.py` - 기본 통합 테스트
-- ✅ `test_cli_integration.py` - CLI 통합 테스트
-- ✅ `test_config_migration.py` - 설정 마이그레이션 테스트
-- ✅ `test_ncp_service_integration.py` - NCP 서비스 통합 테스트
-- ✅ `test_security_cli_integration.py` - 보안 CLI 통합 테스트
-- ✅ `test_security_validation_integration.py` - 보안 검증 통합 테스트
-- ✅ `test_aws_session_integration.py` - AWS 세션 통합 테스트
-- ⏭️ `test_aws_cloudfront_integration.py` - AWS CloudFront (비활성화됨)
-- ⏭️ `test_gcp_integration.py` - GCP 통합 (비활성화됨)
-- ⏭️ `test_mcp_server_integration.py` - MCP 서버 (비활성화됨)
+#### `ci/` - CI Test System
+- `run_ci_tests.py` - Multi-platform CI test runner
+- `setup_ci_environment.py` - CI environment setup & cleanup manager
+- `mock_configs.py` - Platform mock configuration and client providers
+- `fallback_configs.py` - Environment fallback configuration loader
 
-#### `unit/` - 단위 테스트 (정리됨)
-- `test_config_manager.py` - 설정 관리자 테스트
-- `test_ncp_client.py` - NCP 클라이언트 테스트
-- `test_ncpgov_client.py` - NCP Gov 클라이언트 테스트
-- `test_security_manager.py` - 보안 관리자 테스트
-- `test_ic_logger.py` - 로거 테스트
+---
 
-#### `ci/` - CI/CD 테스트
+## 🚀 Running Tests
 
-## 🚀 CI/CD 최적화 (2025.09.25)
+### 1. End-to-End CLI Validation (Recommended)
 
-### CI 테스트 범위 최적화
-- **이전**: 모든 플랫폼(AWS, Azure, GCP, OCI, NCP, NCPGov, CloudFlare) 테스트 시도
-- **현재**: 실제 테스트가 있는 플랫폼(NCP, NCPGov)만 테스트
-- **Python 버전**: 3.9-3.12 → 3.11, 3.12로 축소하여 리소스 절약
-
-### 해결된 문제
-- ❌ **IndentationError**: 존재하지 않는 테스트 파일 실행 시도로 인한 구문 오류
-- ❌ **ModuleNotFoundError**: 구현되지 않은 모듈 import로 인한 테스트 실패
-- ❌ **리소스 낭비**: 테스트가 없는 플랫폼에 대한 불필요한 CI 실행
-- ❌ **긴 CI 실행 시간**: 불필요한 플랫폼/Python 버전 조합 제거
-- ❌ **Integration 테스트 실패**: 존재하지 않는 모듈을 import하는 테스트 파일들 비활성화
-
-### CI 실행 방법
 ```bash
-# 모든 플랫폼 테스트 (NCP, NCPGov만)
-python tests/ci/run_ci_tests.py --all-platforms
+python tests/validation/end_to_end_cli_validation.py
+```
 
-# 특정 플랫폼 테스트
-python tests/ci/run_ci_tests.py --platform ncp --test-type unit
+### 2. Pytest Test Suites
 
-# 설정 검증만
+```bash
+# Run unit & integration tests
+pytest tests/unit tests/integration
+
+# Run specific validation
+python tests/validation/security_performance_validation.py
+```
+
+### 3. CI Validation Mode
+
+```bash
+# Validate CI environment and mock configurations
+python tests/ci/setup_ci_environment.py --validate-only
 python tests/ci/run_ci_tests.py --validate-only
 ```
-- `run_ci_tests.py` - CI 테스트 실행기
-- `environment.py` - CI 환경 설정
-- `mock_configs.py` - 모의 설정
-- `fallback_configs.py` - 대체 설정
 
-#### `performance/` - 성능 테스트
-- `test_ncp_performance.py` - NCP 성능 테스트
-- `test_gcp_performance.py` - GCP 성능 테스트
-- `benchmark_runner.py` - 벤치마크 실행기
+---
 
-### 핵심 실행 파일들
-
-#### `comprehensive_test_runner.py`
-모든 테스트를 종합적으로 실행하는 메인 테스트 러너
-
-#### `platform_test_runner.py`
-플랫폼별 테스트를 실행하는 고급 테스트 러너
-
-#### `Makefile`
-테스트 빌드 및 실행을 위한 Make 파일
-
-## 🚀 테스트 실행 방법
-
-### 전체 검증 실행
-```bash
-python tests/validation/run_all_validations.py
-```
-
-### 플랫폼별 테스트 실행
-```bash
-python tests/platform_test_runner.py --platforms ncp --test-types unit
-```
-
-### CI 테스트 실행
-```bash
-python tests/ci/run_ci_tests.py --platform ncp --test-type unit
-```
-
-### Make를 사용한 테스트 실행
-```bash
-# 모든 테스트
-make test-all
-
-# 플랫폼별 테스트
-make test-ncp
-make test-aws
-
-# 테스트 타입별
-make test-unit
-make test-integration
-```
-
-## 📊 테스트 결과
-
-### 최근 검증 결과 (2025.09.24)
-- ✅ End-to-End CLI Validation: 100% (63/63 tests)
-- ✅ CI/CD Pipeline Validation: 100% (23/23 tests)
-- ✅ Security & Performance Validation: 100% (10/10 tests)
-
-**총 성공률: 100% (96/96 tests)**
-
-## 🗂️ 백업된 파일들
-
-정리 과정에서 중복되거나 오래된 파일들은 `backup/project_cleanup_20250924_183633/`에 백업되었습니다:
-
-- 오래된 테스트 파일들
-- 중복된 실행 스크립트들
-- 과거 검증 리포트들
-- 임시 설정 파일들
-
-## 📝 테스트 작성 가이드
-
-### 새로운 플랫폼 테스트 추가
-1. `tests/platforms/{platform}/` 디렉토리 생성
-2. `unit/`, `integration/`, `performance/` 하위 디렉토리 생성
-3. 테스트 파일은 `test_*.py` 형식으로 명명
-
-### 테스트 카테고리
-- **Unit**: 개별 함수/클래스 테스트
-- **Integration**: 컴포넌트 간 통합 테스트  
-- **Performance**: 성능 및 부하 테스트
-- **Security**: 보안 관련 테스트
-- **Validation**: 전체 시스템 검증
-
-## 🔧 유지보수
-
-### 정기 정리 작업
-- 중복된 테스트 파일 확인
-- 오래된 검증 리포트 정리
-- 캐시 파일 정리 (`__pycache__` 디렉토리)
-- 사용하지 않는 모의 데이터 정리
-
-### 백업 정책
-- 정리 작업 시 항상 백업 생성
-- 백업 폴더는 `backup/project_cleanup_{timestamp}/` 형식
-- 백업 매니페스트 파일로 변경사항 추적
+**Last Updated**: 2026  
+**Maintainer**: IC CLI Team
