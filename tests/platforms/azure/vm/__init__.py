@@ -1,1 +1,0 @@
-# Azure VM service tests

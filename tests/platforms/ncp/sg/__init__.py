@@ -1,1 +1,0 @@
-# NCP Security Group service tests

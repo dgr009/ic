@@ -1,1 +1,0 @@
-# AZURE aks performance tests

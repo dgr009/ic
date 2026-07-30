@@ -12,18 +12,9 @@ from rich.table import Table
 from rich import box
 from rich.rule import Rule
 
-try:
-    from ....common.log import log_info_non_console
-except ImportError:
-    from common.log import log_info_non_console
-try:
-    from ....common.progress_decorator import ManualProgress
-except ImportError:
-    from common.progress_decorator import ManualProgress
-try:
-    from ....common.utils import get_env_accounts, get_profiles
-except ImportError:
-    from common.utils import get_env_accounts, get_profiles
+from common.log import log_info_non_console
+from common.progress_decorator import ManualProgress
+from common.utils import get_env_accounts, get_profiles
 
 load_dotenv()
 console = Console()
@@ -186,7 +177,7 @@ def print_s3_table(all_rows):
 
 
 def main(args):
-    accounts = args.account.split(",") if args.account else get_env_accounts()
+    accounts = get_env_accounts(args.account)
     profiles_map = get_profiles()
     name_filter = args.name if hasattr(args, 'name') and args.name else None
 

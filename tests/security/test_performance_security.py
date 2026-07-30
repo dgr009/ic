@@ -13,7 +13,6 @@ from unittest.mock import Mock, patch
 from ic.config.security import SecurityManager
 from ic.core.session import AWSSessionManager
 from ic.core.logging import ICLogger
-from ic.core.mcp_manager import MCPManager
 
 
 class TestPerformanceSecurity:
@@ -267,47 +266,6 @@ class TestPerformanceSecurity:
         
         # Verify logger was called
         assert logger.logger.info.call_count == 500  # 5 messages × 100 iterations
-    
-    def test_mcp_manager_performance_with_many_servers(self):
-        """Test MCP manager performance with many servers."""
-        manager = MCPManager(security_manager=self.security_manager)
-        
-        # Add many servers with various configurations
-        from ic.core.mcp_manager import MCPServerConfig
-        
-        for i in range(100):
-            manager.servers[f'server_{i}'] = MCPServerConfig(
-                name=f'server_{i}',
-                command=f'command_{i}',
-                args=[f'arg_{j}' for j in range(5)],
-                env={
-                    f'VAR_{j}': f'sk-{i:032d}' if j == 0 else f'value_{i}_{j}'
-                    for j in range(10)
-                },
-                disabled=i % 10 == 0,  # Every 10th server is disabled
-                auto_approve=[f'method_{k}' for k in range(3)]
-            )
-        
-        # Test listing servers with masking
-        start_time = time.time()
-        masked_servers = manager.list_servers(include_disabled=True, mask_sensitive=True)
-        masking_time = time.time() - start_time
-        
-        # Should complete in reasonable time
-        assert masking_time < 1.0, f"Server listing with masking took {masking_time:.2f}s"
-        
-        # Test security summary generation
-        start_time = time.time()
-        security_summary = manager.get_security_summary()
-        summary_time = time.time() - start_time
-        
-        # Should complete in reasonable time
-        assert summary_time < 2.0, f"Security summary took {summary_time:.2f}s"
-        
-        # Verify results
-        assert security_summary['total_servers'] == 100
-        assert security_summary['enabled_servers'] == 90  # 10 disabled
-        assert security_summary['servers_with_env_vars'] == 100
     
     def test_memory_usage_with_large_datasets(self):
         """Test memory usage with large datasets."""

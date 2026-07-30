@@ -226,6 +226,8 @@ id_rsa*
 *.tmp
 *.temp
 *.bak
+# Git
+.github
 
 # Test result files (XML, JSON reports)
 coverage-*.xml

@@ -113,12 +113,14 @@ region = eu-west-1
         
         assert account_id is None
     
+    @patch('pathlib.Path.exists')
     @patch('os.path.exists')
     @patch('configparser.ConfigParser.read')
     @patch('builtins.open', new_callable=mock_open)
-    def test_get_profiles_success(self, mock_file, mock_read, mock_exists):
+    def test_get_profiles_success(self, mock_file, mock_read, mock_exists, mock_path_exists):
         """Test loading AWS profiles successfully."""
         mock_exists.return_value = True
+        mock_path_exists.return_value = False
         
         # Mock configparser
         mock_config = configparser.ConfigParser()
@@ -127,7 +129,7 @@ region = eu-west-1
         with patch('configparser.ConfigParser') as mock_config_class:
             mock_config_instance = mock_config_class.return_value
             mock_config_instance.sections.return_value = mock_config.sections()
-            mock_config_instance.__getitem__ = mock_config.__getitem__
+            mock_config_instance.__getitem__ = lambda self_obj, item: mock_config[item]
             
             # Mock account ID retrieval for direct profiles
             with patch.object(self.manager, '_get_account_id_from_session') as mock_get_account:
@@ -538,7 +540,7 @@ region = eu-west-1
 class TestBackwardCompatibilityFunctions:
     """Test cases for backward compatibility functions."""
     
-    @patch('src.ic.core.session.AWSSessionManager')
+    @patch('ic.core.session.AWSSessionManager')
     def test_get_profiles_backward_compatibility(self, mock_manager_class):
         """Test backward compatibility get_profiles function."""
         from ic.core.session import get_profiles

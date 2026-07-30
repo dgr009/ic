@@ -60,7 +60,6 @@ class TestConfigManager:
         assert default_config["version"] == "1.0"
         assert "logging" in default_config
         assert "aws" in default_config
-        assert "azure" in default_config
         assert "gcp" in default_config
         assert "security" in default_config
         
@@ -128,7 +127,6 @@ class TestConfigManager:
             'AWS_REGION': 'us-west-2',
             'AWS_ACCOUNTS': '111111111111,222222222222',
             'AWS_MAX_WORKERS': '20',
-            'AZURE_SUBSCRIPTIONS': 'sub1,sub2',
             'GCP_PROJECTS': 'project1,project2',
             'SLACK_ENABLED': 'true'
         }
@@ -140,7 +138,6 @@ class TestConfigManager:
         assert env_config['aws']['default_region'] == 'us-west-2'
         assert env_config['aws']['accounts'] == ['111111111111', '222222222222']
         assert env_config['aws']['max_workers'] == 20
-        assert env_config['azure']['subscriptions'] == ['sub1', 'sub2']
         assert env_config['gcp']['projects'] == ['project1', 'project2']
         assert env_config['slack']['enabled'] is True
     

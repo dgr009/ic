@@ -1,1 +1,0 @@
-# NCP sg unit tests

@@ -163,25 +163,7 @@ class SecretsManager:
         if gcp_secrets:
             env_secrets['gcp'] = gcp_secrets
         
-        # Azure secrets
-        azure_secrets = {}
-        azure_tenant = os.getenv('AZURE_TENANT_ID')
-        azure_client_id = os.getenv('AZURE_CLIENT_ID')
-        azure_client_secret = os.getenv('AZURE_CLIENT_SECRET')
-        azure_subscriptions = os.getenv('AZURE_SUBSCRIPTIONS')
-        
-        if azure_tenant:
-            azure_secrets['tenant_id'] = azure_tenant
-        if azure_client_id:
-            azure_secrets['client_id'] = azure_client_id
-        if azure_client_secret:
-            azure_secrets['client_secret'] = azure_client_secret
-        if azure_subscriptions:
-            azure_secrets['subscriptions'] = [sub.strip() for sub in azure_subscriptions.split(',') if sub.strip()]
-        
-        if azure_secrets:
-            env_secrets['azure'] = azure_secrets
-        
+
         # Slack secrets
         slack_webhook = os.getenv('SLACK_WEBHOOK_URL')
         if slack_webhook:
@@ -368,13 +350,6 @@ cloudflare:
 gcp:
   service_account_key_path: ""  # Path to your GCP service account key
   projects: []  # Your GCP project IDs
-
-# Azure sensitive configuration
-azure:
-  tenant_id: ""  # Your Azure tenant ID
-  client_id: ""  # Your Azure client ID
-  client_secret: ""  # Your Azure client secret
-  subscriptions: []  # Your Azure subscription IDs
 
 # Slack integration
 slack:

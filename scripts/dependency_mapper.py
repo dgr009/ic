@@ -147,14 +147,9 @@ class DependencyMapper:
         
         # Define modules to analyze
         modules_to_analyze = [
-            'ncp',
-            'ncp_module',
-            'ncpgov', 
-            'ncpgov_module',
             'aws',
             'gcp',
-            'oci_module',
-            'azure_module'
+            'oci_module'
         ]
         
         for module_name in modules_to_analyze:
@@ -321,18 +316,12 @@ class DependencyMapper:
     
     def _get_module_platform(self, module_key: str) -> str:
         """Get the platform for a module."""
-        if module_key.startswith('ncp.') or module_key.startswith('ncp_module.'):
-            return 'ncp'
-        elif module_key.startswith('ncpgov.') or module_key.startswith('ncpgov_module.'):
-            return 'ncpgov'
-        elif module_key.startswith('aws.'):
+        if module_key.startswith('aws.'):
             return 'aws'
         elif module_key.startswith('gcp.'):
             return 'gcp'
         elif module_key.startswith('oci_module.'):
             return 'oci'
-        elif module_key.startswith('azure_module.'):
-            return 'azure'
         else:
             return 'common'
     

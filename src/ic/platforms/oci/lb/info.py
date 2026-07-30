@@ -11,18 +11,9 @@ from rich.table import Table
 from rich.tree import Tree
 from rich.rule import Rule
 from rich import box
-try:
-    from ....common.log import log_info_non_console
-except ImportError:
-    from common.log import log_info_non_console
-try:
-    from ....common.progress_decorator import progress_bar, ManualProgress
-except ImportError:
-    from common.progress_decorator import progress_bar, ManualProgress
-try:
-    from ..common.utils import get_all_subscribed_regions, get_compartments
-except ImportError:
-    from ic.platforms.oci.common.utils import get_all_subscribed_regions, get_compartments
+from common.log import log_info_non_console
+from common.progress_decorator import progress_bar, ManualProgress
+from ic.platforms.oci.common.utils import get_all_subscribed_regions, get_compartments
 
 # ###############################################################################
 # # CLI 인자 정의

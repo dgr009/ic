@@ -14,8 +14,8 @@ from paramiko.config import SSHConfig
 from tqdm import tqdm
 
 try:
-    from src.ic.config.manager import ConfigManager
-    from src.ic.core.logging import ICLogger
+    from ic.config.manager import ConfigManager
+    from ic.core.logging import ICLogger
 except ImportError:
     try:
         from ic.config.manager import ConfigManager
@@ -46,7 +46,7 @@ try:
     )
 except ImportError:
     # Fallback import for development
-    from src.ic.platforms.ssh.auto_ssh import (
+    from ic.platforms.ssh.auto_ssh import (
         scan_open_hosts, get_local_ip, get_existing_hosts, is_port_open,
         generate_ip_range, get_hostname_via_ssh, update_ssh_config,
         check_ssh_connections, select_cidr, guess_local_cidr,

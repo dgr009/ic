@@ -21,13 +21,11 @@ class TestBasicIntegration:
         sys.path.insert(0, 'src')
         
         # Test importing core modules
-        from ic.platforms.ncp.client import NCPClient
-        from ic.platforms.ncpgov.client import NCPGovClient
+        from ic.core.session import AWSSessionManager
         from ic.config.manager import ConfigManager
         
         # Basic instantiation test
-        assert NCPClient is not None
-        assert NCPGovClient is not None
+        assert AWSSessionManager is not None
         assert ConfigManager is not None
 
 

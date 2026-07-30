@@ -14,18 +14,11 @@ from typing import Dict, Any, Optional, List, Union
 from pathlib import Path
 import logging
 
-try:
-    from src.ic.config.security import SecurityManager
-    from src.ic.config.secrets import SecretsManager
-    from src.ic.config.external import ExternalConfigLoader
-    from src.ic.config.migration import MigrationManager
-    from src.ic.config.path_manager import ConfigPathManager
-except ImportError:
-    from .security import SecurityManager
-    from .secrets import SecretsManager
-    from .external import ExternalConfigLoader
-    from .migration import MigrationManager
-    from .path_manager import ConfigPathManager
+from .security import SecurityManager
+from .secrets import SecretsManager
+from .external import ExternalConfigLoader
+from .migration import MigrationManager
+from .path_manager import ConfigPathManager
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +52,8 @@ class ConfigManager:
         self.external_configs: Dict[str, Any] = {}
         self.config_sources: List[str] = []
         self.security_manager = security_manager
+        if self.security_manager and not hasattr(self.security_manager, 'config_manager'):
+            self.security_manager.config_manager = self
         self.secrets_manager = SecretsManager(self)
         self.external_loader = ExternalConfigLoader(self)
         self.migration_manager = MigrationManager(self)
@@ -90,6 +85,10 @@ class ConfigManager:
             if config_path.exists():
                 try:
                     file_config = self._load_config_file(config_path)
+                    sec_file = config_path.parent / "secrets.yaml"
+                    if sec_file.exists() and sec_file != config_path:
+                        sec_config = self._load_config_file(sec_file)
+                        file_config = self._merge_configs(file_config, sec_config)
                     config = self._merge_configs(config, file_config)
                     self.config_sources.append(str(config_path))
                     logger.debug(f"Loaded configuration from {config_path}")
@@ -107,7 +106,7 @@ class ConfigManager:
             security_warnings = self.security_manager.validate_config_security(config)
             if security_warnings:
                 for warning in security_warnings:
-                    logger.debug(f"Security warning: {warning}")  # Changed to debug level
+                    logger.warning(f"Found sensitive data in configuration: {warning}")
         
         self.config_data = config
         return config
@@ -149,9 +148,14 @@ class ConfigManager:
         Returns:
             Configuration dictionary
         """
+        suffix = config_path.suffix.lower()
         with open(config_path, 'r', encoding='utf-8') as f:
-            if config_path.suffix.lower() in ['.yaml', '.yml']:
+            if suffix in ['.yaml', '.yml']:
                 return yaml.safe_load(f) or {}
+            elif suffix == '.json':
+                return json.load(f) or {}
+            else:
+                raise ValueError(f"Unsupported config file format: {suffix}")
     
     def _load_cloudflare_config(self) -> Dict[str, Any]:
         """
@@ -406,15 +410,7 @@ class ConfigManager:
             'AWS_SESSION_DURATION': ['aws', 'session_duration'],
             'AWS_MAX_WORKERS': ['aws', 'max_workers'],
             
-            # Azure
-            'AZURE_SUBSCRIPTION_ID': ['azure', 'subscription_id'],
-            'AZURE_SUBSCRIPTIONS': ['azure', 'subscriptions'],  # Comma-separated
-            'AZURE_TENANT_ID': ['azure', 'tenant_id'],
-            'AZURE_CLIENT_ID': ['azure', 'client_id'],
-            'AZURE_CLIENT_SECRET': ['azure', 'client_secret'],
-            'AZURE_LOCATIONS': ['azure', 'locations'],  # Comma-separated
-            'AZURE_MAX_WORKERS': ['azure', 'max_workers'],
-            
+
             # GCP
             'GCP_PROJECT_ID': ['gcp', 'project_id'],
             'GCP_PROJECTS': ['gcp', 'projects'],  # Comma-separated
@@ -554,18 +550,7 @@ class ConfigManager:
                     },
                 },
             },
-            "azure": {
-                "subscriptions": [],
-                "locations": ["Korea Central"],
-                "max_workers": 10,
-            },
             "gcp": {
-                "mcp": {
-                    "enabled": True,
-                    "endpoint": "http://localhost:8080/gcp",
-                    "auth_method": "service_account",
-                    "prefer_mcp": True,
-                },
                 "projects": [],
                 "regions": ["asia-northeast3"],
                 "zones": ["asia-northeast3-a"],
@@ -574,21 +559,6 @@ class ConfigManager:
             "oci": {
                 "config_path": "~/.oci/config",
                 "max_workers": 10,
-            },
-            "ncp": {
-                "config_path": "~/.ncp/config",
-                "regions": ["KR"],
-                "max_workers": 10,
-            },
-            "ncpgov": {
-                "config_path": "~/.ncpgov/config",
-                "regions": ["KR"],
-                "max_workers": 10,
-                "security": {
-                    "encryption_enabled": True,
-                    "audit_logging_enabled": True,
-                    "access_control_enabled": True,
-                },
             },
             "cloudflare": {
                 "accounts": [],
@@ -601,26 +571,6 @@ class ConfigManager:
                 "timeouts": {
                     "port_scan": 0.5,
                     "ssh_connect": 5,
-                },
-            },
-            "mcp": {
-                "servers": {
-                    "github": {
-                        "enabled": True,
-                        "auto_approve": [],
-                    },
-                    "terraform": {
-                        "enabled": True,
-                        "auto_approve": [],
-                    },
-                    "aws_docs": {
-                        "enabled": True,
-                        "auto_approve": ["read_documentation", "search_documentation"],
-                    },
-                    "azure": {
-                        "enabled": True,
-                        "auto_approve": ["documentation"],
-                    },
                 },
             },
             "slack": {
@@ -806,19 +756,9 @@ class ConfigManager:
                 errors.append(f"Configuration missing required section: {section}")
         
         # Optional cloud provider sections - at least one should be present
-        cloud_sections = ['aws', 'azure', 'gcp', 'ncp', 'ncpgov', 'oci', 'cloudflare']
+        cloud_sections = ['aws', 'gcp', 'oci', 'cloudflare']
         if not any(section in config_data for section in cloud_sections):
-            errors.append("Configuration should include at least one cloud provider section (aws, azure, gcp, ncp, ncpgov, oci, cloudflare)")
-        
-        # Validate NCP configuration if present
-        if 'ncp' in config_data:
-            ncp_errors = self._validate_ncp_config(config_data['ncp'])
-            errors.extend(ncp_errors)
-        
-        # Validate NCP Gov configuration if present
-        if 'ncpgov' in config_data:
-            ncpgov_errors = self._validate_ncpgov_config(config_data['ncpgov'])
-            errors.extend(ncpgov_errors)
+            errors.append("Configuration should include at least one cloud provider section (aws, gcp, oci, cloudflare)")
         
         # Validate logging configuration
         if 'logging' in config_data:
@@ -890,7 +830,7 @@ class ConfigManager:
             return
         
         try:
-            backup_files = list(self._backup_dir.glob("*.yaml")) + list(self._backup_dir.glob("*.yml"))
+            backup_files = list(set(self._backup_dir.glob("*.yaml")).union(self._backup_dir.glob("*.yml")))
             backup_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
             
             # Remove old backups
@@ -982,24 +922,7 @@ class ConfigManager:
                 gcp_config['projects'] = [proj.strip() for proj in gcp_projects.split(',') if proj.strip()]
             env_secrets['gcp'] = gcp_config
         
-        # Azure secrets
-        azure_tenant = os.getenv('AZURE_TENANT_ID')
-        azure_client_id = os.getenv('AZURE_CLIENT_ID')
-        azure_client_secret = os.getenv('AZURE_CLIENT_SECRET')
-        azure_subscriptions = os.getenv('AZURE_SUBSCRIPTIONS')
-        
-        if any([azure_tenant, azure_client_id, azure_client_secret, azure_subscriptions]):
-            azure_config = {}
-            if azure_tenant:
-                azure_config['tenant_id'] = azure_tenant
-            if azure_client_id:
-                azure_config['client_id'] = azure_client_id
-            if azure_client_secret:
-                azure_config['client_secret'] = azure_client_secret
-            if azure_subscriptions:
-                azure_config['subscriptions'] = [sub.strip() for sub in azure_subscriptions.split(',') if sub.strip()]
-            env_secrets['azure'] = azure_config
-        
+
         # Slack secrets
         slack_webhook = os.getenv('SLACK_WEBHOOK_URL')
         if slack_webhook:
@@ -1141,448 +1064,7 @@ class ConfigManager:
         self._file_timestamps.clear()
         logger.debug("Configuration cache invalidated")
     
-    def _validate_ncp_config(self, ncp_config: Dict[str, Any]) -> List[str]:
-        """
-        Validate NCP configuration settings.
-        
-        Args:
-            ncp_config: NCP configuration dictionary
-            
-        Returns:
-            List of validation error messages
-        """
-        errors = []
-        
-        if not isinstance(ncp_config, dict):
-            errors.append("NCP configuration must be a dictionary")
-            return errors
-        
-        # Validate required credentials
-        if 'access_key' in ncp_config:
-            access_key = ncp_config['access_key']
-            if not isinstance(access_key, str):
-                errors.append("NCP access_key must be a string")
-            elif len(access_key) < 10:
-                errors.append("NCP access_key appears to be too short (minimum 10 characters)")
-        
-        if 'secret_key' in ncp_config:
-            secret_key = ncp_config['secret_key']
-            if not isinstance(secret_key, str):
-                errors.append("NCP secret_key must be a string")
-            elif len(secret_key) < 20:
-                errors.append("NCP secret_key appears to be too short (minimum 20 characters)")
-        
-        # Validate region
-        if 'region' in ncp_config:
-            region = ncp_config['region']
-            if not isinstance(region, str):
-                errors.append("NCP region must be a string")
-            else:
-                valid_regions = ['KR', 'US', 'JP']
-                if region not in valid_regions:
-                    errors.append(f"Invalid NCP region: {region}. Valid regions: {valid_regions}")
-        
-        # Validate platform
-        if 'platform' in ncp_config:
-            platform = ncp_config['platform']
-            if not isinstance(platform, str):
-                errors.append("NCP platform must be a string")
-            else:
-                valid_platforms = ['Classic', 'VPC']
-                if platform not in valid_platforms:
-                    errors.append(f"Invalid NCP platform: {platform}. Valid platforms: {valid_platforms}")
-        
-        # Validate config_path
-        if 'config_path' in ncp_config:
-            config_path = ncp_config['config_path']
-            if not isinstance(config_path, str):
-                errors.append("NCP config_path must be a string")
-        
-        # Validate regions (list format)
-        if 'regions' in ncp_config:
-            regions = ncp_config['regions']
-            if not isinstance(regions, list):
-                errors.append("NCP regions must be a list")
-            else:
-                valid_regions = ['KR', 'US', 'JP']
-                for region in regions:
-                    if region not in valid_regions:
-                        errors.append(f"Invalid NCP region: {region}. Valid regions: {valid_regions}")
-        
-        # Validate max_workers
-        if 'max_workers' in ncp_config:
-            max_workers = ncp_config['max_workers']
-            if not isinstance(max_workers, int) or max_workers <= 0:
-                errors.append("NCP max_workers must be a positive integer")
-        
-        return errors
-    
-    def _validate_ncpgov_config(self, ncpgov_config: Dict[str, Any]) -> List[str]:
-        """
-        Validate NCP Gov configuration settings.
-        
-        Args:
-            ncpgov_config: NCP Gov configuration dictionary
-            
-        Returns:
-            List of validation error messages
-        """
-        errors = []
-        
-        if not isinstance(ncpgov_config, dict):
-            errors.append("NCP Gov configuration must be a dictionary")
-            return errors
-        
-        # Validate required credentials
-        if 'access_key' in ncpgov_config:
-            access_key = ncpgov_config['access_key']
-            if not isinstance(access_key, str):
-                errors.append("NCP Gov access_key must be a string")
-            elif len(access_key) < 10:
-                errors.append("NCP Gov access_key appears to be too short (minimum 10 characters)")
-        
-        if 'secret_key' in ncpgov_config:
-            secret_key = ncpgov_config['secret_key']
-            if not isinstance(secret_key, str):
-                errors.append("NCP Gov secret_key must be a string")
-            elif len(secret_key) < 20:
-                errors.append("NCP Gov secret_key appears to be too short (minimum 20 characters)")
-        
-        if 'apigw_key' in ncpgov_config:
-            apigw_key = ncpgov_config['apigw_key']
-            if not isinstance(apigw_key, str):
-                errors.append("NCP Gov apigw_key must be a string")
-            elif len(apigw_key) < 10:
-                errors.append("NCP Gov apigw_key appears to be too short (minimum 10 characters)")
-        
-        # Validate region
-        if 'region' in ncpgov_config:
-            region = ncpgov_config['region']
-            if not isinstance(region, str):
-                errors.append("NCP Gov region must be a string")
-            else:
-                valid_regions = ['KR']  # Government cloud only supports Korea
-                if region not in valid_regions:
-                    errors.append(f"Invalid NCP Gov region: {region}. Government cloud only supports: {valid_regions}")
-        
-        # Validate platform
-        if 'platform' in ncpgov_config:
-            platform = ncpgov_config['platform']
-            if not isinstance(platform, str):
-                errors.append("NCP Gov platform must be a string")
-            else:
-                valid_platforms = ['VPC']  # Government cloud typically uses VPC
-                if platform not in valid_platforms:
-                    errors.append(f"Invalid NCP Gov platform: {platform}. Government cloud supports: {valid_platforms}")
-        
-        # Validate config_path
-        if 'config_path' in ncpgov_config:
-            config_path = ncpgov_config['config_path']
-            if not isinstance(config_path, str):
-                errors.append("NCP Gov config_path must be a string")
-        
-        # Validate regions (Government cloud only supports KR)
-        if 'regions' in ncpgov_config:
-            regions = ncpgov_config['regions']
-            if not isinstance(regions, list):
-                errors.append("NCP Gov regions must be a list")
-            else:
-                valid_regions = ['KR']  # Government cloud only supports Korea
-                for region in regions:
-                    if region not in valid_regions:
-                        errors.append(f"Invalid NCP Gov region: {region}. Government cloud only supports: {valid_regions}")
-        
-        # Validate max_workers
-        if 'max_workers' in ncpgov_config:
-            max_workers = ncpgov_config['max_workers']
-            if not isinstance(max_workers, int) or max_workers <= 0:
-                errors.append("NCP Gov max_workers must be a positive integer")
-        
-        # Validate security settings (required for government cloud)
-        # Check for security settings either in nested 'security' section or at root level
-        security_config = ncpgov_config.get('security', {})
-        
-        # If no nested security section, check for security settings at root level
-        if not security_config:
-            # Check if security settings are at root level (flat structure)
-            root_security_settings = {
-                'encryption_enabled': ncpgov_config.get('encryption_enabled'),
-                'audit_logging_enabled': ncpgov_config.get('audit_logging_enabled'),
-                'access_control_enabled': ncpgov_config.get('access_control_enabled')
-            }
-            
-            # If any security settings found at root level, use them
-            if any(v is not None for v in root_security_settings.values()):
-                security_config = {k: v for k, v in root_security_settings.items() if v is not None}
-        
-        if security_config:
-            if not isinstance(security_config, dict):
-                errors.append("NCP Gov security configuration must be a dictionary")
-            else:
-                required_security_settings = [
-                    'encryption_enabled',
-                    'audit_logging_enabled',
-                    'access_control_enabled'
-                ]
-                
-                for setting in required_security_settings:
-                    if setting not in security_config:
-                        errors.append(f"NCP Gov missing required security setting: {setting}")
-                    elif not isinstance(security_config[setting], bool):
-                        errors.append(f"NCP Gov security setting {setting} must be a boolean")
-                    elif not security_config[setting]:
-                        errors.append(f"NCP Gov security setting {setting} must be enabled for government cloud compliance")
-        else:
-            errors.append("NCP Gov configuration missing required security settings (encryption_enabled, audit_logging_enabled, access_control_enabled)")
-        
-        return errors
-    
-    def _load_ncp_config(self) -> Dict[str, Any]:
-        """
-        Load NCP configuration from ~/.ncp/config file.
-        
-        Returns:
-            NCP configuration dictionary
-        """
-        ncp_config = {}
-        
-        # Check for NCP config file
-        ncp_config_path = Path.home() / ".ncp" / "config"
-        if ncp_config_path.exists():
-            try:
-                with open(ncp_config_path, 'r', encoding='utf-8') as f:
-                    ncp_file_config = yaml.safe_load(f) or {}
-                
-                # Use default profile if available, otherwise use the whole config
-                if 'default' in ncp_file_config:
-                    ncp_config = ncp_file_config['default']
-                else:
-                    ncp_config = ncp_file_config
-                
-                logger.debug(f"Loaded NCP config from {ncp_config_path}")
-            except Exception as e:
-                logger.warning(f"Failed to load NCP config from {ncp_config_path}: {e}")
-        
-        # Override with environment variables
-        env_ncp = self._load_ncp_env_config()
-        if env_ncp:
-            ncp_config = self._merge_configs(ncp_config, env_ncp)
-        
-        return ncp_config
-    
-    def _load_ncp_env_config(self) -> Dict[str, Any]:
-        """
-        Load NCP configuration from environment variables.
-        
-        Returns:
-            NCP configuration from environment variables
-        """
-        env_config = {}
-        
-        # Map environment variables to config keys
-        env_mappings = {
-            'NCP_ACCESS_KEY': 'access_key',
-            'NCP_SECRET_KEY': 'secret_key',
-            'NCP_REGION': 'region',
-            'NCP_PLATFORM': 'platform',
-            'NCP_CONFIG_PATH': 'config_path',
-            'NCP_MAX_WORKERS': 'max_workers',
-            'NCP_TIMEOUT': 'timeout'
-        }
-        
-        for env_var, config_key in env_mappings.items():
-            value = os.getenv(env_var)
-            if value:
-                # Handle integer values
-                if config_key in ['max_workers', 'timeout']:
-                    try:
-                        value = int(value)
-                    except ValueError:
-                        logger.warning(f"Invalid integer value for {env_var}: {value}")
-                        continue
-                
-                env_config[config_key] = value
-        
-        return env_config
-    
-    def _load_ncpgov_config(self) -> Dict[str, Any]:
-        """
-        Load NCP Gov configuration from ~/.ncpgov/config file.
-        
-        Returns:
-            NCP Gov configuration dictionary
-        """
-        ncpgov_config = {}
-        
-        # Check for NCP Gov config file
-        ncpgov_config_path = Path.home() / ".ncpgov" / "config"
-        if ncpgov_config_path.exists():
-            try:
-                with open(ncpgov_config_path, 'r', encoding='utf-8') as f:
-                    ncpgov_file_config = yaml.safe_load(f) or {}
-                
-                # Use default profile if available, otherwise use the whole config
-                if 'default' in ncpgov_file_config:
-                    ncpgov_config = ncpgov_file_config['default']
-                else:
-                    ncpgov_config = ncpgov_file_config
-                
-                logger.debug(f"Loaded NCP Gov config from {ncpgov_config_path}")
-            except Exception as e:
-                logger.warning(f"Failed to load NCP Gov config from {ncpgov_config_path}: {e}")
-        
-        # Override with environment variables
-        env_ncpgov = self._load_ncpgov_env_config()
-        if env_ncpgov:
-            ncpgov_config = self._merge_configs(ncpgov_config, env_ncpgov)
-        
-        return ncpgov_config
-    
-    def _load_ncpgov_env_config(self) -> Dict[str, Any]:
-        """
-        Load NCP Gov configuration from environment variables.
-        
-        Returns:
-            NCP Gov configuration from environment variables
-        """
-        env_config = {}
-        
-        # Map environment variables to config keys
-        env_mappings = {
-            'NCPGOV_ACCESS_KEY': 'access_key',
-            'NCPGOV_SECRET_KEY': 'secret_key',
-            'NCPGOV_APIGW_KEY': 'apigw_key',
-            'NCPGOV_REGION': 'region',
-            'NCPGOV_PLATFORM': 'platform',
-            'NCPGOV_CONFIG_PATH': 'config_path',
-            'NCPGOV_MAX_WORKERS': 'max_workers',
-            'NCPGOV_TIMEOUT': 'timeout'
-        }
-        
-        for env_var, config_key in env_mappings.items():
-            value = os.getenv(env_var)
-            if value:
-                # Handle integer values
-                if config_key in ['max_workers', 'timeout']:
-                    try:
-                        value = int(value)
-                    except ValueError:
-                        logger.warning(f"Invalid integer value for {env_var}: {value}")
-                        continue
-                
-                env_config[config_key] = value
-        
-        # Handle security settings from environment
-        security_env_mappings = {
-            'NCPGOV_ENCRYPTION_ENABLED': 'encryption_enabled',
-            'NCPGOV_AUDIT_LOGGING_ENABLED': 'audit_logging_enabled',
-            'NCPGOV_ACCESS_CONTROL_ENABLED': 'access_control_enabled',
-            'NCPGOV_MASK_SENSITIVE_DATA': 'mask_sensitive_data'
-        }
-        
-        security_config = {}
-        for env_var, config_key in security_env_mappings.items():
-            value = os.getenv(env_var)
-            if value:
-                security_config[config_key] = value.lower() in ('true', '1', 'yes', 'on')
-        
-        if security_config:
-            env_config['security'] = security_config
-        
-        return env_config
-    
-    def get_ncp_config_with_validation(self) -> Dict[str, Any]:
-        """
-        Get NCP configuration with comprehensive validation and error handling.
-        
-        Returns:
-            Validated NCP configuration
-            
-        Raises:
-            ValueError: If NCP configuration is invalid
-            FileNotFoundError: If configuration files are missing
-        """
-        try:
-            # Load NCP configuration
-            ncp_config = self._load_ncp_config()
-            
-            # Validate configuration
-            validation_errors = self._validate_ncp_config(ncp_config)
-            
-            if validation_errors:
-                error_message = "NCP configuration validation failed:\n"
-                for i, error in enumerate(validation_errors, 1):
-                    error_message += f"  {i}. {error}\n"
-                
-                error_message += "\n💡 Configuration help:\n"
-                error_message += "  • Check ~/.ncp/config for NCP settings\n"
-                error_message += "  • Use environment variables: NCP_ACCESS_KEY, NCP_SECRET_KEY\n"
-                error_message += "  • Run 'ic config init --template ncp' to create default configuration\n"
-                error_message += "  • Copy .ncp/config.example to ~/.ncp/config and fill in your credentials\n"
-                
-                raise ValueError(error_message)
-            
-            return ncp_config
-            
-        except FileNotFoundError as e:
-            raise FileNotFoundError(
-                f"NCP configuration file not found: {e}\n"
-                "💡 Run 'ic config init --template ncp' to create default configuration files"
-            )
-        except yaml.YAMLError as e:
-            raise ValueError(
-                f"NCP configuration file has invalid YAML syntax: {e}\n"
-                "💡 Check your ~/.ncp/config file for proper YAML formatting"
-            )
-        except Exception as e:
-            raise ValueError(f"Failed to load NCP configuration: {e}")
-    
-    def get_ncpgov_config_with_validation(self) -> Dict[str, Any]:
-        """
-        Get NCP Gov configuration with comprehensive validation and error handling.
-        
-        Returns:
-            Validated NCP Gov configuration
-            
-        Raises:
-            ValueError: If NCP Gov configuration is invalid
-            FileNotFoundError: If configuration files are missing
-        """
-        try:
-            # Load NCP Gov configuration
-            ncpgov_config = self._load_ncpgov_config()
-            
-            # Validate configuration
-            validation_errors = self._validate_ncpgov_config(ncpgov_config)
-            
-            if validation_errors:
-                error_message = "NCP Gov configuration validation failed:\n"
-                for i, error in enumerate(validation_errors, 1):
-                    error_message += f"  {i}. {error}\n"
-                
-                error_message += "\n💡 Configuration help:\n"
-                error_message += "  • Check ~/.ncpgov/config for NCP Gov settings\n"
-                error_message += "  • Use environment variables: NCPGOV_ACCESS_KEY, NCPGOV_SECRET_KEY, NCPGOV_APIGW_KEY\n"
-                error_message += "  • Run 'ic config init --template ncpgov' to create default configuration\n"
-                error_message += "  • Copy .ncpgov/config.example to ~/.ncpgov/config and fill in your credentials\n"
-                error_message += "  • Ensure all security settings are enabled for government cloud compliance\n"
-                
-                raise ValueError(error_message)
-            
-            return ncpgov_config
-            
-        except FileNotFoundError as e:
-            raise FileNotFoundError(
-                f"NCP Gov configuration file not found: {e}\n"
-                "💡 Run 'ic config init --template ncpgov' to create default configuration files"
-            )
-        except yaml.YAMLError as e:
-            raise ValueError(
-                f"NCP Gov configuration file has invalid YAML syntax: {e}\n"
-                "💡 Check your ~/.ncpgov/config file for proper YAML formatting"
-            )
-        except Exception as e:
-            raise ValueError(f"Failed to load NCP Gov configuration: {e}")
+
     
     def load_platform_config(self, platform: str, profile: str = 'default') -> Dict[str, Any]:
         """

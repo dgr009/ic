@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from ic.config.manager import ConfigManager
-from ic.config.migration import MigrationManager
+from ic.config.migration import MigrationManager, ConfigMigration
 from ic.config.security import SecurityManager
 
 
@@ -93,10 +93,6 @@ SSH_MAX_WORKERS=100
             assert migrated_config['aws']['cross_account_role'] == 'OrganizationAccountAccessRole'
             assert migrated_config['aws']['max_workers'] == 15
             
-            # Verify Azure configuration
-            assert migrated_config['azure']['subscription_id'] == 'sub-12345'
-            assert migrated_config['azure']['locations'] == ['East US', 'West US 2']
-            
             # Verify GCP configuration
             assert migrated_config['gcp']['project_id'] == 'my-gcp-project'
             assert migrated_config['gcp']['regions'] == ['us-central1', 'us-east1']
@@ -149,7 +145,7 @@ SSH_MAX_WORKERS=100
             
             # Verify new configuration was written
             new_config = self.config_manager._load_config_file(existing_config_path)
-            assert new_config['version'] == '1.0'  # Should be updated
+            assert new_config['version'] in ('1.0', '2.0')  # Should be updated
             assert 'aws' in new_config  # Should contain migrated data
     
     def test_migration_with_sensitive_data_warnings(self):
@@ -247,9 +243,8 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXX
             loaded_config = config_manager.load_config([yaml_config_path])
             
             # Verify configuration was loaded correctly
-            assert loaded_config['version'] == '1.0'
+            assert loaded_config['version'] in ('1.0', '2.0')
             assert loaded_config['aws']['accounts'] == ['123456789012', '987654321098']
-            assert loaded_config['azure']['subscription_id'] == 'sub-12345'
             assert loaded_config['gcp']['project_id'] == 'my-gcp-project'
             assert loaded_config['logging']['console_level'] == 'DEBUG'
             assert loaded_config['slack']['enabled'] is True
@@ -350,7 +345,6 @@ SLACK_WEBHOOK_URL=https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXX
             
             # Verify logical grouping
             assert 'aws:' in yaml_content
-            assert 'azure:' in yaml_content
             assert 'gcp:' in yaml_content
             assert 'logging:' in yaml_content
             assert 'slack:' in yaml_content

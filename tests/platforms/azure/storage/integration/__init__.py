@@ -1,1 +1,0 @@
-# AZURE storage integration tests

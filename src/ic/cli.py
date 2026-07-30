@@ -48,21 +48,7 @@ try:
     from .core.silence_logging import silence_all_logging
     silence_all_logging()
 except ImportError:
-    # Handle case when run directly
-    import sys
-    from pathlib import Path
-    
-    # Add src directory to path for direct execution
-    src_dir = Path(__file__).parent.parent
-    if str(src_dir) not in sys.path:
-        sys.path.insert(0, str(src_dir))
-    
-    try:
-        from ic.core.silence_logging import silence_all_logging
-        silence_all_logging()
-    except ImportError:
-        # If silence_logging is not available, continue without it
-        pass
+    pass
 
 # Dependency validation
 def validate_core_dependencies():
@@ -73,12 +59,7 @@ def validate_core_dependencies():
         bool: True if all core dependencies are available
     """
     try:
-        try:
-            from .core.dependency_validator import DependencyValidator
-        except ImportError:
-            # Handle case when run directly
-            from ic.core.dependency_validator import DependencyValidator
-        
+        from .core.dependency_validator import DependencyValidator
         validator = DependencyValidator()
         
         # Check Python version first
@@ -128,20 +109,11 @@ def validate_core_dependencies():
         print(f"⚠️  Warning: Could not validate dependencies: {e}")
         return True  # Continue anyway
 
-# Set up compatibility layer first
-try:
-    from .compat.cli import setup_cli_compatibility, wrap_command_function, ensure_env_compatibility
-    from .config.manager import ConfigManager
-    from .config.security import SecurityManager
-    from .core.logging import init_logger
-    from .core.platform_discovery import get_platform_discovery
-except ImportError:
-    # Handle case when run directly
-    from ic.compat.cli import setup_cli_compatibility, wrap_command_function, ensure_env_compatibility
-    from ic.config.manager import ConfigManager
-    from ic.config.security import SecurityManager
-    from ic.core.logging import init_logger
-    from ic.core.platform_discovery import get_platform_discovery
+from .compat.cli import setup_cli_compatibility, wrap_command_function, ensure_env_compatibility
+from .config.manager import ConfigManager
+from .config.security import SecurityManager
+from .core.logging import init_logger
+from .core.platform_discovery import get_platform_discovery
 
 # Initialize compatibility layer
 setup_cli_compatibility()
@@ -377,7 +349,7 @@ def setup_platform_parsers(platform_subparsers):
     platforms = discovery.discover_platforms()
     
     # Development status platforms
-    dev_platforms = {'azure', 'gcp'}
+    dev_platforms = {'gcp'}
     
     for platform_name, platform_info in platforms.items():
         if not platform_info.available:
@@ -458,24 +430,20 @@ def main():
     parser = argparse.ArgumentParser(
         description="Infra CLI: Platform Resource CLI Tool\n\n"
                    "⚠️  Development Status:\n"
-                   "   • Azure: In development - usable but may contain bugs\n"
                    "   • GCP: In development - usable but may contain bugs\n"
-                   "   • AWS, OCI, CloudFlare, SSH: Production ready",
+                   "   • AWS, OCI, Cloudflare, SSH: Production ready",
         usage="ic <platform|config> <service> <command> [options]",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     
     # Add version argument
-    try:
-        from . import __version__
-    except ImportError:
-        from ic import __version__
+    from . import __version__
     parser.add_argument('--version', '-v', action='version', version=f'ic-code {__version__}')
     
     platform_subparsers = parser.add_subparsers(
         dest="platform",
         required=False,
-        help="클라우드 플랫폼 (aws, oci, cf, ssh, azure, gcp) 또는 config 관리"
+        help="클라우드 플랫폼 (aws, oci, cf, ssh, gcp) 또는 config 관리"
     )
     
     # Add version command
@@ -483,18 +451,12 @@ def main():
     version_parser.set_defaults(func=lambda args: print(f'ic-code {__version__}'))
     
     # Add config commands
-    try:
-        from .commands.config import ConfigCommands
-    except ImportError:
-        from ic.commands.config import ConfigCommands
+    from .commands.config import ConfigCommands
     config_commands = ConfigCommands()
     config_commands.add_subparsers(platform_subparsers)
     
     # Add security commands
-    try:
-        from .commands.security import SecurityCommands
-    except ImportError:
-        from ic.commands.security import SecurityCommands
+    from .commands.security import SecurityCommands
     security_commands = SecurityCommands()
     security_commands.add_subparsers(platform_subparsers)
     

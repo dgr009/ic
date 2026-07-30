@@ -1,1 +1,0 @@
-# NCPGOV VPC Service Module

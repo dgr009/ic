@@ -127,7 +127,7 @@ setup(
     version=get_version(),
     author="SangYun Kim",
     author_email="cruiser594@gmail.com",
-    description="A comprehensive CLI tool for managing cloud infrastructure resources across AWS, Azure, GCP, OCI, NCP, and CloudFlare with built-in security features",
+    description="A comprehensive CLI tool for managing cloud infrastructure resources across AWS, GCP, OCI, CloudFlare, and SSH with built-in security features",
     long_description=get_long_description(),
     long_description_content_type="text/markdown",
     url="https://github.com/dgr009/ic",
@@ -140,64 +140,53 @@ setup(
         "Configuration Guide": "https://github.com/dgr009/ic/blob/main/docs/configuration.md",
         "Migration Guide": "https://github.com/dgr009/ic/blob/main/docs/migration.md",
     },
-    packages=find_packages(where="src", include=["ic*", "common*", "mcp*"]),
+    packages=find_packages(where="src", include=["ic*", "common*"]),
     package_dir={"": "src"},
     package_data={
         "ic": ["config/*.yaml", "config/*.yml", "config/*.json", "config/examples/*.yaml"],
         "ic.security": ["*.md", "*.yaml", "*.yml", "*.json"],
         "ic.platforms.aws": ["*.md", "*.yaml", "*.yml", "*.json"],
-        "ic.platforms.azure": ["*.md", "*.yaml", "*.yml", "*.json"],
         "ic.platforms.gcp": ["*.md", "*.yaml", "*.yml", "*.json"],
         "ic.platforms.oci": ["*.md", "*.yaml", "*.yml", "*.json"],
-        "ic.platforms.ncp": ["*.md", "*.yaml", "*.yml", "*.json"],
-        "ic.platforms.ncpgov": ["*.md", "*.yaml", "*.yml", "*.json"],
         "ic.platforms.cloudflare": ["*.md", "*.yaml", "*.yml", "*.json"],
         "ic.platforms.ssh": ["*.md", "*.yaml", "*.yml", "*.json"],
         "common": ["*.yaml", "*.yml", "*.json"],
-        "mcp": ["*.yaml", "*.yml", "*.json"],
     },
     install_requires=[
-        # Core dependencies - Python 3.9-3.12 compatible
-        "boto3>=1.26.0,<2.0.0",
-        "botocore>=1.29.0,<2.0.0", 
-        "requests>=2.28.0,<3.0.0",  # Required for NCP REST API calls
-        "rich>=12.0.0,<15.0.0",
-        "PyYAML>=6.0,<7.0.0",       # Required for NCP configuration files
-        "paramiko>=2.11.0,<5.0.0",
-        "python-dotenv>=0.19.0,<2.0.0",
-        "cryptography>=3.4.8,<50.0.0",  # Required for NCP HMAC-SHA256 signatures
+        # Core dependencies - Python 3.9-3.13 compatible
+        "boto3>=1.34.0,<2.0.0",
+        "botocore>=1.34.0,<2.0.0", 
+        "requests>=2.31.0,<3.0.0",
+        "rich>=13.0.0,<15.0.0",
+        "PyYAML>=6.0.1,<7.0.0",
+        "paramiko>=3.4.0,<5.0.0",
+        "python-dotenv>=1.0.0,<2.0.0",
+        "cryptography>=42.0.0,<50.0.0",
         "netifaces>=0.11.0,<1.0.0",
         "tqdm>=4.67.0,<5.0.0",
         "jsonschema>=4.23.0,<5.0.0",
-        "python-dateutil>=2.8.0,<3.0.0",
-        "click>=8.0.0,<9.0.0",
-        "packaging>=21.0,<25.0",
-        "setuptools>=61.0,<71.0",
+        "python-dateutil>=2.9.0,<3.0.0",
+        "click>=8.1.0,<9.0.0",
+        "packaging>=24.0,<25.0",
+        "setuptools>=69.0.0,<76.0.0",
         
         # Configuration system dependencies
-        "watchdog>=3.0.0,<4.0.0",
-        "cerberus>=1.3.4,<2.0.0",
-        "pydantic>=2.0.0,<3.0.0",
-        
-        # Optional cloud platform dependencies (install as needed)
-        # AWS: awscli>=1.42.0,<2.0.0, kubernetes>=29.0.0,<31.0.0
-        # OCI: oci>=2.149.0,<3.0.0
-        # NCP: Uses direct REST API calls (no SDK dependency required)
-        # GCP: google-cloud-* packages
-        # Azure: azure-* packages
+        "watchdog>=4.0.0,<6.0.0",
+        "cerberus>=1.3.5,<2.0.0",
+        "pydantic>=2.7.0,<3.0.0",
     ],
     extras_require={
         "dev": [
-            "pytest>=7.0.0",
-            "pytest-cov>=4.0.0",
-            "black>=22.0.0",
-            "flake8>=5.0.0",
-            "mypy>=1.0.0",
-            "pre-commit>=2.20.0",
+            "pytest>=8.0.0",
+            "pytest-cov>=5.0.0",
+            "black>=24.0.0",
+            "flake8>=7.0.0",
+            "mypy>=1.10.0",
+            "pre-commit>=3.7.0",
         ],
         "test": [
-            "pytest>=7.0.0",
-            "pytest-cov>=4.0.0",
+            "pytest>=8.0.0",
+            "pytest-cov>=5.0.0",
             "pytest-mock>=3.10.0",
         ],
     },
@@ -214,11 +203,11 @@ setup(
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
         "Programming Language :: Python :: 3",
-
         "Programming Language :: Python :: 3.9",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",
         "Programming Language :: Python :: 3.12",
+        "Programming Language :: Python :: 3.13",
         "Topic :: System :: Systems Administration",
         "Topic :: System :: Monitoring",
         "Topic :: System :: Networking",
@@ -231,7 +220,7 @@ setup(
         "Natural Language :: Korean",
     ],
     keywords=[
-        "aws", "azure", "gcp", "oci", "ncp", "naver-cloud", "cloudflare", 
+        "aws", "gcp", "oci", "cloudflare", 
         "infrastructure", "cli", "cloud", "devops",
         "multi-cloud", "resource-management", "security",
         "configuration", "monitoring", "automation",

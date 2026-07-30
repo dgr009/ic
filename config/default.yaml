@@ -1,0 +1,95 @@
+version: '2.0'
+logging:
+  console_level: DEBUG
+  file_level: INFO
+  file_path: ~/.ic/logs/ic_{date}.log
+  max_files: 50
+  format: '%(asctime)s [%(levelname)s] - %(message)s'
+  mask_sensitive: true
+aws:
+  config_path: ~/.aws/config
+  credentials_path: ~/.aws/credentials
+  accounts: []
+  regions:
+  - ap-northeast-2
+  cross_account_role: OrganizationAccountAccessRole
+  session_duration: 3600
+  max_workers: 15
+  tags:
+    required:
+    - User
+    - Team
+    - Environment
+    optional:
+    - Service
+    - Application
+    rules:
+      User: ^.+$
+      Team: ^\d+$
+      Environment: ^(PROD|STG|DEV|TEST|QA)$
+  default_profile: default
+  default_region: us-east-1
+gcp:
+  projects: []
+  regions:
+  - us-central1
+  - us-east1
+  zones:
+  - asia-northeast3-a
+  max_workers: 10
+  project_id: my-gcp-project
+oci:
+  config_path: ~/.oci/config
+  max_workers: 10
+cloudflare:
+  config_path: ~/.cloudflare/config
+  accounts:
+  - account1
+  - account2
+  zones: []
+ssh:
+  config_file: ~/.ssh/config
+  key_dir: ~/aws-key
+  max_workers: 100
+  skip_prefixes:
+  - git
+  - akrr-portx
+  - akrr-taas-gw
+  - agw01
+  - semaphore
+  timeouts:
+    port_scan: 0.5
+    ssh_connect: 5
+slack:
+  enabled: true
+security:
+  sensitive_keys:
+  - password
+  - passwd
+  - pwd
+  - token
+  - access_token
+  - refresh_token
+  - auth_token
+  - key
+  - api_key
+  - access_key
+  - secret_key
+  - private_key
+  - secret
+  - client_secret
+  - webhook_secret
+  - webhook_url
+  - webhook
+  - credential
+  - credentials
+  - cert
+  - certificate
+  - session
+  - session_token
+  mask_pattern: '***MASKED***'
+  warn_on_sensitive_in_config: true
+  git_hooks_enabled: true
+other:
+  azure_subscription_id: sub-12345
+  azure_locations: East US,West US 2

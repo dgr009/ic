@@ -198,29 +198,5 @@ def gather_env_for_command(platform, service, command):
             if val:
                 env_dict[k] = val
 
-    # -----------------------------------
-    # Azure
-    # -----------------------------------
-    elif platform == "azure":
-        # Azure 서비스들에서 공통으로 사용하는 환경변수
-        relevant_keys = [
-            "AZURE_TENANT_ID",
-            "AZURE_CLIENT_ID",
-            "AZURE_CLIENT_SECRET",
-            "AZURE_SUBSCRIPTIONS",
-            "AZURE_LOCATIONS",
-            "LOG_LEVEL",
-            "SLACK_WEBHOOK_URL",
-        ]
-        
-        for k in relevant_keys:
-            val = os.getenv(k)
-            if val:
-                env_dict[k] = val
-
-    # -----------------------------------
-    # 기타 플랫폼이면 pass
-    # -----------------------------------
-    
     return env_dict
 

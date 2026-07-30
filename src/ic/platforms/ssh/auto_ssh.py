@@ -13,8 +13,8 @@ import paramiko
 from paramiko.config import SSHConfig
 from tqdm import tqdm
 try:
-    from src.ic.config.manager import ConfigManager
-    from src.ic.core.logging import ICLogger
+    from ic.config.manager import ConfigManager
+    from ic.core.logging import ICLogger
 except ImportError:
     try:
         from ic.config.manager import ConfigManager
@@ -177,7 +177,7 @@ def get_hostname_via_ssh(ip, key_path, user, port):
         # 보안 정책 설정: 설정 파일에서 정책을 읽어오거나 환경 변수 확인
         import os
         try:
-            from src.ic.config.manager import ConfigManager
+            from ic.config.manager import ConfigManager
         except ImportError:
             try:
                 from ic.config.manager import ConfigManager
@@ -278,7 +278,7 @@ def check_ssh_connection(host):
     client = paramiko.SSHClient()
     # 보안 정책 설정: 설정 파일에서 정책을 읽어오거나 환경 변수 확인
     try:
-        from src.ic.config.manager import ConfigManager
+        from ic.config.manager import ConfigManager
     except ImportError:
         try:
             from ic.config.manager import ConfigManager

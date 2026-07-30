@@ -18,12 +18,12 @@ try:
     from ..client import CloudFlareClient, CloudFlareConfig
     from ..client import AuthenticationError, RateLimitError, NetworkError, CloudFlareAPIError
 except ImportError:
-    from src.ic.platforms.cloudflare.client import CloudFlareClient, CloudFlareConfig
-    from src.ic.platforms.cloudflare.client import AuthenticationError, RateLimitError, NetworkError, CloudFlareAPIError
+    from ic.platforms.cloudflare.client import CloudFlareClient, CloudFlareConfig
+    from ic.platforms.cloudflare.client import AuthenticationError, RateLimitError, NetworkError, CloudFlareAPIError
 
 # Import config manager
 try:
-    from src.ic.config.manager import ConfigManager
+    from ic.config.manager import ConfigManager
 except ImportError:
     try:
         from ic.config.manager import ConfigManager

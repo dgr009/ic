@@ -24,13 +24,7 @@ try:
 except ImportError:
     RICH_AVAILABLE = False
 
-try:
-    from src.ic.config.security import SecurityManager
-except ImportError:
-    try:
-        from ..config.security import SecurityManager
-    except ImportError:
-        from ic.config.security import SecurityManager
+from ..config.security import SecurityManager
 
 
 class ICLogger:
@@ -71,7 +65,10 @@ class ICLogger:
         
         # Remove any existing console handlers from root logger
         for handler in root_logger.handlers[:]:
-            if isinstance(handler, (logging.StreamHandler, RichHandler if RICH_AVAILABLE else type(None))):
+            try:
+                if isinstance(handler, logging.StreamHandler) or handler.__class__.__name__ in ('StreamHandler', 'RichHandler'):
+                    root_logger.removeHandler(handler)
+            except TypeError:
                 root_logger.removeHandler(handler)
         
     def _get_log_file_path(self) -> str:

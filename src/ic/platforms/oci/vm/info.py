@@ -11,7 +11,7 @@ from rich.table import Table
 from rich import box
 from rich.rule import Rule
 try:
-    from src.ic.common.log import log_info_non_console
+    from ic.common.log import log_info_non_console
 except ImportError:
     try:
         from common.log import log_info_non_console
@@ -21,7 +21,7 @@ except ImportError:
             pass
 
 try:
-    from src.ic.common.progress_decorator import progress_bar, ManualProgress
+    from ic.common.progress_decorator import progress_bar, ManualProgress
 except ImportError:
     try:
         from common.progress_decorator import progress_bar, ManualProgress
@@ -44,7 +44,7 @@ except ImportError:
                 pass
 
 try:
-    from src.ic.platforms.oci.common.utils import get_all_subscribed_regions, get_compartments
+    from ic.platforms.oci.common.utils import get_all_subscribed_regions, get_compartments
 except ImportError:
     try:
         from ..common.utils import get_all_subscribed_regions, get_compartments

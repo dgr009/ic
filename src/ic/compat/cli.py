@@ -102,12 +102,6 @@ def get_legacy_env_vars() -> Dict[str, str]:
         'AWS_SESSION_TOKEN', 'AWS_ACCOUNTS', 'AWS_REGIONS', 'AWS_CROSS_ACCOUNT_ROLE'
     ]
     
-    # Azure legacy variables
-    azure_vars = [
-        'AZURE_SUBSCRIPTION_ID', 'AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 
-        'AZURE_CLIENT_SECRET', 'AZURE_SUBSCRIPTIONS', 'AZURE_LOCATIONS'
-    ]
-    
     # GCP legacy variables
     gcp_vars = [
         'GCP_PROJECT_ID', 'GCP_PROJECTS', 'GCP_REGIONS', 'GCP_ZONES',
@@ -124,7 +118,7 @@ def get_legacy_env_vars() -> Dict[str, str]:
         'SLACK_WEBHOOK_URL', 'SSH_CONFIG_FILE', 'SSH_KEY_DIR', 'OCI_CONFIG_PATH'
     ]
     
-    all_vars = aws_vars + azure_vars + gcp_vars + cf_vars + other_vars
+    all_vars = aws_vars + gcp_vars + cf_vars + other_vars
     
     for var in all_vars:
         value = os.getenv(var)
@@ -222,15 +216,6 @@ def get_command_config(command_name: str) -> Dict[str, Any]:
                     config['aws'] = {}
                 config['aws']['accounts'] = [acc.strip() for acc in accounts_env.split(',')]
     
-    elif command_name.startswith('azure'):
-        # Ensure Azure configuration is available
-        if not config.get('azure', {}).get('subscription_id'):
-            sub_id = os.getenv('AZURE_SUBSCRIPTION_ID')
-            if sub_id:
-                if 'azure' not in config:
-                    config['azure'] = {}
-                config['azure']['subscription_id'] = sub_id
-    
     elif command_name.startswith('gcp'):
         # Ensure GCP configuration is available
         if not config.get('gcp', {}).get('project_id'):
@@ -257,12 +242,6 @@ def handle_missing_config(service: str) -> None:
             "AWS configuration not found. Please either:\n"
             "1. Create a YAML config file with AWS settings, or\n"
             "2. Set AWS_ACCOUNTS environment variable, or\n"
-            "3. Run 'ic config init' to set up configuration"
-        ),
-        'azure': (
-            "Azure configuration not found. Please either:\n"
-            "1. Create a YAML config file with Azure settings, or\n"
-            "2. Set AZURE_SUBSCRIPTION_ID environment variable, or\n"
             "3. Run 'ic config init' to set up configuration"
         ),
         'gcp': (

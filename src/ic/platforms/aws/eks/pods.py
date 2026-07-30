@@ -15,23 +15,9 @@ from rich.console import Console
 from rich.table import Table
 from rich import box
 
-try:
-    from ....common.log import log_info_non_console, log_error
-except ImportError:
-    from common.log import log_info_non_console, log_error
-try:
-    from ....common.progress_decorator import progress_bar, spinner
-except ImportError:
-    from common.progress_decorator import progress_bar, spinner
-try:
-    from ....common.utils import (
-        get_env_accounts,
-    get_profiles,
-    DEFINED_REGIONS,
-    create_session
-    )
-except ImportError:
-    from common.utils import (
+from common.log import log_info_non_console, log_error
+from common.progress_decorator import progress_bar, spinner
+from common.utils import (
         get_env_accounts,
     get_profiles,
     DEFINED_REGIONS,
@@ -392,7 +378,7 @@ def format_age(created_at):
 @progress_bar("Processing EKS pod discovery across accounts and regions")
 def main(args):
     """메인 함수"""
-    accounts = args.account.split(",") if args.account else get_env_accounts()
+    accounts = get_env_accounts(args.account)
     regions = args.regions.split(",") if args.regions else DEFINED_REGIONS
     profiles_map = get_profiles()
     

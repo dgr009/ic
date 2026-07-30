@@ -152,12 +152,6 @@ class DefaultConfigGenerator:
                     'mode': 'adaptive'
                 }
             },
-            'azure': {
-                'subscription_id': '',
-                'tenant_id': '',
-                'resource_groups': [],
-                'locations': ['koreacentral', 'koreasouth']
-            },
             'gcp': {
                 'project_id': '',
                 'regions': ['asia-northeast3'],
@@ -193,11 +187,6 @@ class DefaultConfigGenerator:
                 'access_key_id': 'AKIA...',
                 'secret_access_key': 'your-secret-access-key',
                 'session_token': 'optional-session-token'
-            },
-            'azure': {
-                'client_id': 'your-azure-client-id',
-                'client_secret': 'your-azure-client-secret',
-                'tenant_id': 'your-azure-tenant-id'
             },
             'gcp': {
                 'service_account_key_path': '/path/to/service-account.json',
@@ -243,7 +232,7 @@ logging:
   level: INFO              # Console log level: DEBUG, INFO, WARNING, ERROR
   file_level: DEBUG        # File log level (more detailed than console)
   format: '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-  file_path: '~/.ic/logs/ic_{date}.log' # Log file location
+  file_path: '~/.ic/logs/ic_{{date}}.log' # Log file location
 
 # Security settings
 security:
@@ -261,15 +250,6 @@ aws:
   retry_config:
     max_attempts: 3               # Maximum retry attempts for API calls
     mode: 'adaptive'              # Retry mode: standard, adaptive
-
-# Azure Configuration
-azure:
-  subscription_id: ''             # Azure subscription ID
-  tenant_id: ''                   # Azure tenant ID
-  resource_groups: []             # List of resource groups to manage
-  locations:
-    - koreacentral                # Primary Azure region
-    - koreasouth                  # Secondary Azure region
 
 # Google Cloud Platform Configuration
 gcp:
@@ -317,12 +297,6 @@ aws:
 #   secret_access_key: 'your-secret-access-key'
 #   session_token: 'optional-session-token'  # For temporary credentials
 
-# Azure Credentials
-azure:
-  client_id: 'your-azure-client-id'
-  client_secret: 'your-azure-client-secret'
-  tenant_id: 'your-azure-tenant-id'
-
 # Google Cloud Platform Credentials
 gcp:
   service_account_key_path: '/path/to/service-account.json'
@@ -353,7 +327,6 @@ github:
 # You can also use environment variables instead of this file:
 # 
 # AWS: AWS_PROFILE, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
-# Azure: AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID
 # GCP: GOOGLE_APPLICATION_CREDENTIALS
 # OCI: OCI_CONFIG_FILE, OCI_CONFIG_PROFILE
 # CloudFlare: CLOUDFLARE_API_TOKEN, CLOUDFLARE_EMAIL

@@ -8,7 +8,7 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 from botocore.exceptions import ClientError, NoCredentialsError
 
-from aws.cloudfront.info import CloudFrontCollector, CloudFrontRenderer
+from ic.platforms.aws.cloudfront.info import CloudFrontCollector, CloudFrontRenderer
 
 
 class TestCloudFrontCollector:

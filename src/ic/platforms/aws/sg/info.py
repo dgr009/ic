@@ -9,26 +9,93 @@ from rich.table import Table
 from rich.tree import Tree
 from rich.rule import Rule
 from rich import box
-try:
-    from ....common.log import log_info_non_console
-except ImportError:
-    from common.log import log_info_non_console
-try:
-    from ....common.progress_decorator import ManualProgress
-except ImportError:
-    from common.progress_decorator import ManualProgress
-try:
-    from ....common.utils import get_profiles, create_session
-except ImportError:
-    from common.utils import get_profiles, create_session
+from common.log import log_info_non_console
+from common.progress_decorator import ManualProgress
+from common.utils import get_profiles, create_session
 
 def add_arguments(parser):
     parser.add_argument("--name", "-n", default=None, help="이름 필터 (부분 일치)")
     parser.add_argument("--account", "-a", default=None, help="계정 ID 필터 (부분 일치)")
     parser.add_argument("--regions", "-r", default=None, help="조회할 리전(,) 예: ap-northeast-2,us-east-1")
-    parser.add_argument("--output", default="table", choices=["tree", "table"], help="출력 형식 선택 (기본: table)")
+    parser.add_argument("--output", "-o", default="table", choices=["tree", "table"], help="출력 형식 선택 (기본: table)")
+    parser.add_argument("--rule-type", "-t", default="all", choices=["all", "ingress", "egress"], help="룰 타입 필터 (all, ingress, egress) (기본: all)")
+    parser.add_argument("--ingress", "-i", action="store_true", help="Ingress 룰만 출력")
+    parser.add_argument("--egress", "-e", action="store_true", help="Egress 룰만 출력")
 
-def fetch_sg_one_account_region(profile_name, account_id, region, name_filter):
+def parse_rule_targets(rule, direction):
+    proto_str = rule.get('IpProtocol', '-')
+    if proto_str == 'tcp':
+        proto_str = 'TCP'
+    elif proto_str == 'udp':
+        proto_str = 'UDP'
+    elif proto_str == 'icmp':
+        proto_str = 'ICMP'
+    elif proto_str == '-1':
+        proto_str = 'ALL'
+    
+    # 포트 범위 처리
+    port_range = "-"
+    if rule.get('FromPort') is not None and rule.get('ToPort') is not None:
+        if rule['FromPort'] == rule['ToPort']:
+            port_range = str(rule['FromPort'])
+        else:
+            port_range = f"{rule['FromPort']}-{rule['ToPort']}"
+    elif proto_str == 'ALL':
+        port_range = "ALL"
+    
+    targets = []
+    
+    # IP 범위
+    for ip_range in rule.get('IpRanges', []):
+        desc = ip_range.get('Description', '')
+        cidr = ip_range['CidrIp']
+        target_str = f"{cidr}"
+        if desc:
+            target_str += f" ({desc})"
+        targets.append(target_str)
+    
+    # IPv6 범위
+    for ipv6_range in rule.get('Ipv6Ranges', []):
+        desc = ipv6_range.get('Description', '')
+        cidr = ipv6_range['CidrIpv6']
+        target_str = f"{cidr}"
+        if desc:
+            target_str += f" ({desc})"
+        targets.append(target_str)
+    
+    # 다른 Security Group 참조
+    for sg_ref in rule.get('UserIdGroupPairs', []):
+        sg_id = sg_ref.get('GroupId', '')
+        sg_desc = sg_ref.get('Description', '')
+        target_str = f"sg:{sg_id}"
+        if sg_desc:
+            target_str += f" ({sg_desc})"
+        targets.append(target_str)
+    
+    # Prefix List
+    for prefix_list in rule.get('PrefixListIds', []):
+        pl_id = prefix_list['PrefixListId']
+        pl_desc = prefix_list.get('Description', '')
+        target_str = f"pl:{pl_id}"
+        if pl_desc:
+            target_str += f" ({pl_desc})"
+        targets.append(target_str)
+    
+    if not targets:
+        targets = ["-"]
+    
+    parsed = []
+    for target in targets:
+        parsed.append({
+            "direction": direction,
+            "desc": target.split('(', 1)[1].rstrip(')') if '(' in target else "-",
+            "proto": proto_str,
+            "port_range": port_range,
+            "target": target.split('(')[0].strip() if '(' in target else target
+        })
+    return parsed
+
+def fetch_sg_one_account_region(profile_name, account_id, region, name_filter, rule_type="all"):
     console = Console()
     results = []
     
@@ -54,105 +121,69 @@ def fetch_sg_one_account_region(profile_name, account_id, region, name_filter):
         if name_filter and name_filter not in sg_name.lower():
             continue
             
-        ingress_rules = sg.get('IpPermissions', [])
-        
-        if not ingress_rules:
-            results.append({
-                "account_id": account_id,
-                "region": region,
-                "sg_name": sg_name,
-                "sg_id": sg['GroupId'],
-                "desc": "(No Ingress Rules)",
-                "proto": "-",
-                "port_range": "-",
-                "source": "-"
-            })
-        else:
-            for rule in ingress_rules:
-                proto_str = rule.get('IpProtocol', '-')
-                if proto_str == 'tcp':
-                    proto_str = 'TCP'
-                elif proto_str == 'udp':
-                    proto_str = 'UDP'
-                elif proto_str == 'icmp':
-                    proto_str = 'ICMP'
-                elif proto_str == '-1':
-                    proto_str = 'ALL'
-                
-                # 포트 범위 처리
-                port_range = "-"
-                if rule.get('FromPort') is not None and rule.get('ToPort') is not None:
-                    if rule['FromPort'] == rule['ToPort']:
-                        port_range = str(rule['FromPort'])
-                    else:
-                        port_range = f"{rule['FromPort']}-{rule['ToPort']}"
-                elif proto_str == 'ALL':
-                    port_range = "ALL"
-                
-                # 소스 처리
-                sources = []
-                
-                # IP 범위
-                for ip_range in rule.get('IpRanges', []):
-                    desc = ip_range.get('Description', '')
-                    cidr = ip_range['CidrIp']
-                    source_str = f"{cidr}"
-                    if desc:
-                        source_str += f" ({desc})"
-                    sources.append(source_str)
-                
-                # IPv6 범위
-                for ipv6_range in rule.get('Ipv6Ranges', []):
-                    desc = ipv6_range.get('Description', '')
-                    cidr = ipv6_range['CidrIpv6']
-                    source_str = f"{cidr}"
-                    if desc:
-                        source_str += f" ({desc})"
-                    sources.append(source_str)
-                
-                # 다른 Security Group 참조
-                for sg_ref in rule.get('UserIdGroupPairs', []):
-                    sg_id = sg_ref.get('GroupId', '')
-                    sg_desc = sg_ref.get('Description', '')
-                    source_str = f"sg:{sg_id}"
-                    if sg_desc:
-                        source_str += f" ({sg_desc})"
-                    sources.append(source_str)
-                
-                # Prefix List
-                for prefix_list in rule.get('PrefixListIds', []):
-                    pl_id = prefix_list['PrefixListId']
-                    pl_desc = prefix_list.get('Description', '')
-                    source_str = f"pl:{pl_id}"
-                    if pl_desc:
-                        source_str += f" ({pl_desc})"
-                    sources.append(source_str)
-                
-                if not sources:
-                    sources = ["-"]
-                
-                for source in sources:
-                    results.append({
-                        "account_id": account_id,
-                        "region": region,
-                        "sg_name": sg_name,
-                        "sg_id": sg['GroupId'],
-                        "desc": source.split('(', 1)[1].rstrip(')') if '(' in source else "-",
-                        "proto": proto_str,
-                        "port_range": port_range,
-                        "source": source.split('(')[0].strip() if '(' in source else source
-                    })
+        sg_id = sg['GroupId']
+
+        # Process Ingress Rules
+        if rule_type in ['all', 'ingress']:
+            ingress_rules = sg.get('IpPermissions', [])
+            if not ingress_rules:
+                results.append({
+                    "account_id": account_id,
+                    "region": region,
+                    "sg_name": sg_name,
+                    "sg_id": sg_id,
+                    "direction": "Ingress",
+                    "desc": "(No Ingress Rules)",
+                    "proto": "-",
+                    "port_range": "-",
+                    "target": "-"
+                })
+            else:
+                for rule in ingress_rules:
+                    for p in parse_rule_targets(rule, "Ingress"):
+                        p.update({
+                            "account_id": account_id,
+                            "region": region,
+                            "sg_name": sg_name,
+                            "sg_id": sg_id,
+                        })
+                        results.append(p)
+
+        # Process Egress Rules
+        if rule_type in ['all', 'egress']:
+            egress_rules = sg.get('IpPermissionsEgress', [])
+            if not egress_rules:
+                results.append({
+                    "account_id": account_id,
+                    "region": region,
+                    "sg_name": sg_name,
+                    "sg_id": sg_id,
+                    "direction": "Egress",
+                    "desc": "(No Egress Rules)",
+                    "proto": "-",
+                    "port_range": "-",
+                    "target": "-"
+                })
+            else:
+                for rule in egress_rules:
+                    for p in parse_rule_targets(rule, "Egress"):
+                        p.update({
+                            "account_id": account_id,
+                            "region": region,
+                            "sg_name": sg_name,
+                            "sg_id": sg_id,
+                        })
+                        results.append(p)
     
     return results
 
-def collect_sg_parallel_fast(profiles, account_filter, region_list, name_filter, console, max_workers=20):
+def collect_sg_parallel_fast(profiles, account_filter, region_list, name_filter, console, rule_type="all", max_workers=20):
     start_ts = time.time()
     log_info_non_console("collect_sg_parallel_fast start")
     
     all_rows = []
     jobs = []
     
-    # 작업 목록 생성
     for account_id, profile_name in profiles.items():
         if account_filter and account_filter not in account_id:
             continue
@@ -167,7 +198,7 @@ def collect_sg_parallel_fast(profiles, account_filter, region_list, name_filter,
             future_to_info = {}
             
             for profile, account, region in jobs:
-                future = executor.submit(fetch_sg_one_account_region, profile, account, region, name_filter)
+                future = executor.submit(fetch_sg_one_account_region, profile, account, region, name_filter, rule_type)
                 futures.append(future)
                 future_to_info[future] = (account, region)
             
@@ -201,7 +232,7 @@ def group_sg_data(sg_rows):
         grouped.setdefault(account, {}).setdefault(region, {}).setdefault(sg_name, []).append(rule)
     return grouped
 
-def print_sg_tree(console, sg_rows):
+def print_sg_tree(console, sg_rows, rule_type="all"):
     """SG 정보를 트리 형식으로 출력"""
     if not sg_rows:
         console.print("(No Security Groups)")
@@ -209,7 +240,8 @@ def print_sg_tree(console, sg_rows):
         
     grouped_data = group_sg_data(sg_rows)
     
-    console.print("\n[bold underline]Security Group Inbound Rules[/bold underline]")
+    title_suffix = "" if rule_type == "all" else f" ({rule_type.capitalize()})"
+    console.print(f"\n[bold underline]Security Group Rules{title_suffix}[/bold underline]")
     tree = Tree("AWS Account", guide_style="bold cyan")
 
     sorted_accounts = sorted(grouped_data.keys(), key=str.lower)
@@ -225,43 +257,55 @@ def print_sg_tree(console, sg_rows):
                 sg_branch = region_branch.add(f"[bold white]{sg_name}[/bold white]")
                 
                 rules = grouped_data[account_id][region_name][sg_name]
-                if not rules or rules[0]['desc'] == '(No Ingress Rules)':
-                    sg_branch.add("[dim](No Ingress Rules)[/dim]")
+                if not rules:
+                    sg_branch.add("[dim](No Rules)[/dim]")
                     continue
 
-                # 소스 문자열의 최대 길이를 계산하여 정렬
-                max_source_len = 0
+                max_target_len = 0
                 for r in rules:
-                    if r.get('source') and r['source'] != '-':
-                        if len(r['source']) > max_source_len:
-                            max_source_len = len(r['source'])
+                    if r.get('target') and r['target'] != '-':
+                        if len(r['target']) > max_target_len:
+                            max_target_len = len(r['target'])
                 
-                # 기본 최소 길이 보장
-                if max_source_len == 0: 
-                    max_source_len = 10 
+                if max_target_len == 0: 
+                    max_target_len = 10 
 
                 for rule in rules:
+                    if rule['desc'] in ['(No Ingress Rules)', '(No Egress Rules)']:
+                        sg_branch.add(f"[dim]{rule['desc']}[/dim]")
+                        continue
+
                     desc_str = f" ([dim]Desc: {rule['desc']}[/dim])" if rule['desc'] and rule['desc'] != '-' else ""
                     
-                    # 프로토콜과 소스 문자열을 패딩하여 길이를 맞춤
                     padded_proto = rule['proto'].ljust(4)
-                    padded_source = rule['source'].ljust(max_source_len)
+                    padded_target = rule['target'].ljust(max_target_len)
+                    dir_tag = f"[green]Ingress[/green]" if rule['direction'] == "Ingress" else f"[cyan]Egress[/cyan]"
+                    arrow = "←" if rule['direction'] == "Ingress" else "→"
 
-                    rule_str = f"[{padded_proto}] {rule['port_range']:<11} ← [yellow]{padded_source}[/yellow]{desc_str}"
+                    rule_str = f"[{dir_tag}] [{padded_proto}] {rule['port_range']:<11} {arrow} [yellow]{padded_target}[/yellow]{desc_str}"
                     sg_branch.add(rule_str)
 
     console.print(tree)
 
-def print_sg_table(console, sg_rows):
+def print_sg_table(console, sg_rows, rule_type="all"):
     if not sg_rows:
         console.print("(No Security Groups)")
         return
         
-    sg_rows.sort(key=lambda x: (x["account_id"].lower(), x["region"].lower(), x["sg_name"].lower()))
-    console.print("\n[bold underline]Security Group Inbound Rules[/bold underline]")
+    sg_rows.sort(key=lambda x: (
+        x["account_id"].lower(), 
+        x["region"].lower(), 
+        x["sg_name"].lower(),
+        0 if x["direction"] == "Ingress" else 1,
+        x["proto"],
+        x["port_range"]
+    ))
+    
+    title_suffix = "" if rule_type == "all" else f" ({rule_type.capitalize()})"
+    console.print(f"\n[bold underline]Security Group Rules{title_suffix}[/bold underline]")
     
     t = Table(show_lines=False, box=box.HORIZONTALS)
-    headers = ["Account", "Region", "SG Name", "Port Range", "Source", "Rule Desc", "Protocol"]
+    headers = ["Account", "Region", "SG Name", "Type", "Port Range", "Destination/Source", "Rule Desc", "Protocol"]
     for h in headers:
         t.add_column(h, style="bold magenta" if h == "Account" else "bold cyan" if h in ["Region", "SG Name"] else "")
     
@@ -294,12 +338,15 @@ def print_sg_table(console, sg_rows):
                 t.add_row(*rule_row)
             last_sg = row['sg_name']
 
+        dir_style = "[green]Ingress[/green]" if row['direction'] == "Ingress" else "[cyan]Egress[/cyan]"
+
         t.add_row(
             account_display, 
             region_display, 
             sg_display, 
+            dir_style,
             row["port_range"], 
-            row["source"], 
+            row["target"], 
             row["desc"], 
             row["proto"]
         )
@@ -308,7 +355,13 @@ def print_sg_table(console, sg_rows):
 
 def main(args):
     console = Console()
-    
+
+    rule_type = getattr(args, 'rule_type', 'all').lower()
+    if getattr(args, 'ingress', False):
+        rule_type = 'ingress'
+    elif getattr(args, 'egress', False):
+        rule_type = 'egress'
+
     try:
         profiles = get_profiles()
         if not profiles:
@@ -333,10 +386,11 @@ def main(args):
         args.account.lower() if args.account else None, 
         region_list, 
         args.name.lower() if args.name else None, 
-        console
+        console,
+        rule_type=rule_type
     )
     
     if args.output == 'tree':
-        print_sg_tree(console, sg_rows)
+        print_sg_tree(console, sg_rows, rule_type=rule_type)
     else:
-        print_sg_table(console, sg_rows)
+        print_sg_table(console, sg_rows, rule_type=rule_type)

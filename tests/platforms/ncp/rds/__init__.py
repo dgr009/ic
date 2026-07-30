@@ -1,1 +1,0 @@
-# NCP RDS service tests

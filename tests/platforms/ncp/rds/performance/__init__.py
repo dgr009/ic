@@ -1,1 +1,0 @@
-# NCP rds performance tests

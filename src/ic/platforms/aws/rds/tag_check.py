@@ -3,44 +3,16 @@
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-try:
-    from ....common.log import log_info, log_error, log_exception, log_decorator
-except ImportError:
-    from common.log import log_info, log_error, log_exception, log_decorator
-try:
-    from ....common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
-except ImportError:
-    from common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
-    from rich.console import Console
-    from rich.table import Table
-try:
-    from ....common.slack import send_slack_blocks_table_with_color
-except ImportError:
-    from common.slack import send_slack_blocks_table_with_color
+from common.log import log_info, log_error, log_exception, log_decorator
+from common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
+from rich.console import Console
+from rich.table import Table
+from common.slack import send_slack_blocks_table_with_color
 
 # 새로운 설정 시스템 import
-try:
-    from src.ic.config.manager import ConfigManager
-    config_manager = ConfigManager()
-    config = config_manager.get_config()
-except ImportError:
-    try:
-        from ic.config.manager import ConfigManager
-        config_manager = ConfigManager()
-        config = config_manager.get_config()
-    except ImportError:
-        # Legacy fallback for development
-        import sys
-        import os
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-        from ic.config.manager import ConfigManager
-        config_manager = ConfigManager()
-        config = config_manager.get_config()
-except ImportError:
-    # 호환성을 위한 fallback
-    from dotenv import load_dotenv
-    load_dotenv()
-    config = {}
+from ic.config.manager import ConfigManager
+config_manager = ConfigManager()
+config = config_manager.get_config()
 
 console = Console()
 
@@ -126,7 +98,7 @@ def fetch_and_validate_rds_tags(account_id, profile_name, region):
 @log_decorator
 def check_all_rds_tags(args):
     """RDS 태그 유효성 검사 (병렬)"""
-    accounts = args.account.split(",") if args.account else get_env_accounts()
+    accounts = get_env_accounts(args.account)
     regions = args.regions.split(",") if args.regions else DEFINED_REGIONS
     profiles = get_profiles()
 

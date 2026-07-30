@@ -1,1 +1,0 @@
-# AZURE vm unit tests

@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 try:
-    from src.ic.config.manager import ConfigManager
+    from ic.config.manager import ConfigManager
 except ImportError:
     try:
         from ic.config.manager import ConfigManager

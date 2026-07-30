@@ -1,1 +1,0 @@
-# NCP vpc integration tests

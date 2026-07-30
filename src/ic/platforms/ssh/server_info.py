@@ -9,8 +9,8 @@ import paramiko
 # paramiko.util.log_to_file("ssh_paramiko_debug.log")
 
 try:
-    from src.ic.config.manager import ConfigManager
-    from src.ic.core.logging import ICLogger
+    from ic.config.manager import ConfigManager
+    from ic.core.logging import ICLogger
 except ImportError:
     try:
         from ic.config.manager import ConfigManager
@@ -26,13 +26,7 @@ except ImportError:
 from rich.table import Table
 from rich.console import Console
 
-try:
-    from src.common.progress_decorator import concurrent_progress, ManualProgress
-except ImportError:
-    try:
-        from common.progress_decorator import concurrent_progress, ManualProgress
-    except ImportError:
-        from ....common.progress_decorator import concurrent_progress, ManualProgress
+from common.progress_decorator import concurrent_progress, ManualProgress
 
 console = Console()
 # -----------------------------------------------------------------------------

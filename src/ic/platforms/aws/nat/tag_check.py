@@ -4,24 +4,12 @@ import re
 import os
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor, as_completed
-try:
-    from ....common.log import log_info, log_error, log_exception, log_decorator
-except ImportError:
-    from common.log import log_info, log_error, log_exception, log_decorator
-try:
-    from ....common.progress_decorator import ManualProgress
-except ImportError:
-    from common.progress_decorator import ManualProgress
-try:
-    from ....common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
-except ImportError:
-    from common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
-    from rich.console import Console
-    from rich.table import Table
-try:
-    from ....common.slack import send_slack_blocks_table_with_color
-except ImportError:
-    from common.slack import send_slack_blocks_table_with_color
+from common.log import log_info, log_error, log_exception, log_decorator
+from common.progress_decorator import ManualProgress
+from common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
+from rich.console import Console
+from rich.table import Table
+from common.slack import send_slack_blocks_table_with_color
 
 load_dotenv()
 console = Console()
@@ -93,7 +81,7 @@ def fetch_and_validate_nat_tags(account_id, profile_name, region):
 @log_decorator
 def check_all_nat_tags(args):
     """NAT Gateway 태그 유효성 검사 (병렬)"""
-    accounts = args.account.split(",") if args.account else get_env_accounts()
+    accounts = get_env_accounts(args.account)
     regions = args.regions.split(",") if args.regions else DEFINED_REGIONS
     profiles = get_profiles()
 

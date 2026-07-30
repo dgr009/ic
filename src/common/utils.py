@@ -4,7 +4,12 @@ import os
 import re
 import json
 from botocore.exceptions import BotoCoreError, ClientError
-from common.log import log_info, log_error, log_exception  # 로그 모듈 통합
+try:
+    # pyrefly: ignore [missing-import]
+    from prettytable import PrettyTable
+except ImportError:
+    from rich.table import Table as PrettyTable  # Fallback
+from .log import log_info, log_error, log_exception  # 로그 모듈 통합
 
 # 새로운 설정 시스템 import
 try:
@@ -39,13 +44,70 @@ DEFINED_REGIONS = get_config_value("REGIONS", "ap-northeast-2", "aws.regions")
 if isinstance(DEFINED_REGIONS, str):
     DEFINED_REGIONS = DEFINED_REGIONS.split(",")
 
-def get_env_accounts():
-    """설정에서 계정 목록을 가져옵니다."""
-    if USE_NEW_CONFIG and config and 'aws' in config:
-        return config['aws'].get('accounts', [])
+def get_env_accounts(account_input=None):
+    """설정에서 계정 목록을 가져오거나, 입력받은 프로필명/계정 ID를 계정 ID 목록으로 변환합니다."""
+    return resolve_accounts(account_input)
+
+def resolve_accounts(account_input=None) -> list:
+    """
+    12자리 계정 ID, 프로필 이름, 또는 프로필 부분 이름을 12자리 AWS 계정 ID 목록으로 변환합니다.
+    """
+    if not account_input:
+        if USE_NEW_CONFIG and config and 'aws' in config:
+            raw_list = config['aws'].get('accounts', [])
+        else:
+            accounts = os.getenv("AWS_ACCOUNTS", "")
+            raw_list = accounts.split(",") if accounts else []
+    elif isinstance(account_input, str):
+        raw_list = [a.strip() for a in account_input.split(",") if a.strip()]
+    elif isinstance(account_input, list):
+        raw_list = account_input
     else:
-        accounts = os.getenv("AWS_ACCOUNTS", "")
-        return accounts.split(",") if accounts else []
+        raw_list = []
+
+    profiles = get_profiles()  # dict: account_id -> profile_name
+    name_to_account = {}
+    for acct_id, prof_name in profiles.items():
+        if prof_name and prof_name != 'default':
+            name_to_account[str(prof_name).lower()] = str(acct_id)
+
+    resolved = []
+    for item in raw_list:
+        item_clean = str(item).strip()
+        if not item_clean:
+            continue
+
+        # 1. 12자리 숫자인 경우 계정 ID로 직접 인식
+        if item_clean.isdigit() and len(item_clean) == 12:
+            resolved.append(item_clean)
+            continue
+
+        item_lower = item_clean.lower()
+
+        # 2. 정확한 프로필 이름 매칭
+        if item_lower in name_to_account:
+            resolved.append(name_to_account[item_lower])
+            continue
+
+        # 3. 프로필 이름 부분 매칭 (예: iep-rnd -> iep-rnd-aws)
+        matched = False
+        for prof_name, acct_id in name_to_account.items():
+            if item_lower in prof_name:
+                resolved.append(acct_id)
+                matched = True
+
+        if not matched:
+            resolved.append(item_clean)
+
+    # 중복 제거 및 순서 유지
+    seen = set()
+    result = []
+    for acct in resolved:
+        if acct not in seen:
+            seen.add(acct)
+            result.append(acct)
+
+    return result
 
 def ensure_directory_exists(directory):
     """지정된 경로에 디렉터리가 없으면 생성합니다."""
@@ -86,7 +148,7 @@ def get_profiles():
             from ic.config.external import ExternalConfigLoader
             external_loader = ExternalConfigLoader()
             aws_config = external_loader.load_aws_config()
-            
+
             if aws_config and 'profiles' in aws_config:
                 # 프로파일에서 계정 ID 추출하여 매핑
                 profiles = {}
@@ -101,15 +163,15 @@ def get_profiles():
                         account_id = profile_config.get('account_id')
                         if account_id:
                             profiles[account_id] = profile_name
-                
+
                 # default 프로파일 추가
                 if 'default' in aws_config['profiles']:
                     profiles['default'] = 'default'
-                
+
                 return profiles
         except Exception as e:
             log_error(f"Failed to load AWS config from new system: {e}")
-    
+
     # Fallback to traditional AWS config file parsing
     aws_config = configparser.ConfigParser()
     aws_config.read(f"{os.path.expanduser('~')}/.aws/config")

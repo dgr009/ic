@@ -7,13 +7,7 @@ This package contains core functionality including:
 - Common utilities and helpers
 """
 
-try:
-    from .logging import ICLogger, get_logger, init_logger
-except ImportError:
-    try:
-        from src.ic.core.logging import ICLogger, get_logger, init_logger
-    except ImportError:
-        from ic.core.logging import ICLogger, get_logger, init_logger
+from .logging import ICLogger, get_logger, init_logger
 
 __all__ = [
     'ICLogger',

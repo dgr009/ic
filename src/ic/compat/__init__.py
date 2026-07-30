@@ -15,7 +15,6 @@ from ..config.manager import ConfigManager
 from ..config.security import SecurityManager
 from ..core.logging import ICLogger
 from ..core.session import AWSSessionManager
-from ..core.mcp_manager import MCPManager
 
 # Global compatibility instances
 _config_manager: Optional[ConfigManager] = None
@@ -123,10 +122,6 @@ class CompatibilityConfig:
             'aws.accounts': 'AWS_ACCOUNTS',
             'aws.regions': 'AWS_REGIONS',
             'aws.cross_account_role': 'AWS_CROSS_ACCOUNT_ROLE',
-            'azure.subscription_id': 'AZURE_SUBSCRIPTION_ID',
-            'azure.tenant_id': 'AZURE_TENANT_ID',
-            'azure.client_id': 'AZURE_CLIENT_ID',
-            'azure.client_secret': 'AZURE_CLIENT_SECRET',
             'gcp.project_id': 'GCP_PROJECT_ID',
             'gcp.service_account_key_path': 'GCP_SERVICE_ACCOUNT_KEY_PATH',
             'cloudflare.email': 'CLOUDFLARE_EMAIL',
@@ -209,11 +204,6 @@ def get_aws_regions() -> list:
     return regions
 
 
-def get_azure_subscription_id() -> Optional[str]:
-    """Get Azure subscription ID from configuration."""
-    return compat_config.get('azure.subscription_id')
-
-
 def get_gcp_project_id() -> Optional[str]:
     """Get GCP project ID from configuration."""
     return compat_config.get('gcp.project_id')
@@ -234,7 +224,6 @@ __all__ = [
     'load_dotenv_compat',
     'get_aws_accounts',
     'get_aws_regions',
-    'get_azure_subscription_id',
     'get_gcp_project_id',
     'get_slack_webhook_url',
     'warn_deprecated',

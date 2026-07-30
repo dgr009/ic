@@ -1,1 +1,0 @@
-# NCPGOV platform tests

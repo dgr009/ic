@@ -11,10 +11,7 @@ from rich.console import Console
 from rich.table import Table
 from botocore.exceptions import ClientError, NoCredentialsError
 
-try:
-    from ....common.progress_decorator import ManualProgress
-except ImportError:
-    from common.progress_decorator import ManualProgress
+from common.progress_decorator import ManualProgress
 import boto3
 
 
@@ -58,6 +55,7 @@ class CloudFrontCollector:
                     
                 except Exception as e:
                     completed += 1
+                    self.console.print(f"Failed to collect CloudFront data for {account_name}: {e}")
                     progress.update(f"Failed {account_name} - {str(e)[:50]}...", advance=1)
         
         return distributions

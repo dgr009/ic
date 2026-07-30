@@ -12,23 +12,9 @@ from rich.table import Table
 from rich import box
 from InquirerPy import inquirer
 
-try:
-    from ....common.log import log_info_non_console, log_error
-except ImportError:
-    from common.log import log_info_non_console, log_error
-try:
-    from ....common.progress_decorator import progress_bar, spinner
-except ImportError:
-    from common.progress_decorator import progress_bar, spinner
-try:
-    from ....common.utils import (
-        get_env_accounts,
-    get_profiles,
-    DEFINED_REGIONS,
-    create_session
-    )
-except ImportError:
-    from common.utils import (
+from common.log import log_info_non_console, log_error
+from common.progress_decorator import progress_bar, spinner
+from common.utils import (
         get_env_accounts,
     get_profiles,
     DEFINED_REGIONS,
@@ -169,7 +155,7 @@ def main(args):
     console.print(f"리전: [green]{region}[/green]")
     
     # 계정 및 프로파일 설정
-    accounts = args.account.split(",") if args.account else get_env_accounts()
+    accounts = get_env_accounts(args.account)
     profiles_map = get_profiles()
     
     all_clusters = []

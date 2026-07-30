@@ -10,7 +10,7 @@ from unittest.mock import patch, MagicMock, Mock
 from datetime import datetime
 
 # Import modules to test
-from oci_module.compartment.info import CompartmentTreeBuilder, CompartmentTreeRenderer
+from ic.platforms.oci.compartment.info import CompartmentTreeBuilder, CompartmentTreeRenderer
 
 
 class TestCompartmentTreeBuilder(unittest.TestCase):
@@ -20,7 +20,7 @@ class TestCompartmentTreeBuilder(unittest.TestCase):
         """Set up test fixtures."""
         self.builder = CompartmentTreeBuilder()
     
-    @patch('oci_module.compartment.info.get_compartments')
+    @patch('ic.platforms.oci.compartment.info.get_compartments')
     def test_build_compartment_tree_success(self, mock_get_compartments):
         """Test successful compartment tree building."""
         # Mock compartment data
@@ -71,7 +71,7 @@ class TestCompartmentTreeBuilder(unittest.TestCase):
         prod_compartment = next(c for c in result['children'] if c['name'] == 'Production')
         self.assertEqual(len(prod_compartment['children']), 0)  # No children
     
-    @patch('oci_module.compartment.info.get_compartments')
+    @patch('ic.platforms.oci.compartment.info.get_compartments')
     def test_build_compartment_tree_error(self, mock_get_compartments):
         """Test handling of errors during tree building."""
         mock_get_compartments.side_effect = Exception("API Error")
@@ -139,7 +139,7 @@ class TestCompartmentTreeRenderer(unittest.TestCase):
             # Verify console.print was called with appropriate message
             mock_console.print.assert_called_with("📋 No compartment data available.")
     
-    @patch('oci_module.compartment.info.Tree')
+    @patch('ic.platforms.oci.compartment.info.Tree')
     def test_render_tree_with_data(self, mock_tree_class):
         """Test rendering with compartment tree data."""
         mock_tree = MagicMock()
@@ -173,7 +173,7 @@ class TestCompartmentTreeRenderer(unittest.TestCase):
             mock_console.print.assert_called()
             
             # Check that summary information is printed
-            call_args = [str(call[0][0]) for call in mock_console.print.call_args_list]
+            call_args = [str(arg) for call in mock_console.print.call_args_list for arg in call.args]
             summary_found = any('Total compartments: 1' in arg for arg in call_args)
             self.assertTrue(summary_found)
     

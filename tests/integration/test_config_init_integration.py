@@ -131,11 +131,9 @@ class TestConfigInitIntegration:
             config_data = yaml.safe_load(f)
         
         assert 'aws' in config_data
-        assert 'azure' in config_data
         assert 'gcp' in config_data
-        # Multi-cloud template should include all cloud provider sections
+        # Multi-cloud template should include all active cloud provider sections
         assert isinstance(config_data['aws'], dict)
-        assert isinstance(config_data['azure'], dict)
         assert isinstance(config_data['gcp'], dict)
     
     def test_config_init_force_overwrite(self):
@@ -289,14 +287,6 @@ class TestConfigInitTemplates:
         aws_config = template_config["aws"]
         assert isinstance(aws_config, dict)
     
-    def test_template_config_structure_azure(self):
-        """Test Azure template configuration structure."""
-        template_config = self.config_commands._get_template_config("azure")
-        
-        required_sections = ["version", "logging", "security", "azure"]
-        for section in required_sections:
-            assert section in template_config
-    
     def test_template_config_structure_gcp(self):
         """Test GCP template configuration structure."""
         template_config = self.config_commands._get_template_config("gcp")
@@ -309,7 +299,7 @@ class TestConfigInitTemplates:
         """Test multi-cloud template configuration structure."""
         template_config = self.config_commands._get_template_config("multi-cloud")
         
-        required_sections = ["version", "logging", "security", "aws", "azure", "gcp"]
+        required_sections = ["version", "logging", "security", "aws", "gcp"]
         for section in required_sections:
             assert section in template_config
     

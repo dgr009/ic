@@ -1,1 +1,0 @@
-# AZURE vnet unit tests

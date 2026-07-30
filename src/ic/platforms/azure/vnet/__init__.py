@@ -1,1 +1,0 @@
-# Azure Virtual Network service module

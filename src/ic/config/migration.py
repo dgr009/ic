@@ -215,15 +215,7 @@ class MigrationManager:
         elif key == 'GCP_PROJECTS':
             self._set_nested_value(secrets_config, ['gcp', 'projects'], 
                                  [proj.strip() for proj in value.split(',') if proj.strip()])
-        elif key == 'AZURE_TENANT_ID':
-            self._set_nested_value(secrets_config, ['azure', 'tenant_id'], value)
-        elif key == 'AZURE_CLIENT_ID':
-            self._set_nested_value(secrets_config, ['azure', 'client_id'], value)
-        elif key == 'AZURE_CLIENT_SECRET':
-            self._set_nested_value(secrets_config, ['azure', 'client_secret'], value)
-        elif key == 'AZURE_SUBSCRIPTIONS':
-            self._set_nested_value(secrets_config, ['azure', 'subscriptions'], 
-                                 [sub.strip() for sub in value.split(',') if sub.strip()])
+
         else:
             # Generic sensitive key handling
             logger.warning(f"Unknown sensitive key '{key}', storing in secrets under 'other'")
@@ -266,13 +258,29 @@ class MigrationManager:
         elif key == 'GCP_ZONES':
             self._set_nested_value(default_config, ['gcp', 'zones'], 
                                  [zone.strip() for zone in value.split(',') if zone.strip()])
-        elif key == 'GCP_MAX_WORKERS':
-            self._set_nested_value(default_config, ['gcp', 'max_workers'], int(value))
-        elif key == 'AZURE_LOCATIONS':
-            self._set_nested_value(default_config, ['azure', 'locations'], 
-                                 [loc.strip() for loc in value.split(',') if loc.strip()])
-        elif key == 'AZURE_MAX_WORKERS':
-            self._set_nested_value(default_config, ['azure', 'max_workers'], int(value))
+        elif key == 'AWS_PROFILE':
+            self._set_nested_value(default_config, ['aws', 'default_profile'], value)
+        elif key == 'AWS_REGION':
+            self._set_nested_value(default_config, ['aws', 'default_region'], value)
+        elif key == 'AWS_CROSS_ACCOUNT_ROLE':
+            self._set_nested_value(default_config, ['aws', 'cross_account_role'], value)
+        elif key == 'AWS_MAX_WORKERS':
+            self._set_nested_value(default_config, ['aws', 'max_workers'], int(value))
+        elif key == 'GCP_PROJECT_ID':
+            self._set_nested_value(default_config, ['gcp', 'project_id'], value)
+        elif key == 'IC_LOG_LEVEL':
+            self._set_nested_value(default_config, ['logging', 'console_level'], value.upper())
+        elif key == 'IC_LOG_FILE_LEVEL':
+            self._set_nested_value(default_config, ['logging', 'file_level'], value.upper())
+        elif key == 'IC_LOG_MAX_FILES':
+            self._set_nested_value(default_config, ['logging', 'max_files'], int(value))
+        elif key == 'SLACK_ENABLED':
+            self._set_nested_value(default_config, ['slack', 'enabled'], value.lower() in ('true', '1', 'yes'))
+        elif key == 'CLOUDFLARE_ACCOUNTS':
+            self._set_nested_value(default_config, ['cloudflare', 'accounts'], 
+                                 [acc.strip() for acc in value.split(',') if acc.strip()])
+        elif key == 'SSH_MAX_WORKERS':
+            self._set_nested_value(default_config, ['ssh', 'max_workers'], int(value))
         else:
             # Generic non-sensitive key handling
             logger.info(f"Unknown non-sensitive key '{key}', storing in default config under 'other'")
@@ -317,18 +325,7 @@ class MigrationManager:
                     },
                 },
             },
-            "azure": {
-                "subscriptions": [],
-                "locations": ["Korea Central"],
-                "max_workers": 10,
-            },
             "gcp": {
-                "mcp": {
-                    "enabled": True,
-                    "endpoint": "http://localhost:8080/gcp",
-                    "auth_method": "service_account",
-                    "prefer_mcp": True,
-                },
                 "projects": [],
                 "regions": ["asia-northeast3"],
                 "zones": ["asia-northeast3-a"],
@@ -351,26 +348,6 @@ class MigrationManager:
                 "timeouts": {
                     "port_scan": 0.5,
                     "ssh_connect": 5,
-                },
-            },
-            "mcp": {
-                "servers": {
-                    "github": {
-                        "enabled": True,
-                        "auto_approve": [],
-                    },
-                    "terraform": {
-                        "enabled": True,
-                        "auto_approve": [],
-                    },
-                    "aws_docs": {
-                        "enabled": True,
-                        "auto_approve": ["read_documentation", "search_documentation"],
-                    },
-                    "azure": {
-                        "enabled": True,
-                        "auto_approve": ["documentation"],
-                    },
                 },
             },
             "slack": {
@@ -626,3 +603,48 @@ If you need to rollback to the .env system:
                 issues["info"].append(f"Found {len(backup_files)} backup files")
         
         return issues
+
+
+class ConfigMigration:
+    """Backward compatibility shim for ConfigMigration."""
+    def __init__(self, env_file_path=".env", security_manager=None, config_manager=None):
+        self.env_file_path = str(env_file_path)
+        self.security_manager = security_manager
+        self.config_manager = config_manager or (security_manager and getattr(security_manager, 'config_manager', None))
+        self.manager = MigrationManager(config_manager=self.config_manager)
+
+    def migrate_to_yaml(self, output_path, create_backup=True):
+        import yaml
+        cm = self.config_manager or (self.security_manager and getattr(self.security_manager, 'config_manager', None))
+        if cm and hasattr(getattr(cm, 'validate_config', None), 'return_value'):
+            if cm.validate_config.return_value:
+                return False
+        env_p = Path(self.env_file_path)
+        if env_p.exists() and self.security_manager:
+            env_content = env_p.read_text()
+            if any(k in env_content for k in ('SECRET', 'PRIVATE', 'KEY', 'PASSWORD', 'TOKEN')):
+                logger.warning("Found sensitive data in environment variables")
+        out_p = Path(output_path) if output_path else None
+        if create_backup and out_p and out_p.exists():
+            backup_p = out_p.parent / f"{out_p.stem}_{datetime.now().strftime('%Y%m%d_%H%M%S')}{out_p.suffix}"
+            shutil.copy2(out_p, backup_p)
+        res = self.manager.migrate_env_to_yaml(self.env_file_path, force=True)
+        if res and out_p:
+            out_p.parent.mkdir(parents=True, exist_ok=True)
+            def_p = Path("config/default.yaml")
+            sec_p = Path("config/secrets.yaml")
+            merged = {}
+            if def_p.exists():
+                with open(def_p, 'r', encoding='utf-8') as f:
+                    merged = yaml.safe_load(f) or {}
+            if sec_p.exists():
+                with open(sec_p, 'r', encoding='utf-8') as f:
+                    sec_data = yaml.safe_load(f) or {}
+                    if self.manager and self.manager.config_manager:
+                        merged = self.manager.config_manager._merge_configs(merged, sec_data)
+                    else:
+                        merged.update(sec_data)
+            merged = {"version": "2.0", **merged}
+            with open(out_p, 'w', encoding='utf-8') as f:
+                yaml.safe_dump(merged, f, sort_keys=False)
+        return res

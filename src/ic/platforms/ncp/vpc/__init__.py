@@ -1,1 +1,0 @@
-# NCP VPC Service Module

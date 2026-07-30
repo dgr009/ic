@@ -92,12 +92,6 @@ def gather_env_for_command(platform: str, service: str = None, command: str = No
     
     # Import the original function for backward compatibility
     try:
-        try:
-    from ...common.gather_env import gather_env_for_command as original_gather_env
-except ImportError:
-    try:
-        from ..common.gather_env import gather_env_for_command as original_gather_env
-    except ImportError:
         from common.gather_env import gather_env_for_command as original_gather_env
         return original_gather_env(platform, service, command)
     except ImportError:
@@ -184,36 +178,7 @@ def get_aws_profiles_compat():
     return session_manager.get_profiles()
 
 
-# Azure compatibility functions
-def get_azure_client_compat(service_type: str):
-    """
-    Backward compatibility function for Azure client creation.
-    
-    Args:
-        service_type: Type of Azure service client
-        
-    Returns:
-        Azure client object
-    """
-    warn_deprecated(
-        "manual Azure client creation",
-        "Azure service modules with new configuration",
-        "2.0.0"
-    )
-    
-    # Import Azure utilities if available
-    try:
-        try:
-    from ...common.azure_utils import get_azure_client
-except ImportError:
-    try:
-        from ..common.azure_utils import get_azure_client
-    except ImportError:
-        from common.azure_utils import get_azure_client
-        return get_azure_client(service_type)
-    except ImportError:
-        raise ImportError("Azure utilities not available. Please install azure dependencies.")
-
+# Legacy cloud utilities compatibility
 
 # GCP compatibility functions  
 def get_gcp_client_compat(service_type: str):
@@ -234,12 +199,6 @@ def get_gcp_client_compat(service_type: str):
     
     # Import GCP utilities if available
     try:
-        try:
-    from ...common.gcp_utils import get_gcp_client
-except ImportError:
-    try:
-        from ..common.gcp_utils import get_gcp_client
-    except ImportError:
         from common.gcp_utils import get_gcp_client
         return get_gcp_client(service_type)
     except ImportError:
@@ -256,6 +215,5 @@ __all__ = [
     'gather_env_compat',
     'get_aws_session_compat',
     'get_aws_profiles_compat',
-    'get_azure_client_compat',
     'get_gcp_client_compat',
 ]

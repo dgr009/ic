@@ -6,10 +6,7 @@ from rich.console import Console
 from rich.table import Table
 from rich import box
 import datetime
-try:
-    from ....common.progress_decorator import progress_bar, ManualProgress
-except ImportError:
-    from common.progress_decorator import progress_bar, ManualProgress
+from common.progress_decorator import progress_bar, ManualProgress
 
 def add_arguments(parser):
     parser.add_argument("--cost-start", default=None, help="크레딧 조회 시작일 (YYYY-MM-DD), 기본: 2025-05-22")

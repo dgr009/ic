@@ -125,10 +125,6 @@ class GCPMonitor:
     def update_mcp_connection_status(self, is_connected: bool):
         """MCP 서버 연결 상태 업데이트"""
         self._mcp_connection_status = is_connected
-        if is_connected:
-            log_info("MCP server connection established")
-        else:
-            log_error("MCP server connection lost, falling back to direct API access")
     
     def get_health_status(self) -> Dict[str, Any]:
         """전체 헬스 상태 반환"""

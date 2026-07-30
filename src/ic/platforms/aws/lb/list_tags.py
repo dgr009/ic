@@ -3,16 +3,10 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os
 from dotenv import load_dotenv
-try:
-    from ....common.log import log_info, log_error, log_exception, log_decorator
-except ImportError:
-    from common.log import log_info, log_error, log_exception, log_decorator
-try:
-    from ....common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
-except ImportError:
-    from common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
-    from rich.console import Console
-    from rich.table import Table
+from common.log import log_info, log_error, log_exception, log_decorator
+from common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
+from rich.console import Console
+from rich.table import Table
 
 console = Console()
 
@@ -20,7 +14,7 @@ console = Console()
 def get_tag_keys():
     """설정에서 태그 키를 가져옵니다."""
     try:
-        from src.ic.config.manager import ConfigManager
+        from ic.config.manager import ConfigManager
         config_manager = ConfigManager()
         config_manager.load_config()
         secrets = config_manager.load_secrets_config()
@@ -100,7 +94,7 @@ def fetch_lb_tags(account_id, profile_name, region):
 
 @log_decorator
 def list_lb_tags(args):
-    accounts = args.account.split(",") if args.account else get_env_accounts()
+    accounts = get_env_accounts(args.account)
     regions = args.regions.split(",") if args.regions else DEFINED_REGIONS
     profiles = get_profiles()
 

@@ -1,1 +1,0 @@
-# NCP S3 service tests

@@ -15,23 +15,9 @@ from rich.table import Table
 from rich import box
 from rich.rule import Rule
 
-try:
-    from ....common.log import log_info_non_console, log_error
-except ImportError:
-    from common.log import log_info_non_console, log_error
-try:
-    from ....common.progress_decorator import ManualProgress
-except ImportError:
-    from common.progress_decorator import ManualProgress
-try:
-    from ....common.utils import (
-        get_env_accounts,
-    get_profiles,
-    DEFINED_REGIONS,
-    create_session
-    )
-except ImportError:
-    from common.utils import (
+from common.log import log_info_non_console, log_error
+from common.progress_decorator import ManualProgress
+from common.utils import (
         get_env_accounts,
     get_profiles,
     DEFINED_REGIONS,
@@ -269,7 +255,7 @@ def format_monitoring_status(enhanced, prometheus_jmx, prometheus_node):
 
 def main(args):
     """메인 함수"""
-    accounts = args.account.split(",") if args.account else get_env_accounts()
+    accounts = get_env_accounts(args.account)
     regions = args.regions.split(",") if args.regions else DEFINED_REGIONS
     profiles_map = get_profiles()
     

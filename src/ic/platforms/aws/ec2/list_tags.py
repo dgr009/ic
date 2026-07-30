@@ -1,15 +1,9 @@
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
-try:
-    from ....common.log import log_info, log_error, log_exception, log_decorator
-except ImportError:
-    from common.log import log_info, log_error, log_exception, log_decorator
-try:
-    from ....common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
-except ImportError:
-    from common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
-    from rich.console import Console
-    from rich.table import Table
+from common.log import log_info, log_error, log_exception, log_decorator
+from common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
+from rich.console import Console
+from rich.table import Table
 
 console = Console()
 
@@ -18,7 +12,7 @@ def get_tag_keys():
     """설정에서 태그 키를 가져옵니다."""
     # 함수 내부에서 ConfigManager 로드
     try:
-        from src.ic.config.manager import ConfigManager
+        from ic.config.manager import ConfigManager
         config_manager = ConfigManager()
         config_manager.load_config()  # 기본 설정 로드
         secrets = config_manager.load_secrets_config()  # secrets.yaml 로드
@@ -95,7 +89,7 @@ def fetch_instance_tags(account_id, profile_name, region):
 def list_ec2_tags(args):
     """모든 계정과 리전의 EC2 인스턴스 태그를 병렬로 조회합니다."""
     # 계정/리전 목록 설정
-    accounts = args.account.split(",") if args.account else get_env_accounts()
+    accounts = get_env_accounts(args.account)
     regions = args.regions.split(",") if args.regions else DEFINED_REGIONS
     profiles = get_profiles()
 

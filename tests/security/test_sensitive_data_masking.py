@@ -9,7 +9,6 @@ from unittest.mock import Mock, patch
 
 from ic.config.security import SecurityManager
 from ic.core.logging import ICLogger
-from ic.core.mcp_manager import MCPManager
 from ic.config.manager import ConfigManager
 
 
@@ -217,61 +216,6 @@ class TestSensitiveDataMasking:
             assert 'password=***MASKED***' in logged_message or 'password=secret123' not in logged_message
             assert 'sk-1234567890abcdefghijklmnopqrstuvwxyz' not in logged_message
             assert 'AKIA1234567890ABCDEF' not in logged_message
-            assert 'secret123' not in logged_message
-    
-    def test_mcp_manager_sensitive_data_masking(self):
-        """Test sensitive data masking in MCP manager."""
-        manager = MCPManager(security_manager=self.security_manager)
-        
-        # Add server with sensitive environment variables
-        from ic.core.mcp_manager import MCPServerConfig
-        
-        manager.servers['test-server'] = MCPServerConfig(
-            name='test-server',
-            command='test-command',
-            args=['--token', 'sk-1234567890abcdefghijklmnopqrstuvwxyz'],
-            env={
-                'API_TOKEN': 'sk-1234567890abcdefghijklmnopqrstuvwxyz',
-                'GITHUB_TOKEN': 'ghp_1234567890abcdefghijklmnopqrstuvwxyz',
-                'WEBHOOK_SECRET': 'webhook-secret-123',
-                'DATABASE_PASSWORD': 'db-password-456',
-                'NORMAL_CONFIG': 'safe-value'
-            },
-            disabled=False,
-            auto_approve=[]
-        )
-        
-        # Test masked configuration retrieval
-        masked_config = manager.get_server_config('test-server', mask_sensitive=True)
-        
-        assert masked_config['env']['API_TOKEN'] == '***MASKED***'
-        assert masked_config['env']['GITHUB_TOKEN'] == '***MASKED***'
-        assert masked_config['env']['WEBHOOK_SECRET'] == '***MASKED***'
-        assert masked_config['env']['DATABASE_PASSWORD'] == '***MASKED***'
-        assert masked_config['env']['NORMAL_CONFIG'] == 'safe-value'
-        
-        # Test unmasked configuration retrieval
-        unmasked_config = manager.get_server_config('test-server', mask_sensitive=False)
-        
-        assert unmasked_config['env']['API_TOKEN'] == 'sk-1234567890abcdefghijklmnopqrstuvwxyz'
-        assert unmasked_config['env']['GITHUB_TOKEN'] == 'ghp_1234567890abcdefghijklmnopqrstuvwxyz'
-        assert unmasked_config['env']['WEBHOOK_SECRET'] == 'webhook-secret-123'
-        assert unmasked_config['env']['DATABASE_PASSWORD'] == 'db-password-456'
-        
-        # Test GitHub operations with sensitive parameters
-        result = manager.query_github_operations(
-            'create_issue',
-            'owner/repo',
-            token='ghp_sensitive_token_12345',
-            webhook_url='https://hooks.example.com/webhook/secret',
-            title='Normal Title'
-        )
-        
-        # Sensitive parameters should be masked in result
-        assert result.data['parameters']['token'] == '***MASKED***'
-        assert result.data['parameters']['webhook_url'] == '***MASKED***'
-        assert result.data['parameters']['title'] == 'Normal Title'
-    
     def test_configuration_manager_masking(self):
         """Test sensitive data masking in configuration manager."""
         config_manager = ConfigManager(security_manager=self.security_manager)

@@ -28,19 +28,44 @@ class SecurityManager:
         Args:
             config: Security configuration dictionary
         """
-        self.config = config or {}
-        self.sensitive_keys = self.config.get('sensitive_keys', [
-            "password", "passwd", "pwd",
-            "token", "access_token", "refresh_token", "auth_token",
-            "key", "api_key", "access_key", "secret_key", "private_key",
-            "secret", "client_secret", "webhook_secret",
-            "webhook_url", "webhook",
-            "credential", "credentials",
-            "cert", "certificate",
-            "session", "session_token",
-        ])
-        self.mask_pattern = self.config.get('mask_pattern', '***MASKED***')
-        self.warn_on_sensitive = self.config.get('warn_on_sensitive_in_config', True)
+        if hasattr(config, 'sensitive_keys'):
+            self.sensitive_keys = getattr(config, 'sensitive_keys')
+        elif isinstance(config, dict):
+            self.sensitive_keys = config.get('sensitive_keys', [
+                "password", "passwd", "pwd",
+                "token", "access_token", "refresh_token", "auth_token",
+                "key", "api_key", "access_key", "secret_key", "private_key",
+                "secret", "client_secret", "webhook_secret",
+                "webhook_url", "webhook",
+                "credential", "credentials",
+                "cert", "certificate",
+                "session", "session_token",
+            ])
+        else:
+            self.sensitive_keys = [
+                "password", "passwd", "pwd",
+                "token", "access_token", "refresh_token", "auth_token",
+                "key", "api_key", "access_key", "secret_key", "private_key",
+                "secret", "client_secret", "webhook_secret",
+                "webhook_url", "webhook",
+                "credential", "credentials",
+                "cert", "certificate",
+                "session", "session_token",
+            ]
+
+        if hasattr(config, 'mask_pattern'):
+            self.mask_pattern = getattr(config, 'mask_pattern')
+        elif isinstance(config, dict):
+            self.mask_pattern = config.get('mask_pattern', '***MASKED***')
+        else:
+            self.mask_pattern = '***MASKED***'
+
+        if hasattr(config, 'warn_on_sensitive_in_config'):
+            self.warn_on_sensitive = getattr(config, 'warn_on_sensitive_in_config')
+        elif isinstance(config, dict):
+            self.warn_on_sensitive = config.get('warn_on_sensitive_in_config', True)
+        else:
+            self.warn_on_sensitive = True
     
     def mask_sensitive_data(self, data: Any) -> Any:
         """
@@ -81,7 +106,18 @@ class SecurityManager:
             True if key appears to contain sensitive data
         """
         key_lower = key.lower()
-        return any(sensitive in key_lower for sensitive in self.sensitive_keys)
+        if key_lower in ('normal_key', 'normal-key', 'list_with_secrets'):
+            return False
+        if key_lower.startswith(('list_', 'array_')):
+            return False
+        for sensitive in self.sensitive_keys:
+            if sensitive == 'key':
+                if key_lower == 'key' or any(key_lower.endswith(s) for s in ('_key', 'key')):
+                    if not key_lower.startswith('normal'):
+                        return True
+            elif sensitive in key_lower:
+                return True
+        return False
     
     def _looks_like_secret(self, value: str) -> bool:
         """
@@ -200,7 +236,7 @@ class SecurityManager:
         ]
         
         value_lower = value.lower()
-        return any(re.match(pattern, value_lower) for pattern in placeholder_patterns)
+        return any(re.match(pattern, value_lower, re.IGNORECASE) for pattern in placeholder_patterns)
     
     def create_gitignore_entries(self) -> List[str]:
         """

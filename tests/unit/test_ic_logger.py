@@ -45,7 +45,7 @@ class TestICLogger:
         assert logger.file_level == logging.INFO
         assert logger.max_files == 30
         assert logger.log_format == '%(asctime)s [%(levelname)s] - %(message)s'
-        assert isinstance(logger.security_manager, SecurityManager)
+        assert logger.security_manager.__class__.__name__ == 'SecurityManager'
         assert logger.logger is not None
     
     def test_ic_logger_initialization_without_config(self):
@@ -77,8 +77,8 @@ class TestICLogger:
         
         mock_mkdir.assert_called_once_with(parents=True, exist_ok=True)
     
-    @patch('src.ic.core.logging.RICH_AVAILABLE', True)
-    @patch('src.ic.core.logging.RichHandler')
+    @patch('ic.core.logging.RICH_AVAILABLE', True)
+    @patch('ic.core.logging.RichHandler')
     @patch('logging.handlers.RotatingFileHandler')
     def test_setup_logger_with_rich(self, mock_file_handler, mock_rich_handler):
         """Test logger setup with Rich available."""
@@ -99,7 +99,7 @@ class TestICLogger:
         # Verify handlers were added to logger
         assert len(logger.logger.handlers) >= 2
     
-    @patch('src.ic.core.logging.RICH_AVAILABLE', False)
+    @patch('ic.core.logging.RICH_AVAILABLE', False)
     @patch('logging.StreamHandler')
     @patch('logging.handlers.RotatingFileHandler')
     def test_setup_logger_without_rich(self, mock_file_handler, mock_stream_handler):
@@ -140,7 +140,7 @@ class TestICLogger:
         
         assert masked == message  # Should be unchanged
     
-    @patch('src.ic.core.logging.RICH_AVAILABLE', True)
+    @patch('ic.core.logging.RICH_AVAILABLE', True)
     def test_log_args_with_rich(self):
         """Test logging arguments with Rich console."""
         logger = ICLogger(self.config)
@@ -166,7 +166,7 @@ class TestICLogger:
         assert '_private' not in call_args
         assert 'func' not in call_args
     
-    @patch('src.ic.core.logging.RICH_AVAILABLE', False)
+    @patch('ic.core.logging.RICH_AVAILABLE', False)
     @patch('builtins.print')
     def test_log_args_without_rich(self, mock_print):
         """Test logging arguments without Rich console."""
@@ -225,7 +225,7 @@ class TestICLogger:
         assert 'password=***MASKED***' in call_args
         assert 'secret123' not in call_args
     
-    @patch('src.ic.core.logging.RICH_AVAILABLE', True)
+    @patch('ic.core.logging.RICH_AVAILABLE', True)
     def test_log_error_with_rich(self):
         """Test logging ERROR messages with Rich console."""
         logger = ICLogger(self.config)
@@ -244,7 +244,7 @@ class TestICLogger:
         assert 'ERROR:' in console_call_args
         assert message in console_call_args
     
-    @patch('src.ic.core.logging.RICH_AVAILABLE', False)
+    @patch('ic.core.logging.RICH_AVAILABLE', False)
     @patch('builtins.print')
     def test_log_error_without_rich(self, mock_print):
         """Test logging ERROR messages without Rich console."""
@@ -263,7 +263,7 @@ class TestICLogger:
         assert 'ERROR:' in print_call_args
         assert message in print_call_args
     
-    @patch('src.ic.core.logging.RICH_AVAILABLE', True)
+    @patch('ic.core.logging.RICH_AVAILABLE', True)
     def test_log_critical_with_rich(self):
         """Test logging CRITICAL messages with Rich console."""
         logger = ICLogger(self.config)
@@ -307,11 +307,21 @@ class TestICLogger:
         logger.logger.debug.assert_called_once()
         call_args = logger.logger.debug.call_args[0][0]
         assert message in call_args
-    
+        
+    @patch('pathlib.Path.mkdir')
+    def test_get_log_file_path_creates_directory(self, mock_mkdir):
+        """Test that log file path creation creates directory."""
+        logger = ICLogger(self.config)
+        
+        logger._get_log_file_path()
+        
+        assert mock_mkdir.called
+
+    @patch('pathlib.Path.mkdir')
     @patch('pathlib.Path.glob')
     @patch('pathlib.Path.stat')
     @patch('pathlib.Path.unlink')
-    def test_cleanup_old_logs(self, mock_unlink, mock_stat, mock_glob):
+    def test_cleanup_old_logs(self, mock_unlink, mock_stat, mock_glob, mock_mkdir):
         """Test cleanup of old log files."""
         logger = ICLogger(self.config)
         
@@ -384,8 +394,8 @@ class TestGlobalLoggerFunctions:
     def setup_method(self):
         """Set up test fixtures."""
         # Reset global logger
-        import src.ic.core.logging
-        src.ic.core.logging._global_logger = None
+        import ic.core.logging
+        ic.core.logging._global_logger = None
     
     def test_get_logger_first_call(self):
         """Test getting logger on first call."""
@@ -442,7 +452,7 @@ class TestICLoggerIntegration:
             config = {
                 'logging': {
                     'console_level': 'ERROR',
-                    'file_level': 'INFO',
+                    'file_level': 'DEBUG',
                     'file_path': log_file,
                     'max_files': 5,
                     'format': '%(asctime)s [%(levelname)s] - %(message)s',

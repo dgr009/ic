@@ -4,10 +4,7 @@ import re
 import requests
 from rich.console import Console
 from rich.table import Table
-try:
-    from .log import log_error, log_info
-except ImportError:
-    from common.log import log_error, log_info
+from .log import log_error, log_info
 
 # Slack Webhook URL을 .env 파일에서 가져옴
 # SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")

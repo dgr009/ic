@@ -21,13 +21,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
 
-try:
-    from src.ic.core.logging import get_logger
-except ImportError:
-    try:
-        from ic.core.logging import get_logger
-    except ImportError:
-        from .logging import get_logger
+from .logging import get_logger
 
 logger = get_logger()
 
@@ -290,6 +284,7 @@ class AWSSessionManager:
         Returns:
             Account alias or account ID if alias not available
         """
+        account_id = None
         try:
             # Try to get from cache first
             sts = session.client('sts')
@@ -303,7 +298,7 @@ class AWSSessionManager:
             iam = session.client('iam')
             aliases = iam.list_account_aliases()
             
-            if aliases['AccountAliases']:
+            if aliases.get('AccountAliases'):
                 alias = aliases['AccountAliases'][0]
                 self.account_alias_cache[account_id] = alias
                 return alias
@@ -314,7 +309,7 @@ class AWSSessionManager:
                 
         except Exception as e:
             logger.log_info_file_only(f"Failed to get account alias: {e}")
-            return "unknown"
+            return account_id if account_id else "unknown"
     
     def create_sessions_parallel(self, account_regions: list) -> Dict[str, boto3.Session]:
         """

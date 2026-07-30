@@ -68,11 +68,7 @@ class DependencyValidator:
             "google-cloud-storage": ">=2.18.0",
             "google-auth": ">=2.29.0",
         },
-        "azure": {
-            "azure-identity": ">=1.15.0",
-            "azure-mgmt-compute": ">=29.1.0",
-            "azure-mgmt-network": ">=24.0.0",
-        },
+
         "ssh": {
             "netifaces": ">=0.11.0",
         },
@@ -149,18 +145,6 @@ class DependencyValidator:
             "google-cloud-resource-manager": "google.cloud.resourcemanager",
             "google-auth": "google.auth",
             "google-auth-oauthlib": "google_auth_oauthlib",
-            "google-auth-httplib2": "google_auth_httplib2",
-            "azure-identity": "azure.identity",
-            "azure-mgmt-compute": "azure.mgmt.compute",
-            "azure-mgmt-network": "azure.mgmt.network",
-            "azure-mgmt-containerinstance": "azure.mgmt.containerinstance",
-            "azure-mgmt-containerservice": "azure.mgmt.containerservice",
-            "azure-mgmt-storage": "azure.mgmt.storage",
-            "azure-mgmt-sql": "azure.mgmt.sql",
-            "azure-mgmt-rdbms": "azure.mgmt.rdbms",
-            "azure-mgmt-eventhub": "azure.mgmt.eventhub",
-            "azure-mgmt-resource": "azure.mgmt.resource",
-            "azure-mgmt-subscription": "azure.mgmt.subscription",
         }
         
         # Determine import name

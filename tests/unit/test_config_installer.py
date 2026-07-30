@@ -127,7 +127,6 @@ class TestDefaultConfigGenerator(unittest.TestCase):
         self.assertIn('logging:', result)
         self.assertIn('security:', result)
         self.assertIn('aws:', result)
-        self.assertIn('azure:', result)
         self.assertIn('gcp:', result)
         self.assertIn('oci:', result)
         self.assertIn('cloudflare:', result)
@@ -145,7 +144,6 @@ class TestDefaultConfigGenerator(unittest.TestCase):
         
         # Verify it contains expected sections
         self.assertIn('aws:', result)
-        self.assertIn('azure:', result)
         self.assertIn('gcp:', result)
         self.assertIn('oci:', result)
         self.assertIn('cloudflare:', result)
@@ -156,7 +154,6 @@ class TestDefaultConfigGenerator(unittest.TestCase):
         
         # Verify it contains example values
         self.assertIn('your-aws-profile-name', result)
-        self.assertIn('your-azure-client-id', result)
     
     def test_add_yaml_comments(self):
         """Test YAML comments generation."""
@@ -170,7 +167,7 @@ class TestDefaultConfigGenerator(unittest.TestCase):
         self.assertIn('metadata:', result)
         
         # Verify it contains all major sections with comments
-        sections = ['logging', 'security', 'aws', 'azure', 'gcp', 'oci', 'cloudflare']
+        sections = ['logging', 'security', 'aws', 'gcp', 'oci', 'cloudflare']
         for section in sections:
             self.assertIn(f'{section}:', result)
         
@@ -192,14 +189,13 @@ class TestDefaultConfigGenerator(unittest.TestCase):
         self.assertIn('NEVER commit secrets.yaml to version control', result)
         
         # Verify it contains all service sections
-        services = ['aws', 'azure', 'gcp', 'oci', 'cloudflare']
+        services = ['aws', 'gcp', 'oci', 'cloudflare']
         for service in services:
             self.assertIn(f'{service}:', result)
         
         # Verify it contains environment variable references
         self.assertIn('Environment Variables Reference:', result)
         self.assertIn('AWS_PROFILE', result)
-        self.assertIn('AZURE_CLIENT_ID', result)
 
 
 if __name__ == '__main__':

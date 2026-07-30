@@ -115,65 +115,11 @@ class AWSConfig:
         return errors
 
 
-@dataclass
-class AzureConfig:
-    """Azure configuration data model."""
-    subscriptions: List[str] = field(default_factory=list)
-    locations: List[str] = field(default_factory=lambda: ["Korea Central"])
-    max_workers: int = 10
-    tenant_id: Optional[str] = None
-    client_id: Optional[str] = None
-    client_secret: Optional[str] = None
-    subscription_id: Optional[str] = None
-    
-    def validate(self) -> List[str]:
-        """Validate Azure configuration."""
-        errors = []
-        
-        # Validate subscription IDs (UUIDs)
-        uuid_pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-        for sub_id in self.subscriptions:
-            if not re.match(uuid_pattern, sub_id, re.IGNORECASE):
-                errors.append(f"Invalid Azure subscription ID format: {sub_id}")
-        
-        # Validate max_workers
-        if self.max_workers < 1:
-            errors.append("max_workers must be at least 1")
-        
-        # Validate tenant_id if provided
-        if self.tenant_id and not re.match(uuid_pattern, self.tenant_id, re.IGNORECASE):
-            errors.append(f"Invalid Azure tenant ID format: {self.tenant_id}")
-        
-        # Validate client_id if provided
-        if self.client_id and not re.match(uuid_pattern, self.client_id, re.IGNORECASE):
-            errors.append(f"Invalid Azure client ID format: {self.client_id}")
-        
-        return errors
-
-
-@dataclass
-class GCPMCPConfig:
-    """GCP MCP configuration."""
-    enabled: bool = True
-    endpoint: str = "http://localhost:8080/gcp"
-    auth_method: str = "service_account"
-    prefer_mcp: bool = True
-    
-    def validate(self) -> List[str]:
-        """Validate GCP MCP configuration."""
-        errors = []
-        
-        valid_auth_methods = ["service_account", "oauth", "default"]
-        if self.auth_method not in valid_auth_methods:
-            errors.append(f"Invalid auth_method: {self.auth_method}. Must be one of {valid_auth_methods}")
-        
-        return errors
 
 
 @dataclass
 class GCPConfig:
     """GCP configuration data model."""
-    mcp: GCPMCPConfig = field(default_factory=GCPMCPConfig)
     projects: List[str] = field(default_factory=list)
     regions: List[str] = field(default_factory=lambda: ["asia-northeast3"])
     zones: List[str] = field(default_factory=lambda: ["asia-northeast3-a"])
@@ -200,9 +146,6 @@ class GCPConfig:
             key_path = Path(self.service_account_key_path).expanduser()
             if not key_path.exists():
                 errors.append(f"Service account key file not found: {self.service_account_key_path}")
-        
-        # Validate MCP configuration
-        errors.extend(self.mcp.validate())
         
         return errors
 
@@ -290,39 +233,6 @@ class SSHConfig:
 
 
 @dataclass
-class MCPServerConfig:
-    """MCP server configuration."""
-    enabled: bool = True
-    auto_approve: List[str] = field(default_factory=list)
-    personal_access_token: Optional[str] = None
-    
-    def validate(self) -> List[str]:
-        """Validate MCP server configuration."""
-        return []  # Basic validation, can be extended
-
-
-@dataclass
-class MCPConfig:
-    """MCP configuration data model."""
-    servers: Dict[str, MCPServerConfig] = field(default_factory=lambda: {
-        "github": MCPServerConfig(),
-        "terraform": MCPServerConfig(),
-        "aws_docs": MCPServerConfig(auto_approve=["read_documentation", "search_documentation"]),
-        "azure": MCPServerConfig(auto_approve=["documentation"]),
-    })
-    
-    def validate(self) -> List[str]:
-        """Validate MCP configuration."""
-        errors = []
-        
-        for server_name, server_config in self.servers.items():
-            server_errors = server_config.validate()
-            errors.extend([f"MCP server '{server_name}': {error}" for error in server_errors])
-        
-        return errors
-
-
-@dataclass
 class SlackConfig:
     """Slack configuration data model."""
     enabled: bool = False
@@ -377,12 +287,10 @@ class ICConfig:
     version: str = "1.0"
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     aws: AWSConfig = field(default_factory=AWSConfig)
-    azure: AzureConfig = field(default_factory=AzureConfig)
     gcp: GCPConfig = field(default_factory=GCPConfig)
     oci: OCIConfig = field(default_factory=OCIConfig)
     cloudflare: CloudFlareConfig = field(default_factory=CloudFlareConfig)
     ssh: SSHConfig = field(default_factory=SSHConfig)
-    mcp: MCPConfig = field(default_factory=MCPConfig)
     slack: SlackConfig = field(default_factory=SlackConfig)
     security: SecurityConfig = field(default_factory=SecurityConfig)
     
@@ -397,12 +305,10 @@ class ICConfig:
         # Validate each section
         errors.extend([f"logging: {error}" for error in self.logging.validate()])
         errors.extend([f"aws: {error}" for error in self.aws.validate()])
-        errors.extend([f"azure: {error}" for error in self.azure.validate()])
         errors.extend([f"gcp: {error}" for error in self.gcp.validate()])
         errors.extend([f"oci: {error}" for error in self.oci.validate()])
         errors.extend([f"cloudflare: {error}" for error in self.cloudflare.validate()])
         errors.extend([f"ssh: {error}" for error in self.ssh.validate()])
-        errors.extend([f"mcp: {error}" for error in self.mcp.validate()])
         errors.extend([f"slack: {error}" for error in self.slack.validate()])
         errors.extend([f"security: {error}" for error in self.security.validate()])
         

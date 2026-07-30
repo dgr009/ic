@@ -1,1 +1,0 @@
-# NCPGOV rds integration tests

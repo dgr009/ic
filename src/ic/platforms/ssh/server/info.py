@@ -9,8 +9,8 @@ import concurrent.futures
 import paramiko
 
 try:
-    from src.ic.config.manager import ConfigManager
-    from src.ic.core.logging import ICLogger
+    from ic.config.manager import ConfigManager
+    from ic.core.logging import ICLogger
 except ImportError:
     try:
         from ic.config.manager import ConfigManager
@@ -26,13 +26,7 @@ except ImportError:
 from rich.table import Table
 from rich.console import Console
 
-try:
-    from src.common.progress_decorator import concurrent_progress, ManualProgress
-except ImportError:
-    try:
-        from common.progress_decorator import concurrent_progress, ManualProgress
-    except ImportError:
-        from ....common.progress_decorator import concurrent_progress, ManualProgress
+from common.progress_decorator import concurrent_progress, ManualProgress
 
 # Import the main functionality from the original server_info module
 try:
@@ -42,7 +36,7 @@ try:
     )
 except ImportError:
     # Fallback import for development
-    from src.ic.platforms.ssh.server_info import (
+    from ic.platforms.ssh.server_info import (
         parse_ssh_config, collect_all_server_info, display_server_info,
         SSH_CONFIG_FILE, SSH_TIMEOUT, MAX_WORKER, SSH_SKIP_PREFIXES
     )

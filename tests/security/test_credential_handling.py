@@ -12,7 +12,6 @@ from unittest.mock import Mock, patch
 
 from ic.config.security import SecurityManager
 from ic.core.session import AWSSessionManager
-from ic.core.mcp_manager import MCPManager
 
 
 class TestCredentialHandling:
@@ -131,70 +130,6 @@ source_profile = default
                 for log_message in log_calls:
                     assert 'AKIA1234567890ABCDEF' not in log_message
                     assert 'secret123456789012345678901234567890' not in log_message
-    
-    def test_mcp_server_credential_masking(self):
-        """Test MCP server credential masking."""
-        manager = MCPManager(security_manager=self.security_manager)
-        
-        # Add server with various credential types
-        from ic.core.mcp_manager import MCPServerConfig
-        
-        manager.servers['test-server'] = MCPServerConfig(
-            name='test-server',
-            command='test',
-            args=[],
-            env={
-                'GITHUB_TOKEN': 'ghp_1234567890abcdefghijklmnopqrstuvwxyz',
-                'AWS_ACCESS_KEY_ID': 'AKIA1234567890ABCDEF',
-                'AWS_SECRET_ACCESS_KEY': 'secret123456789012345678901234567890',
-                'OPENAI_API_KEY': 'sk-1234567890abcdefghijklmnopqrstuvwxyz',
-                'SLACK_BOT_TOKEN': 'xoxb-1234567890-abcdefghijklmnopqrstuvwxyz',
-                'DATABASE_URL': 'postgresql://user:password@localhost/db',
-                'NORMAL_CONFIG': 'safe-value'
-            },
-            disabled=False,
-            auto_approve=[]
-        )
-        
-        # Test masked retrieval
-        masked_config = manager.get_server_config('test-server', mask_sensitive=True)
-        
-        # All credential-like environment variables should be masked
-        assert masked_config['env']['GITHUB_TOKEN'] == '***MASKED***'
-        assert masked_config['env']['AWS_ACCESS_KEY_ID'] == '***MASKED***'
-        assert masked_config['env']['AWS_SECRET_ACCESS_KEY'] == '***MASKED***'
-        assert masked_config['env']['OPENAI_API_KEY'] == '***MASKED***'
-        assert masked_config['env']['SLACK_BOT_TOKEN'] == '***MASKED***'
-        assert masked_config['env']['DATABASE_URL'] == '***MASKED***'
-        
-        # Non-sensitive values should be preserved
-        assert masked_config['env']['NORMAL_CONFIG'] == 'safe-value'
-    
-    def test_credential_in_command_arguments(self):
-        """Test detection of credentials in command arguments."""
-        manager = MCPManager(security_manager=self.security_manager)
-        
-        # Add server with credentials in command arguments
-        from ic.core.mcp_manager import MCPServerConfig
-        
-        manager.servers['insecure-server'] = MCPServerConfig(
-            name='insecure-server',
-            command='curl',
-            args=[
-                '-H', 'Authorization: Bearer sk-1234567890abcdefghijklmnopqrstuvwxyz',
-                '-H', 'X-API-Key: AKIA1234567890ABCDEF',
-                'https://api.example.com'
-            ],
-            env={},
-            disabled=False,
-            auto_approve=[]
-        )
-        
-        # Security validation should detect credentials in arguments
-        warnings = manager.validate_server_security('insecure-server')
-        
-        assert len(warnings) > 0
-        assert any('args' in warning for warning in warnings)
     
     def test_environment_variable_credential_detection(self):
         """Test detection of credentials in environment variables."""

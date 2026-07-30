@@ -102,7 +102,7 @@ class TestPlatformModuleImports(ImportResolutionTestCase):
     
     def get_expected_platforms(self) -> List[str]:
         """Get list of expected platforms."""
-        return ['aws', 'azure', 'cloudflare', 'gcp', 'ncp', 'ncpgov', 'oci', 'ssh']
+        return ['aws', 'cloudflare', 'gcp', 'oci', 'ssh']
     
     def test_platform_module_imports(self):
         """Test all platform modules can be imported."""

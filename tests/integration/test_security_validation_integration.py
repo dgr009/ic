@@ -149,7 +149,7 @@ GITHUB_TOKEN = "ghp_1234567890abcdefghijklmnopqrstuvwxyz"
             self.config_manager.save_config(config_file, sensitive_config)
             
             # Load configuration with security validation
-            with patch('logging.Logger.warning') as mock_warning:
+            with patch('ic.config.manager.logger.warning') as mock_warning:
                 config = self.config_manager.load_config([config_file])
                 
                 # Verify security warnings were logged

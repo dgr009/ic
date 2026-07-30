@@ -8,10 +8,7 @@ import time
 
 import re
 import oci
-try:
-    from ....common.log import log_info_non_console
-except ImportError:
-    from common.log import log_info_non_console
+from common.log import log_info_non_console
 import oci.usage_api
 from rich.console import Console
 from rich.table import Table

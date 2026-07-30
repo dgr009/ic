@@ -12,7 +12,7 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 # Import modules to test
-from aws.profile.info import AWSProfileParser, ProfileInfoCollector, ProfileTableRenderer
+from ic.platforms.aws.profile.info import AWSProfileParser, ProfileInfoCollector, ProfileTableRenderer
 
 
 class TestAWSProfileParser(unittest.TestCase):

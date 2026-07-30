@@ -76,15 +76,11 @@ class PlatformDiscovery:
                 
             # Fallback: try to find it in the package
             try:
-                import src.ic as ic
+                import ic
                 ic_path = Path(ic.__file__).parent
             except ImportError:
-                try:
-                    import ic
-                    ic_path = Path(ic.__file__).parent
-                except ImportError:
-                    # Last resort: use relative path
-                    ic_path = Path(__file__).parent.parent
+                # Last resort: use relative path
+                ic_path = Path(__file__).parent.parent
             platforms_dir = ic_path / "platforms"
             
             if platforms_dir.exists():
@@ -154,7 +150,7 @@ class PlatformDiscovery:
             for file_path in service_path.iterdir():
                 if file_path.is_file() and file_path.suffix == '.py' and not file_path.name.startswith('_'):
                     command_name = file_path.stem
-                    module_path = f"src.ic.platforms.{platform_name}.{service_name}.{command_name}"
+                    module_path = f"ic.platforms.{platform_name}.{service_name}.{command_name}"
                     command_module = self._import_module(module_path)
                     
                     if command_module:
@@ -198,7 +194,7 @@ class PlatformDiscovery:
             ServiceInfo object
         """
         try:
-            module_path = f"src.ic.platforms.{platform_name}.{service_name}"
+            module_path = f"ic.platforms.{platform_name}.{service_name}"
             service_module = self._import_module(module_path)
             
             if service_module:
@@ -248,8 +244,8 @@ class PlatformDiscovery:
             return module
         except ImportError:
             try:
-                # Try fallback path (for installed package)
-                fallback_path = module_path.replace('src.ic.', 'ic.')
+                # Try fallback path (for non-installed src layout)
+                fallback_path = module_path.replace('ic.', 'src.ic.') if module_path.startswith('ic.') else f"src.{module_path}"
                 module = importlib.import_module(fallback_path)
                 self._discovery_cache[module_path] = module
                 return module
@@ -259,11 +255,6 @@ class PlatformDiscovery:
                     # Handle legacy module names like oci_module -> oci
                     if 'oci_module' in module_path:
                         legacy_path = module_path.replace('oci_module', 'oci')
-                        module = importlib.import_module(legacy_path)
-                        self._discovery_cache[module_path] = module
-                        return module
-                    elif 'azure_module' in module_path:
-                        legacy_path = module_path.replace('azure_module', 'azure')
                         module = importlib.import_module(legacy_path)
                         self._discovery_cache[module_path] = module
                         return module

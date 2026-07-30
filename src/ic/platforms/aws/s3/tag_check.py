@@ -5,20 +5,11 @@ import re
 import botocore
 from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor, as_completed
-try:
-    from ....common.log import log_info, log_error, log_exception, log_decorator
-except ImportError:
-    from common.log import log_info, log_error, log_exception, log_decorator
-try:
-    from ....common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
-except ImportError:
-    from common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
-    from rich.console import Console
-    from rich.table import Table
-try:
-    from ....common.slack import send_slack_blocks_table_with_color
-except ImportError:
-    from common.slack import send_slack_blocks_table_with_color
+from common.log import log_info, log_error, log_exception, log_decorator
+from common.utils import create_session, get_profiles, get_env_accounts, DEFINED_REGIONS
+from rich.console import Console
+from rich.table import Table
+from common.slack import send_slack_blocks_table_with_color
 
 # (주의) cli.py에서 load_dotenv()를 이미 한다면, 중복 호출일 수 있음
 load_dotenv()
@@ -129,7 +120,7 @@ def fetch_and_validate_s3_tags(account_id, profile_name, region):
 def check_all_s3_tags(args):
     """S3 태그 유효성 검사"""
     # 계정/리전 설정
-    accounts = args.account.split(",") if args.account else get_env_accounts()
+    accounts = get_env_accounts(args.account)
     # S3는 global endpoint가 많으니, 굳이 regions를 안 돌려도 되지만 필요하면 해도 됨.
     # 여기선 '서울' 등 특정 region만 쓰고 싶으면 아래처럼 커스텀해도 됨.
     regions = args.regions.split(",") if args.regions else DEFINED_REGIONS

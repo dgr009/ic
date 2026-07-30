@@ -7,18 +7,9 @@ import time
 from rich.console import Console
 from rich.table import Table
 from rich import box
-try:
-    from ....common.log import log_info_non_console
-except ImportError:
-    from common.log import log_info_non_console
-try:
-    from ....common.progress_decorator import progress_bar, ManualProgress
-except ImportError:
-    from common.progress_decorator import progress_bar, ManualProgress
-try:
-    from ..common.utils import get_compartments, get_all_subscribed_regions
-except ImportError:
-    from ic.platforms.oci.common.utils import get_compartments, get_all_subscribed_regions
+from common.log import log_info_non_console
+from common.progress_decorator import progress_bar, ManualProgress
+from ic.platforms.oci.common.utils import get_compartments, get_all_subscribed_regions
 
 def add_arguments(parser):
     parser.add_argument("--name", "-n", default=None, help="Bucket 이름 필터 (부분 일치)")

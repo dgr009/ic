@@ -11,9 +11,9 @@ from datetime import datetime
 from typing import List, Dict, Any
 
 try:
-    from src.ic.config.manager import ConfigManager
-    from src.ic.platforms.cloudflare.client import CloudFlareClient, CloudFlareConfig
-    from src.ic.platforms.cloudflare.client import AuthenticationError, RateLimitError, NetworkError
+    from ic.config.manager import ConfigManager
+    from ic.platforms.cloudflare.client import CloudFlareClient, CloudFlareConfig
+    from ic.platforms.cloudflare.client import AuthenticationError, RateLimitError, NetworkError
 except ImportError:
     try:
         from ic.config.manager import ConfigManager
