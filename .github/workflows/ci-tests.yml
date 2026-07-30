@@ -31,6 +31,7 @@ on:
           - ssh
 
 env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
   # CI Environment Detection
   CI: true
   GITHUB_ACTIONS: true
@@ -239,15 +240,6 @@ jobs:
             coverage-*.xml
           if-no-files-found: ignore
           retention-days: 30
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
-        if: matrix.test-type == 'unit'
-        with:
-          file: coverage-${{ matrix.platform }}-${{ matrix.test-type }}-${{ matrix.python-version }}.xml
-          flags: ${{ matrix.platform }},${{ matrix.test-type }}
-          name: ${{ matrix.platform }}-${{ matrix.test-type }}-${{ matrix.python-version }}
-          fail_ci_if_error: false
 
       - name: Cleanup CI environment
         if: always()
