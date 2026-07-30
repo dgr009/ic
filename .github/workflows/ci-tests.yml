@@ -151,7 +151,6 @@ jobs:
           pip install -r tests/test_requirements.txt
 
           # Install platform-specific dependencies if needed
-          # Currently only NCP and NCPGov platforms have tests
           echo "Installing dependencies for ${{ matrix.platform }}"
 
       - name: Setup CI environment
@@ -160,14 +159,6 @@ jobs:
 
           # Set platform-specific environment variables
           case "${{ matrix.platform }}" in
-            "ncp")
-              echo "NCP_ACCESS_KEY=MOCK_NCP_ACCESS_KEY" >> $GITHUB_ENV
-              echo "NCP_SECRET_KEY=MOCK_NCP_SECRET_KEY" >> $GITHUB_ENV
-              ;;
-            "ncpgov")
-              echo "NCPGOV_ACCESS_KEY=MOCK_NCPGOV_ACCESS_KEY" >> $GITHUB_ENV
-              echo "NCPGOV_SECRET_KEY=MOCK_NCPGOV_SECRET_KEY" >> $GITHUB_ENV
-              ;;
             "oci")
               echo "OCI_CONFIG_FILE=~/.oci/config" >> $GITHUB_ENV
               echo "OCI_CLI_SUPPRESS_FILE_PERMISSIONS_WARNING=True" >> $GITHUB_ENV
@@ -176,10 +167,6 @@ jobs:
               echo "AWS_ACCESS_KEY_ID=MOCK_AWS_ACCESS_KEY" >> $GITHUB_ENV
               echo "AWS_SECRET_ACCESS_KEY=MOCK_AWS_SECRET_KEY" >> $GITHUB_ENV
               echo "AWS_DEFAULT_REGION=us-east-1" >> $GITHUB_ENV
-              ;;
-            "azure")
-              echo "AZURE_SUBSCRIPTION_ID=00000000-0000-0000-0000-000000000000" >> $GITHUB_ENV
-              echo "AZURE_TENANT_ID=00000000-0000-0000-0000-000000000000" >> $GITHUB_ENV
               ;;
             "gcp")
               echo "GOOGLE_APPLICATION_CREDENTIALS=/tmp/mock-gcp-credentials.json" >> $GITHUB_ENV
