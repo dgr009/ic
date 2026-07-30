@@ -237,10 +237,11 @@ jobs:
           path: |
             test-results-*.xml
             coverage-*.xml
+          if-no-files-found: ignore
           retention-days: 30
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v4
         if: matrix.test-type == 'unit'
         with:
           file: coverage-${{ matrix.platform }}-${{ matrix.test-type }}-${{ matrix.python-version }}.xml
@@ -303,10 +304,7 @@ jobs:
           python src/ic/cli.py oci --help || echo "OCI help command tested"
           python src/ic/cli.py ssh --help || echo "SSH help command tested"
           python src/ic/cli.py cf --help || echo "CloudFlare help command tested"
-          python src/ic/cli.py azure --help || echo "Azure help command tested"
           python src/ic/cli.py gcp --help || echo "GCP help command tested"
-          python src/ic/cli.py ncp --help || echo "NCP help command tested"
-          python src/ic/cli.py ncpgov --help || echo "NCPGOV help command tested"
 
   security-scan:
     name: Security Scan

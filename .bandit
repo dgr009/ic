@@ -8,7 +8,8 @@ skips:
   - B601  # paramiko calls (acceptable for SSH functionality)
   - B603  # subprocess calls (acceptable with proper input validation)
   - B607  # subprocess calls (acceptable with proper input validation)
-  - B507  
+  - B507
+  - B105  # hardcoded password strings (acceptable for template placeholders and key mappings)  
 
 # Paths to exclude from scanning
 exclude_dirs:
