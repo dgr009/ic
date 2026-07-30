@@ -441,55 +441,6 @@ class ConfigurationValidator:
         
         return issues
     
-    def validate_ncp_config(self, config: Dict[str, Any]) -> List[str]:
-        """Validate NCP configuration and return list of issues."""
-        issues = []
-        
-        # Check required keys
-        required_keys = ['access_key', 'secret_key', 'region', 'endpoint']
-        for key in required_keys:
-            if key not in config:
-                issues.append(f"Missing required NCP key: {key}")
-            elif not config[key]:
-                issues.append(f"Empty value for required NCP key: {key}")
-        
-        # Validate region
-        if 'region' in config and config['region'] not in ['KR', 'US', 'JP']:
-            issues.append(f"Invalid NCP region: {config['region']}")
-        
-        # Validate endpoint
-        if 'endpoint' in config and not config['endpoint'].startswith('https://'):
-            issues.append("NCP endpoint must use HTTPS")
-        
-        return issues
-    
-    def validate_ncpgov_config(self, config: Dict[str, Any]) -> List[str]:
-        """Validate NCPGOV configuration and return list of issues."""
-        issues = []
-        
-        # Check required keys (same as NCP)
-        required_keys = ['access_key', 'secret_key', 'region', 'endpoint']
-        for key in required_keys:
-            if key not in config:
-                issues.append(f"Missing required NCPGOV key: {key}")
-            elif not config[key]:
-                issues.append(f"Empty value for required NCPGOV key: {key}")
-        
-        # Validate region
-        if 'region' in config and config['region'] not in ['KR']:
-            issues.append(f"Invalid NCPGOV region: {config['region']}")
-        
-        # Validate endpoint (must be gov endpoint)
-        if 'endpoint' in config:
-            endpoint = config['endpoint']
-            if not endpoint.startswith('https://'):
-                issues.append("NCPGOV endpoint must use HTTPS")
-            elif 'gov-ntruss.com' not in endpoint:
-                issues.append("NCPGOV endpoint must use gov-ntruss.com domain")
-        
-        return issues
-
-
 # Global instances for easy access
 fallback_loader = FallbackConfigurationLoader()
 default_provider = DefaultConfigurationProvider()
@@ -500,10 +451,6 @@ def load_config_with_fallback(platform: str) -> Dict[str, Any]:
     """Load configuration for specified platform with full fallback chain."""
     if platform == 'ic':
         return fallback_loader.load_ic_config()
-    elif platform == 'ncp':
-        return fallback_loader.load_ncp_config()
-    elif platform == 'ncpgov':
-        return fallback_loader.load_ncpgov_config()
     else:
         raise ValueError(f"Unsupported platform: {platform}")
 
@@ -512,10 +459,6 @@ def get_default_config(platform: str) -> Dict[str, Any]:
     """Get default configuration for specified platform."""
     if platform == 'ic':
         return default_provider.get_default_ic_config()
-    elif platform == 'ncp':
-        return default_provider.get_default_ncp_config()
-    elif platform == 'ncpgov':
-        return default_provider.get_default_ncpgov_config()
     else:
         raise ValueError(f"Unsupported platform: {platform}")
 
@@ -524,9 +467,5 @@ def validate_config(platform: str, config: Dict[str, Any]) -> List[str]:
     """Validate configuration for specified platform."""
     if platform == 'ic':
         return config_validator.validate_ic_config(config)
-    elif platform == 'ncp':
-        return config_validator.validate_ncp_config(config)
-    elif platform == 'ncpgov':
-        return config_validator.validate_ncpgov_config(config)
     else:
         raise ValueError(f"Unsupported platform: {platform}")

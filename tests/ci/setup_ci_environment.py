@@ -102,7 +102,7 @@ class CIEnvironmentSetupManager:
         """Validate all loaded configurations."""
         self.logger.info("Validating configurations...")
         
-        platforms = ['ic', 'ncp', 'ncpgov']
+        platforms = ['ic']
         validation_results = {}
         
         for platform in platforms:
@@ -138,7 +138,7 @@ class CIEnvironmentSetupManager:
         self.logger.info("Setting up mock clients...")
         
         mock_clients = {}
-        platforms = ['aws', 'ncp', 'ncpgov', 'cloudflare']
+        platforms = ['aws', 'gcp', 'oci', 'cloudflare']
         
         for platform in platforms:
             try:
@@ -307,7 +307,7 @@ def main():
         
         if args.validate_only:
             # Just validate configurations
-            platforms = ['ic', 'ncp', 'ncpgov']
+            platforms = ['ic']
             all_valid = True
             
             for platform in platforms:

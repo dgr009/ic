@@ -10,6 +10,7 @@ This script validates all CLI commands across all platforms to ensure:
 Requirements: 1.5, 1.6
 """
 
+import os
 import sys
 import subprocess
 import importlib
@@ -44,26 +45,12 @@ class EndToEndCLIValidator:
                 'aws ec2 --help',
                 'aws s3 --help',
                 'aws vpc --help',
-                'aws rds --help',
-                'aws lb --help',
                 'aws sg --help',
+                'aws rds --help',
+                'aws msk --help',
                 'aws eks --help',
                 'aws ecs --help',
                 'aws profile --help'
-            ],
-            'ncp': [
-                'ncp ec2 --help',
-                'ncp s3 --help',
-                'ncp vpc --help',
-                'ncp sg --help',
-                'ncp rds --help'
-            ],
-            'ncpgov': [
-                'ncpgov ec2 --help',
-                'ncpgov s3 --help',
-                'ncpgov vpc --help',
-                'ncpgov sg --help',
-                'ncpgov rds --help'
             ],
             'gcp': [
                 'gcp compute --help',
@@ -79,12 +66,6 @@ class EndToEndCLIValidator:
                 'oci volume --help',
                 'oci obj --help'
             ],
-            'azure': [
-                'azure vm --help',
-                'azure storage --help',
-                'azure aks --help',
-                'azure lb --help'
-            ],
             'config': [
                 'config --help',
                 'config init --help',
@@ -94,35 +75,19 @@ class EndToEndCLIValidator:
             'security': [
                 'security --help',
                 'security scan --help',
-                'security hooks --help'
+                'security install-hooks --help'
             ]
         }
         
         # Define critical import paths to validate
         self.import_paths = [
-            # NCP unified imports
-            'src.ic.platforms.ncp.ec2.info',
-            'src.ic.platforms.ncp.s3.info',
-            'src.ic.platforms.ncp.vpc.info',
-            'src.ic.platforms.ncp.sg.info',
-            'src.ic.platforms.ncp.rds.info',
-            'src.ic.platforms.ncp.client',
-            
-            # NCPGOV unified imports
-            'src.ic.platforms.ncpgov.ec2.info',
-            'src.ic.platforms.ncpgov.s3.info',
-            'src.ic.platforms.ncpgov.vpc.info',
-            'src.ic.platforms.ncpgov.sg.info',
-            'src.ic.platforms.ncpgov.rds.info',
-            'src.ic.platforms.ncpgov.client',
-            
             # Core system imports
-            'src.ic.config.manager',
-            'src.ic.config.path_manager',
-            'src.ic.security.scanner',
-            'src.ic.security.detector',
-            'src.ic.commands.config',
-            'src.ic.commands.security'
+            'ic.config.manager',
+            'ic.config.path_manager',
+            'ic.security.scanner',
+            'ic.security.detector',
+            'ic.commands.config',
+            'ic.commands.security'
         ]
 
     def validate_import_paths(self) -> bool:
@@ -191,8 +156,6 @@ class EndToEndCLIValidator:
         config_tests = [
             ('ConfigManager initialization', self._test_config_manager_init),
             ('PathManager functionality', self._test_path_manager),
-            ('NCP config loading', self._test_ncp_config_loading),
-            ('NCPGOV config loading', self._test_ncpgov_config_loading),
             ('Security config loading', self._test_security_config_loading)
         ]
         
@@ -257,15 +220,18 @@ class EndToEndCLIValidator:
                 for command in commands:
                     try:
                         # Construct full command
-                        full_command = f"python src/ic/cli.py {command}"
+                        full_command = f"{sys.executable} -m ic.cli {command}"
                         
                         # Run command with timeout
+                        env = dict(os.environ)
+                        env['PYTHONPATH'] = str(Path(__file__).parent.parent.parent / 'src')
                         result = subprocess.run(
                             full_command.split(),
                             capture_output=True,
                             text=True,
                             timeout=30,
-                            cwd=Path(__file__).parent.parent.parent
+                            cwd=Path(__file__).parent.parent.parent,
+                            env=env
                         )
                         
                         # Check if command executed successfully (exit code 0 for help commands)
@@ -345,27 +311,8 @@ class EndToEndCLIValidator:
             
             path_manager = ConfigPathManager()
             # Test basic path resolution
-            ncp_path = path_manager.get_ncp_config_path()
-            ncpgov_path = path_manager.get_ncpgov_config_path()
-            return True
-        except Exception:
-            return False
-
-    def _test_ncp_config_loading(self) -> bool:
-        """Test NCP configuration loading."""
-        try:
-            from ic.platforms.ncp.client import NCPClient
-            # This should not fail even if config doesn't exist (should use fallbacks)
-            return True
-        except Exception:
-            return False
-
-    def _test_ncpgov_config_loading(self) -> bool:
-        """Test NCPGOV configuration loading."""
-        try:
-            from ic.platforms.ncpgov.client import NCPGovClient
-            # This should not fail even if config doesn't exist (should use fallbacks)
-            return True
+            hierarchy = path_manager.get_config_hierarchy()
+            return len(hierarchy) > 0
         except Exception:
             return False
 

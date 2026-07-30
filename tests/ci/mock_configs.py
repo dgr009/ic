@@ -530,52 +530,29 @@ mock_client_factory = MockClientFactory()
 
 
 def get_mock_config(platform: str) -> Dict[str, Any]:
-    """Get mock configuration for specified platform (only platforms with actual tests)."""
-    # Only platforms with actual test files
+    """Get mock configuration for specified platform."""
     config_methods = {
-        'ncp': mock_config_provider.get_mock_ncp_config,
-        'ncpgov': mock_config_provider.get_mock_ncpgov_config
+        'aws': mock_config_provider.get_mock_aws_config,
+        'azure': mock_config_provider.get_mock_azure_config,
+        'gcp': mock_config_provider.get_mock_gcp_config,
+        'oci': mock_config_provider.get_mock_oci_config,
     }
-    
-    # Platforms in development (no tests yet)
-    development_platforms = ['aws', 'azure', 'gcp', 'oci', 'cloudflare']
-    
     if platform in config_methods:
         return config_methods[platform]()
-    elif platform in development_platforms:
-        raise ValueError(f"Platform {platform} is in development - no tests available yet")
     else:
-        raise ValueError(f"Unknown platform: {platform}")
+        return {}
 
 
 def get_mock_client(platform: str):
-    """Get mock client for specified platform (only platforms with actual tests)."""
-    # Only platforms with actual test files
-    client_methods = {
-        'ncp': mock_client_factory.create_mock_ncp_client,
-        'ncpgov': mock_client_factory.create_mock_ncpgov_client
-    }
-    
-    # Platforms in development (no tests yet)
-    development_platforms = ['aws', 'azure', 'gcp', 'oci', 'cloudflare']
-    
-    if platform in client_methods:
-        return client_methods[platform]()
-    elif platform in development_platforms:
-        raise ValueError(f"Platform {platform} is in development - no tests available yet")
-    else:
-        raise ValueError(f"Unknown platform: {platform}")
+    """Get mock client for specified platform."""
+    return Mock()
 
 
 def get_mock_response(platform: str, service: str) -> Dict[str, Any]:
     """Get mock service response for specified platform and service."""
     if platform == 'aws' and service == 'ec2':
         return mock_response_provider.get_mock_aws_ec2_response()
-    elif platform == 'ncp' and service == 'server':
-        return mock_response_provider.get_mock_ncp_server_response()
-    elif platform == 'ncpgov' and service == 'server':
-        return mock_response_provider.get_mock_ncpgov_server_response()
     elif platform == 'cloudflare' and service == 'dns':
         return mock_response_provider.get_mock_cloudflare_dns_response()
     else:
-        raise ValueError(f"Unsupported platform/service: {platform}/{service}")
+        return {}

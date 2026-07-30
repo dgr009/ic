@@ -370,8 +370,8 @@ class CITestRunner:
 def main():
     """Main entry point for CI test runner."""
     parser = argparse.ArgumentParser(description='Run IC CLI tests in CI environment')
-    parser.add_argument('--platform', choices=['ncp', 'ncpgov'],
-                       help='Platform to test (only platforms with actual tests)')
+    parser.add_argument('--platform', choices=['aws', 'gcp', 'oci', 'cf', 'ssh'],
+                       help='Platform to test')
     parser.add_argument('--all-platforms', action='store_true',
                        help='Test all platforms')
     parser.add_argument('--test-type', choices=['unit', 'integration', 'performance', 'all'],
@@ -393,14 +393,13 @@ def main():
             print("❌ Failed to set up CI environment")
             return 1
         
-        # Determine platforms to test (only platforms with actual tests)
+        # Determine platforms to test
         if args.all_platforms:
-            platforms = ['ncp', 'ncpgov']  # Only platforms with actual tests
+            platforms = ['aws', 'gcp', 'oci', 'cf', 'ssh']
         elif args.platform:
             platforms = [args.platform]
         else:
-            # Default to NCP platforms for quick validation
-            platforms = ['ncp', 'ncpgov']
+            platforms = ['aws', 'gcp', 'oci']
         
         # Validation only mode
         if args.validate_only:

@@ -126,8 +126,8 @@ class SecurityPerformanceValidator:
             
             # Test with known sensitive patterns
             test_content = """
-ncp_access_key = "AKIA1234567890123456"
-ncp_secret_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+aws_access_key = "AKIA1234567890123456"
+aws_secret_key = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
 password = "super_secret_password"
             """
             
@@ -433,8 +433,7 @@ class TestClass:
                 result = subprocess.run([
                     'python', '-c', 
                     'import sys; sys.path.insert(0, "src"); '
-                    'from ic.platforms.ncp.ec2 import info; '
-                    'from ic.platforms.ncpgov.s3 import info; '
+                    'from ic.platforms.aws.ec2 import info; '
                     'from ic.config.manager import ConfigManager'
                 ], capture_output=True, text=True, timeout=5)
                 end_time = time.time()
