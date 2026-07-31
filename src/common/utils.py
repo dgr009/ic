@@ -89,7 +89,7 @@ def resolve_accounts(account_input=None) -> list:
             resolved.append(name_to_account[item_lower])
             continue
 
-        # 3. 프로필 이름 부분 매칭 (예: iep-rnd -> iep-rnd-aws)
+        # 3. 프로필 이름 부분 매칭 (예: dev-rnd -> dev-rnd-aws)
         matched = False
         for prof_name, acct_id in name_to_account.items():
             if item_lower in prof_name:

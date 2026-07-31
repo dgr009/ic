@@ -4,16 +4,16 @@
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A comprehensive, production-grade Infrastructure Command Line Interface tool for managing multi-cloud infrastructure and server components across multiple platforms. IC CLI provides unified access to **AWS**, **GCP**, **Oracle Cloud Infrastructure (OCI)**, **CloudFlare**, and **SSH** server management with rich progress indicators and secure configuration management.
+A comprehensive, production-grade Infrastructure Command Line Interface tool for managing multi-cloud infrastructure and server components across multiple platforms. IC CLI provides unified access to **AWS**, **Tencent Cloud**, **GCP**, **Oracle Cloud Infrastructure (OCI)**, **CloudFlare**, and **SSH** server management with rich progress indicators and secure configuration management.
 
 ---
 
 ## ✨ Key Features
 
-- **🚀 Multi-Cloud Support**: AWS, GCP, OCI, CloudFlare, and SSH server management
+- **🚀 Multi-Cloud Support**: AWS, Tencent Cloud, GCP, OCI, CloudFlare, and SSH server management
 - **📊 Rich Progress Bars**: Real-time progress indicators for all long-running operations across accounts and regions
-- **🔒 Secure Configuration**: Modern YAML-based configuration (`~/.ic/config/`) with separate secrets management
-- **🌍 Multi-Account / Multi-Region**: Concurrent querying across multiple cloud accounts and regions
+- **🔒 Secure Configuration**: Modern YAML-based configuration (`~/.ic/config/`) and native credential files (`~/.aws/config`, `~/.tencent/credentials`)
+- **🌍 Multi-Account / Multi-Region**: Concurrent querying across multiple cloud accounts and regions with STS / CAM AssumeRole support
 - **🎨 Beautiful Terminal UI**: Rich terminal output with tables, colors, JSON formatting, and tree diagrams
 - **⚡ High Performance**: Optimized async and concurrent execution for fast resource discovery
 - **🛡️ Security First**: Built-in credential masking, secret scanning, and pre-commit hook support
@@ -25,26 +25,32 @@ A comprehensive, production-grade Infrastructure Command Line Interface tool for
 ### 1. 🟧 AWS Services (Production Ready)
 - **Compute**: EC2 instances, ECS services/tasks, EKS clusters/nodes/pods, Fargate profiles
 - **Storage & DB**: S3 buckets (with tagging compliance checks), RDS instances & clusters
-- **Networking**: VPC, Subnets, Gateways, Load Balancers (ALB/NLB), Security Groups (with Ingress & Egress rule analysis & tree view), VPN connections
+- **Networking**: VPC, Subnets, Gateways, Load Balancers (ALB/NLB with listener rules, health check path & target health analysis), Security Groups (with Ingress & Egress rule analysis & tree view), VPN connections
 - **Integrations**: CloudFront distributions, MSK Kafka brokers, CodePipeline build/deploy status, Profile management
 
-### 2. 🟩 GCP Services (Production Ready)
+### 2. 🟦 Tencent Cloud Services (Production Ready)
+- **Compute**: CVM instances (with CPU, Mem, Disk, IP, SGs), Lighthouse lightweight application servers
+- **Containers**: TKE (Tencent Kubernetes Engine) clusters & node details
+- **Networking**: VPC, Subnets, NAT Gateways, CLB (Load Balancers - with listener rules, health check path & target health analysis), Security Groups (with Ingress/Egress rules & tree view)
+- **Authentication**: Multi-account STS AssumeRole support, Profile management (`ic tencent profile info` via `~/.tencent/credentials`)
+
+### 3. 🟩 GCP Services (Production Ready)
 - **Compute Engine**: VM instances with status, zone, and network interface details
 - **Cloud Storage**: Bucket lists, location, and storage class information
 - **VPC Network**: Subnets, routes, and firewall rule visibility
 - **GKE**: Kubernetes Engine clusters and node pool configurations
 - **Cloud SQL**: Database instances, engines, and status
 
-### 3. 🟥 Oracle Cloud Infrastructure (OCI) (Production Ready)
+### 4. 🟥 Oracle Cloud Infrastructure (OCI) (Production Ready)
 - **Compute & Containers**: VM instances, Container instances (ACI)
 - **Networking**: VCN, Subnets, Load Balancers, Network Security Groups (NSG)
 - **Storage**: Block Volumes, Object Storage buckets
 - **IAM & Cost**: Compartment hierarchy, IAM Policy search/validation, Cost usage & billing credits
 
-### 4. 🟧 CloudFlare (Production Ready)
+### 5. 🟧 CloudFlare (Production Ready)
 - **DNS & Zones**: Zone listings, DNS record management, and account filtering
 
-### 5. 🟦 SSH Server Management (Production Ready)
+### 6. 🟦 SSH Server Management (Production Ready)
 - **Discovery**: Automatic server registration, connection verification, and security filtering
 
 ---
@@ -54,7 +60,7 @@ A comprehensive, production-grade Infrastructure Command Line Interface tool for
 ### From PyPI (Recommended)
 
 ```bash
-# Install the latest stable version (v1.2.6+)
+# Install the latest stable version (v1.2.8+)
 pip install ic-code
 
 # Verify installation
@@ -180,6 +186,32 @@ ic aws s3 tag_check
 # EKS & ECS Cluster info
 ic aws eks info
 ic aws ecs info
+```
+
+### Tencent Cloud Commands
+
+```bash
+# List CVM instances across accounts and regions
+ic tencent cvm info
+ic tencent cvm info -a my-account
+
+# List Lighthouse lightweight instances
+ic tencent lighthouse info
+
+# Security Group Info (Tables and Tree view)
+ic tencent sg info
+ic tencent sg info -o tree
+
+# Load Balancer (CLB) with listeners, health check path & target health
+ic tencent clb info
+
+# VPC, Subnets, NAT Gateways & TKE Clusters
+ic tencent vpc info
+ic tencent nat info
+ic tencent tke info
+
+# Check credentials and profiles (~/.tencent/credentials)
+ic tencent profile info
 ```
 
 ### GCP Commands

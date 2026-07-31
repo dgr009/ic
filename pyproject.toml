@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ic-code"
-version = "1.2.7"
+version = "1.2.8"
 authors = [
     {name = "sykim", email = "cruiser594@gmail.com"},
 ]
@@ -79,6 +79,9 @@ dependencies = [
     # Package management and compatibility
     "packaging>=24.0,<25.0",              # Version parsing and comparison
     "setuptools>=69.0.0,<76.0.0",        # Package building tools
+
+    # Tencent Cloud SDK
+    "tencentcloud-sdk-python>=3.0.0,<4.0.0",  # Tencent Cloud SDK (CVM, CLB, VPC, TKE, Lighthouse, STS)
 ]
 
 [project.optional-dependencies]
@@ -148,3 +151,9 @@ markers = [
     "requires_config: Tests that require configuration files",
     "requires_credentials: Tests that require live credentials"
 ]
+
+[tool.pyright]
+pythonVersion = "3.13"
+venvPath = "."
+venv = ".venv"
+extraPaths = ["."]

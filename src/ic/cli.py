@@ -263,7 +263,7 @@ def execute_multi_service_command(platform_name, services, command, args):
             result = execute_service(service)
             if result['success']:
                 print(f"\n✓ {platform_name.upper()} {service.upper()} Results:")
-                if result['output'].strip():
+                if str(result.get('output', '')).strip():
                     print(result['output'])
             else:
                 print(f"\n✗ {platform_name.upper()} {service.upper()} Failed: {result['error']}")
@@ -313,7 +313,7 @@ def execute_single_command(args):
     # Execute the command
     try:
         config_manager = get_config_manager()
-        config = config_manager.load_all_configs() if config_manager else None
+        config = config_manager.load_all_configs() if config_manager is not None else None
         
         # Check function signature to determine how to call it
         import inspect
@@ -349,7 +349,7 @@ def setup_platform_parsers(platform_subparsers):
     platforms = discovery.discover_platforms()
     
     # Development status platforms
-    dev_platforms = {'gcp'}
+    dev_platforms = {'gcp', 'tencent'}
     
     for platform_name, platform_info in platforms.items():
         if not platform_info.available:
@@ -431,6 +431,7 @@ def main():
         description="Infra CLI: Platform Resource CLI Tool\n\n"
                    "⚠️  Development Status:\n"
                    "   • GCP: In development - usable but may contain bugs\n"
+                   "   • Tencent: In development - usable but may contain bugs\n"
                    "   • AWS, OCI, Cloudflare, SSH: Production ready",
         usage="ic <platform|config> <service> <command> [options]",
         formatter_class=argparse.RawDescriptionHelpFormatter
@@ -443,7 +444,7 @@ def main():
     platform_subparsers = parser.add_subparsers(
         dest="platform",
         required=False,
-        help="클라우드 플랫폼 (aws, oci, cf, ssh, gcp) 또는 config 관리"
+        help="클라우드 플랫폼 (aws, oci, cf, ssh, gcp, tencent) 또는 config 관리"
     )
     
     # Add version command
@@ -453,7 +454,7 @@ def main():
     # Add config commands
     from .commands.config import ConfigCommands
     config_commands = ConfigCommands()
-    config_commands.add_subparsers(platform_subparsers)
+    config_commands.add_subparsers(platform_subparsers)  # type: ignore[arg-type]
     
     # Add security commands
     from .commands.security import SecurityCommands

@@ -7,6 +7,9 @@ config/secrets.yaml
 .kiro
 .cursor
 
+# Local Pyright config (project-level config lives in pyproject.toml [tool.pyright])
+pyrightconfig.json
+
 # IDE and editor files
 .vscode/
 .idea/
@@ -242,3 +245,4 @@ tests/run_*.py
 tests/validate_*.py
 tests/*_SUMMARY.md
 tests/*_IMPLEMENTATION_SUMMARY.md
+bandit-report.json
