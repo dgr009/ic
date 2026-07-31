@@ -7,21 +7,21 @@ AWS boto3.Session / get_profiles() 에 대응하는 Tencent 클라이언트 팩�
 다중 계정을 지원하며, 메인 계정의 SecretId/SecretKey 로 STS AssumeRole 을 통해
 서브 계정의 임시 자격증명을 발급합니다.
 
-Config YAML 예시:
-  tencent:
-    main_account:
-      secret_id: "AKIDxxxxxxxxxxxxxxxx"
-      secret_key: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-    accounts:
-      - id: "100000000001"
-        name: "prod"
-        role_arn: "qcs::cam::uin/100000000001:role/CrossAccountRole"
-      - id: "100000000002"
-        name: "dev"
-        role_arn: "qcs::cam::uin/100000000002:role/CrossAccountRole"
-    regions:
-      - ap-seoul
-      - ap-tokyo
+# Config YAML 예시 (EXAMPLE):
+#   tencent:
+#     main_account:
+#       secret_id: "EXAMPLE_AKIDxxxxxxxxxxxxxxxx"
+#       secret_key: "EXAMPLE_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+#     accounts:
+#       - id: "100000000001"
+#         name: "prod"
+#         role_arn: "qcs::cam::uin/100000000001:role/CrossAccountRole"
+#       - id: "100000000002"
+#         name: "dev"
+#         role_arn: "qcs::cam::uin/100000000002:role/CrossAccountRole"
+#     regions:
+#       - ap-seoul
+#       - ap-tokyo
 
 환경변수 예시 (단일 계정):
   TENCENT_SECRET_ID=AKIDxxx
