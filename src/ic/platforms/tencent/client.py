@@ -51,6 +51,9 @@ try:
     TENCENT_SDK_AVAILABLE = True
 except ImportError:
     TENCENT_SDK_AVAILABLE = False
+    class TencentCloudSDKException(Exception):
+        code: str = ""
+        message: str = ""
 
 # 기본 리전 목록
 TENCENT_DEFAULT_REGIONS = ["ap-seoul", "ap-tokyo"]
@@ -315,12 +318,14 @@ def get_accounts(account_filter: Optional[str] = None) -> List[Dict[str, str]]:
     if not account_filter:
         return all_accounts
 
-    # 이름 또는 ID 기반 필터
-    filter_set = {f.strip().lower() for f in account_filter.split(",") if f.strip()}
+    # 이름 또는 ID 기반 필터 (부분 일치 / substring matching)
+    filters = [f.strip().lower() for f in account_filter.split(",") if f.strip()]
     filtered = [
         a for a in all_accounts
-        if a.get("name", "").lower() in filter_set
-        or str(a.get("id", "")).lower() in filter_set
+        if any(
+            f in a.get("name", "").lower() or f in str(a.get("id", "")).lower()
+            for f in filters
+        )
     ]
     return filtered
 

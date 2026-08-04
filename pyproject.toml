@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ic-code"
-version = "1.2.8"
+version = "1.2.9"
 authors = [
     {name = "sykim", email = "cruiser594@gmail.com"},
 ]
@@ -91,6 +91,7 @@ dev = [
     "black>=24.0.0,<25.0.0",
     "flake8>=7.0.0,<8.0.0",
     "mypy>=1.10.0,<2.0.0",
+    "pyrefly>=1.2.0",
     "pre-commit>=3.7.0,<4.0.0",
 ]
 

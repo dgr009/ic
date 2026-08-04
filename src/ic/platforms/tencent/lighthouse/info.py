@@ -89,18 +89,17 @@ def fetch_lighthouse_one_account_region(
             req.Offset = offset
             req.Limit  = limit
 
-            if name_filter:
-                f = models.Filter()
-                f.Name   = "instance-name"
-                f.Values = [f"*{name_filter}*"]
-                req.Filters = [f]
-
             resp = client.DescribeInstances(req)
             instances = resp.InstanceSet or []
 
             for inst in instances:
                 inst_id   = inst.InstanceId or "-"
                 inst_name = inst.InstanceName or inst_id
+
+                if name_filter:
+                    nf = name_filter.lower()
+                    if nf not in inst_name.lower() and nf not in inst_id.lower():
+                        continue
                 state     = color_state(inst.InstanceState or "UNKNOWN")
 
                 # CPU / Memory 스펙 정보

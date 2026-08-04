@@ -34,7 +34,8 @@ except ImportError:
 
 from ic.platforms.tencent.client import (
     get_accounts, get_credential_for_account, get_tencent_regions,
-    make_client_profile, check_sdk_available, TENCENT_SDK_AVAILABLE
+    make_client_profile, check_sdk_available, TENCENT_SDK_AVAILABLE,
+    TencentCloudSDKException
 )
 
 console = Console()
@@ -104,18 +105,17 @@ def fetch_sg_one_account_region(
             req = models.DescribeSecurityGroupsRequest()
             req.Offset = str(offset)
             req.Limit  = str(limit)
-            if name_filter:
-                f = models.Filter()
-                f.Name = "security-group-name"
-                f.Values = [f"*{name_filter}*"]
-                req.Filters = [f]
-
             resp = client.DescribeSecurityGroups(req)
             sgs  = resp.SecurityGroupSet or []
 
             for sg in sgs:
                 sg_id   = sg.SecurityGroupId or "-"
                 sg_name = sg.SecurityGroupName or sg_id
+
+                if name_filter:
+                    nf = name_filter.lower()
+                    if nf not in sg_name.lower() and nf not in sg_id.lower():
+                        continue
 
                 # 룰 조회
                 try:
@@ -127,13 +127,13 @@ def fetch_sg_one_account_region(
                     if rule_type in ("all", "ingress") and policy_set and policy_set.Ingress:
                         for p in policy_set.Ingress:
                             r = _parse_policy(p, "Ingress")
-                            r.update({"account_id": account_name, "region": region, "sg_name": sg_name, "sg_id": sg_id})
+                            r.update({"account_id": str(account_name), "region": str(region), "sg_name": str(sg_name), "sg_id": str(sg_id)})
                             results.append(r)
 
                     if rule_type in ("all", "egress") and policy_set and policy_set.Egress:
                         for p in policy_set.Egress:
                             r = _parse_policy(p, "Egress")
-                            r.update({"account_id": account_name, "region": region, "sg_name": sg_name, "sg_id": sg_id})
+                            r.update({"account_id": str(account_name), "region": str(region), "sg_name": str(sg_name), "sg_id": str(sg_id)})
                             results.append(r)
 
                     if not results or (results and results[-1].get("sg_id") != sg_id):

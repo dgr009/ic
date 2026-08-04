@@ -32,7 +32,8 @@ except ImportError:
 
 from ic.platforms.tencent.client import (
     get_accounts, get_credential_for_account, get_tencent_regions,
-    make_client_profile, check_sdk_available, TENCENT_SDK_AVAILABLE
+    make_client_profile, check_sdk_available, TENCENT_SDK_AVAILABLE,
+    TencentCloudSDKException
 )
 
 console = Console()
@@ -78,18 +79,17 @@ def fetch_nat_one_account_region(
             req = models.DescribeNatGatewaysRequest()
             req.Offset = offset
             req.Limit  = limit
-            if name_filter:
-                f = models.Filter()
-                f.Name   = "nat-gateway-name"
-                f.Values = [f"*{name_filter}*"]
-                req.Filters = [f]
-
             resp = client.DescribeNatGateways(req)
             nats = resp.NatGatewaySet or []
 
             for nat in nats:
                 nat_id   = nat.NatGatewayId or "-"
                 nat_name = nat.NatGatewayName or nat_id
+
+                if name_filter:
+                    nf = name_filter.lower()
+                    if nf not in nat_name.lower() and nf not in nat_id.lower():
+                        continue
                 state    = color_state(nat.State or "UNKNOWN")
                 vpc_id   = nat.VpcId or "-"
 

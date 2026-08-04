@@ -98,12 +98,6 @@ def fetch_cvm_one_account_region(
             req.Offset = offset
             req.Limit = limit
 
-            if name_filter:
-                filter_obj = models.Filter()
-                filter_obj.Name = "instance-name"
-                filter_obj.Values = [f"*{name_filter}*"]
-                req.Filters = [filter_obj]
-
             resp = client.DescribeInstances(req)
             instances = resp.InstanceSet or []
 
@@ -112,6 +106,13 @@ def fetch_cvm_one_account_region(
                 state = inst.InstanceState or "UNKNOWN"
                 if state.upper() == "TERMINATED":
                     continue
+
+                inst_name = inst.InstanceName or inst.InstanceId or "-"
+
+                if name_filter:
+                    nf = name_filter.lower()
+                    if nf not in inst_name.lower() and nf not in (inst.InstanceId or "").lower():
+                        continue
 
                 # 스펙 정보
                 itype = inst.InstanceType or "-"
@@ -144,9 +145,6 @@ def fetch_cvm_one_account_region(
                     sg if isinstance(sg, str) else getattr(sg, "SecurityGroupId", str(sg))
                     for sg in (inst.SecurityGroupIds or [])
                 ) or "-"
-
-                # 태그에서 Name 추출
-                inst_name = inst.InstanceName or inst.InstanceId or "-"
 
                 rows.append({
                     "account":      account_name,

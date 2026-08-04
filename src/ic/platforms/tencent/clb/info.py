@@ -90,15 +90,17 @@ def fetch_clb_one_account_region(
             req = models.DescribeLoadBalancersRequest()
             req.Offset = offset
             req.Limit = limit
-            if name_filter:
-                req.LoadBalancerName = name_filter
-
             resp = client.DescribeLoadBalancers(req)
             lbs = resp.LoadBalancerSet or []
 
             for lb in lbs:
                 lb_id = lb.LoadBalancerId or "-"
                 lb_name = lb.LoadBalancerName or "-"
+
+                if name_filter:
+                    nf = name_filter.lower()
+                    if nf not in lb_name.lower() and nf not in lb_id.lower():
+                        continue
                 lb_type_raw = lb.LoadBalancerType or "-"
                 lb_type = _LB_TYPE_COLORS.get(lb_type_raw, lb_type_raw)
                 vips = ", ".join(lb.LoadBalancerVips or []) or "-"

@@ -60,7 +60,7 @@ A comprehensive, production-grade Infrastructure Command Line Interface tool for
 ### From PyPI (Recommended)
 
 ```bash
-# Install the latest stable version (v1.2.8+)
+# Install the latest stable version (v1.2.9+)
 pip install ic-code
 
 # Verify installation

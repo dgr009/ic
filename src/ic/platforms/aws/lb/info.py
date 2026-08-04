@@ -181,18 +181,22 @@ def print_lb_table(all_rows):
     keys = ["account", "region", "lb_name", "type", "scheme", "listener", "target_group", "hc_path", "targets", "health"]
 
     for h in headers:
-        style = {}
-        if h == "Account": style = {"style": "bold magenta"}
-        elif h == "Region": style = {"style": "bold cyan"}
-        elif h == "Health": style = {"justify": "center"}
-        table.add_column(h, **style)
+        if h == "Account":
+            table.add_column(h, style="bold magenta")
+        elif h == "Region":
+            table.add_column(h, style="bold cyan")
+        elif h == "Health":
+            table.add_column(h, justify="center")
+        else:
+            table.add_column(h)
 
-    last_account, last_region, last_lb, last_tg = None, None, None, None
+    last_account, last_region, last_lb, last_listener, last_tg = None, None, None, None, None
     for i, row in enumerate(all_rows):
         account_changed = row["account"] != last_account
         region_changed = row["region"] != last_region
         lb_changed = row["lb_name"] != last_lb or account_changed or region_changed
-        tg_changed = row["target_group"] != last_tg or lb_changed
+        listener_changed = row["listener"] != last_listener or lb_changed
+        tg_changed = row["target_group"] != last_tg or listener_changed
 
         if i > 0:
             if account_changed:
@@ -201,6 +205,8 @@ def print_lb_table(all_rows):
                 table.add_row("", *[Rule(style="dim") for _ in headers[1:]])
             elif lb_changed:
                 table.add_row("", "", *[Rule(style="dim") for _ in headers[2:]])
+            elif listener_changed:
+                table.add_row("", "", "", "", "", *[Rule(style="dim") for _ in headers[5:]])
             elif tg_changed:
                 table.add_row("", "", "", "", "", "", *[Rule(style="dim") for _ in headers[6:]])
 
@@ -210,7 +216,7 @@ def print_lb_table(all_rows):
         display_values.append(row["lb_name"] if lb_changed else "")
         display_values.append(row["type"] if lb_changed else "")
         display_values.append(row["scheme"] if lb_changed else "")
-        display_values.append(row["listener"] if lb_changed else "")
+        display_values.append(row["listener"] if listener_changed else "")
         display_values.append(row["target_group"] if tg_changed else "")
         display_values.append(row["hc_path"] if tg_changed else "")
         display_values.append(row["targets"])
@@ -218,7 +224,7 @@ def print_lb_table(all_rows):
 
         table.add_row(*display_values)
 
-        last_account, last_region, last_lb, last_tg = row["account"], row["region"], row["lb_name"], row["target_group"]
+        last_account, last_region, last_lb, last_listener, last_tg = row["account"], row["region"], row["lb_name"], row["listener"], row["target_group"]
 
     console.print(table)
 

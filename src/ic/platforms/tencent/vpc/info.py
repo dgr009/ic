@@ -32,7 +32,8 @@ except ImportError:
 
 from ic.platforms.tencent.client import (
     get_accounts, get_credential_for_account, get_tencent_regions,
-    make_client_profile, check_sdk_available, TENCENT_SDK_AVAILABLE
+    make_client_profile, check_sdk_available, TENCENT_SDK_AVAILABLE,
+    TencentCloudSDKException
 )
 
 console = Console()
@@ -68,18 +69,17 @@ def fetch_vpc_one_account_region(
             req = models.DescribeVpcsRequest()
             req.Offset = str(offset)
             req.Limit = str(limit)
-            if name_filter:
-                f = models.Filter()
-                f.Name = "vpc-name"
-                f.Values = [f"*{name_filter}*"]
-                req.Filters = [f]
-
             resp = client.DescribeVpcs(req)
             vpcs = resp.VpcSet or []
 
             for vpc in vpcs:
                 vpc_name = vpc.VpcName or "-"
                 vpc_id   = vpc.VpcId or "-"
+
+                if name_filter:
+                    nf = name_filter.lower()
+                    if nf not in vpc_name.lower() and nf not in vpc_id.lower():
+                        continue
                 cidr     = vpc.CidrBlock or "-"
                 is_default = "[bold green]Yes[/bold green]" if vpc.IsDefault else "No"
 

@@ -33,7 +33,8 @@ except ImportError:
 
 from ic.platforms.tencent.client import (
     get_accounts, get_credential_for_account, get_tencent_regions,
-    make_client_profile, check_sdk_available, TENCENT_SDK_AVAILABLE
+    make_client_profile, check_sdk_available, TENCENT_SDK_AVAILABLE,
+    TencentCloudSDKException
 )
 
 console = Console()
@@ -82,18 +83,17 @@ def fetch_tke_one_account_region(
             req = models.DescribeClustersRequest()
             req.Offset = offset
             req.Limit  = limit
-            if name_filter:
-                f = models.Filter()
-                f.Name   = "ClusterName"
-                f.Values = [name_filter]
-                req.Filters = [f]
-
             resp = client.DescribeClusters(req)
             clusters = resp.Clusters or []
 
             for c in clusters:
                 cluster_id   = c.ClusterId or "-"
                 cluster_name = c.ClusterName or cluster_id
+
+                if name_filter:
+                    nf = name_filter.lower()
+                    if nf not in cluster_name.lower() and nf not in cluster_id.lower():
+                        continue
                 status       = color_status(c.ClusterStatus or "Unknown")
                 version      = c.ClusterVersion or "-"
                 node_count   = str(c.ClusterNodeNum or 0)
