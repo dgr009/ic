@@ -496,5 +496,5 @@ cloudflare:
 ---
 
 **Last Updated:** November 2024  
-**IC CLI Version:** 1.2.x+  
+**IC CLI Version:** 1.3.x+  
 **CloudFlare API Version:** v4

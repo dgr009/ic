@@ -26,6 +26,7 @@ A comprehensive, production-grade Infrastructure Command Line Interface tool for
 - **Compute**: EC2 instances, ECS services/tasks, EKS clusters/nodes/pods, Fargate profiles
 - **Storage & DB**: S3 buckets (with tagging compliance checks), RDS instances & clusters
 - **Networking**: VPC, Subnets, Gateways, Load Balancers (ALB/NLB with listener rules, health check path & target health analysis), Security Groups (with Ingress & Egress rule analysis & tree view), VPN connections
+- **Health & Maintenance**: AWS Health Dashboard EC2 scheduled reboot maintenance check (`ic aws healthdashboard reboot`)
 - **Integrations**: CloudFront distributions, MSK Kafka brokers, CodePipeline build/deploy status, Profile management
 
 ### 2. 🟦 Tencent Cloud Services (Production Ready)
@@ -60,7 +61,7 @@ A comprehensive, production-grade Infrastructure Command Line Interface tool for
 ### From PyPI (Recommended)
 
 ```bash
-# Install the latest stable version (v1.2.9+)
+# Install the latest stable version (v1.3.1+)
 pip install ic-code
 
 # Verify installation
