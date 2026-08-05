@@ -1,38 +1,35 @@
 # GCP Platform Documentation
 
-This directory contains comprehensive documentation for the GCP (Google Cloud Platform) integration.
+This directory contains documentation for the GCP (Google Cloud Platform) integration in IC CLI.
 
 ## Available Guides
 
-- [Installation Guide](installation.md) - How to install and set up GCP integration
-- [Configuration Guide](configuration.md) - How to configure GCP credentials and settings
-- [Usage Guide](usage.md) - How to use GCP commands and features
-- [Troubleshooting Guide](troubleshooting.md) - Common issues and solutions
+- [Installation Guide](../installation.md) - How to install and set up GCP integration
+- [User & Usage Guide](../user_guide.md) - Complete command reference for GCP commands
+- [Troubleshooting Guide](../troubleshooting.md) - Common issues and solutions
 
 ## Services Supported
 
 - Compute Engine (Virtual machines)
-- Cloud Storage
-- VPC (Virtual Private Cloud)
-- Cloud SQL
+- Cloud Storage (Buckets and lifecycle)
+- VPC (Virtual Private Cloud and subnets)
+- Cloud SQL (Managed databases)
 - GKE (Google Kubernetes Engine)
-- Cloud Functions
-- Cloud Run
-- Load Balancers
-- Firewall Rules
-- Billing
 
-## Quick Start
+## Quick Start Commands
 
-1. Follow the [Installation Guide](installation.md) to set up GCP integration
-2. Configure your credentials using the [Configuration Guide](configuration.md)
-3. Start using GCP commands as described in the [Usage Guide](usage.md)
+```bash
+# List Compute Engine instances
+ic gcp compute info
 
-For issues, check the [Troubleshooting Guide](troubleshooting.md) or refer to the main project documentation.
+# List Cloud Storage buckets
+ic gcp storage info
 
-## Legacy Documentation
+# List VPC networks & subnets
+ic gcp vpc info
 
-- [GCP Configuration Guide](GCP_CONFIGURATION_GUIDE.md) - Detailed GCP configuration instructions
-- [GCP Security Best Practices](GCP_SECURITY_BEST_PRACTICES.md) - Security guidelines for GCP integration
-- [Environment Examples](env-examples/) - Sample environment configurations
-- [Scripts](scripts/) - Utility scripts for GCP management
+# List GKE clusters
+ic gcp gke info
+```
+
+For more details, refer to the [User Guide](../user_guide.md).

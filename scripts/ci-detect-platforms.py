@@ -92,7 +92,7 @@ def filter_platforms_with_tests(platforms):
 
 def main():
     # All available platforms
-    ALL_PLATFORMS = ["ncp", "ncpgov", "oci", "azure", "aws", "gcp", "ssh", "cf"]
+    ALL_PLATFORMS = ["aws", "tencent", "gcp", "oci", "cf", "ssh"]
     
     # Get environment variables
     event_name = os.environ.get("GITHUB_EVENT_NAME", "")

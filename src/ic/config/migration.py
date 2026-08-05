@@ -342,9 +342,9 @@ class MigrationManager:
             },
             "ssh": {
                 "config_file": "~/.ssh/config",
-                "key_dir": "~/aws-key",
+                "key_dir": "~/.ssh",
                 "max_workers": 70,
-                "skip_prefixes": ["git", "akrr-portx", "akrr-taas-gw", "agw01", "semaphore"],
+                "skip_prefixes": ["git", "test-", "temp-"],
                 "timeouts": {
                     "port_scan": 0.5,
                     "ssh_connect": 5,

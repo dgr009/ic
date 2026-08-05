@@ -1,27 +1,36 @@
 # OCI Platform Documentation
 
-This directory contains comprehensive documentation for the OCI (Oracle Cloud Infrastructure) integration.
+This directory contains documentation for the OCI (Oracle Cloud Infrastructure) integration in IC CLI.
 
 ## Available Guides
 
-- [Installation Guide](installation.md) - How to install and set up OCI integration
-- [Configuration Guide](configuration.md) - How to configure OCI credentials and settings
-- [Usage Guide](usage.md) - How to use OCI commands and features
-- [Troubleshooting Guide](troubleshooting.md) - Common issues and solutions
+- [Installation Guide](../installation.md) - How to install and set up OCI integration
+- [User & Usage Guide](../user_guide.md) - Complete command reference for OCI commands
+- [Troubleshooting Guide](../troubleshooting.md) - Common issues and solutions
 
 ## Services Supported
 
-- Compute (Virtual machines)
-- Object Storage
-- VCN (Virtual Cloud Network)
-- Network Security Groups
+- Compute (VM Instances and Autonomous Container Instances)
+- Object Storage & Block Volumes
+- VCN & Subnets (Virtual Cloud Network)
+- Network Security Groups (NSG)
 - Load Balancers
-- Cost Management
+- IAM Compartment hierarchy & Cost Management
 
-## Quick Start
+## Quick Start Commands
 
-1. Follow the [Installation Guide](installation.md) to set up OCI integration
-2. Configure your credentials using the [Configuration Guide](configuration.md)
-3. Start using OCI commands as described in the [Usage Guide](usage.md)
+```bash
+# List Compute VM instances
+ic oci vm info
 
-For issues, check the [Troubleshooting Guide](troubleshooting.md) or refer to the main project documentation.
+# List Virtual Cloud Networks
+ic oci vcn info
+
+# List Network Security Groups
+ic oci nsg info
+
+# Show Cost & Billing usage
+ic oci cost usage
+```
+
+For more details, refer to the [User Guide](../user_guide.md).

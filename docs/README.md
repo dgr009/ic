@@ -1,80 +1,20 @@
-# IC Documentation
+# IC CLI Documentation Index
 
-This directory contains comprehensive documentation for the IC (Infrastructure Resource Management CLI) tool.
+Welcome to the **IC CLI (Infrastructure Commander)** official documentation.
 
-## Getting Started
+## 📚 Core Guides
 
-- [Installation Guide](installation.md) - How to install IC CLI
-- [User Guide](user_guide.md) - Complete user guide and tutorials
-- [General Configuration](general/configuration.md) - General configuration management
-- [Security](security.md) - Security best practices
+- **[User Guide (한국어 종합 가이드)](user_guide.md)**: 전체 플랫폼 명령어 및 사용 흐름 통합 가이드.
+- **[Installation Guide](installation.md)**: IC CLI 설치, 환경 설정, 자격 증명 준비 안내.
+- **[Security Guide](security.md)**: 마스킹, 시크릿 스캔, Git hook 보안 관리.
+- **[Troubleshooting Guide](troubleshooting.md)**: 주요 오류 해결 및 디버깅 가이드.
+- **[Release & Deployment Guide](release-guide.md)**: 버저닝, PyPI 패키지 빌드 및 배포 절차.
 
-## Platform-Specific Documentation
+## ☁️ Platform Guides
 
-### AWS (Amazon Web Services)
-- [AWS Installation](aws/installation.md) - Install and setup AWS integration
-- [AWS Usage Guide](aws/README.md) - ECS, EKS, Fargate, S3, RDS, Security Groups (Ingress & Egress)
-
-### GCP (Google Cloud Platform)
-- [GCP Configuration Guide](gcp/GCP_CONFIGURATION_GUIDE.md) - Configure GCP credentials and settings
-- [GCP Security Best Practices](gcp/GCP_SECURITY_BEST_PRACTICES.md) - Security guidelines for GCP
-- [GCP Platform Overview](gcp/README.md) - Compute, Storage, VPC, GKE, and Cloud SQL
-
-### OCI (Oracle Cloud Infrastructure)
-- [OCI Installation](oci/installation.md) - Install and setup OCI integration
-- [OCI Usage Guide](oci/README.md) - VM, VCN, LB, NSG, Volumes, and IAM Policies
-
-### CloudFlare
-- [CloudFlare Integration Guide](../src/ic/platforms/cloudflare/README.md) - Complete CloudFlare integration guide
-- [CloudFlare Configuration Examples](cloudflare_configuration_example.md) - Configuration examples and use cases
-
-### SSH Server Management
-- [SSH Configuration Guide](ssh/configuration.md) - Configure SSH key directories, rules, and connection options
-- [SSH Integration Guide](../src/ic/platforms/ssh/README.md) - Server discovery and connection management
-
-## Quick Reference
-
-### Platform Commands
-```bash
-# AWS Services
-ic aws ec2 info
-ic aws sg info --ingress
-ic aws sg info --egress -o tree
-ic aws s3 info
-
-# GCP Services
-ic gcp compute info
-ic gcp storage info
-ic gcp vpc info
-ic gcp gke info
-ic gcp sql info
-
-# OCI Services
-ic oci vm info
-ic oci vcn info
-ic oci lb info
-
-# CloudFlare
-ic cf zone info
-ic cf dns info
-
-# SSH Server Management
-ic ssh info
-```
-
-### Configuration Commands
-```bash
-# Initialize configuration
-ic config init
-
-# Validate configuration
-ic config validate
-
-# Show configuration
-ic config show
-```
-
----
-
-**Last Updated**: 2026  
-**Maintainer**: IC CLI Team
+- **[AWS Platform](aws/README.md)**: Compute, Storage, EKS, Security Group, Health Dashboard reboot checks.
+- **[Tencent Cloud Platform](tencent/README.md)**: CVM, Lighthouse, CLB, TKE, Profile management.
+- **[GCP Platform](gcp/README.md)**: Compute Engine, GKE, Storage, VPC, Cloud SQL.
+- **[OCI Platform](oci/README.md)**: Compute, VCN, Compartments, NSG, Cost usage.
+- **[Cloudflare Platform](cloudflare/README.md)**: Zone discovery, DNS record management, API token filtering.
+- **[SSH Management](ssh/README.md)**: Server discovery, host scanning, key management.

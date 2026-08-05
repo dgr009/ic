@@ -12,7 +12,7 @@ import sys
 def main():
     # Get inputs
     test_types_str = os.environ.get("TEST_TYPES", '["unit", "integration", "performance"]')
-    platforms_str = os.environ.get("PLATFORMS", '["ncp", "ncpgov"]')
+    platforms_str = os.environ.get("PLATFORMS", '["aws", "tencent", "gcp", "oci", "cf", "ssh"]')
     
     try:
         test_types = json.loads(test_types_str)

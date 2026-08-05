@@ -174,11 +174,13 @@ setup(
         "watchdog>=4.0.0,<6.0.0",
         "cerberus>=1.3.5,<2.0.0",
         "pydantic>=2.7.0,<3.0.0",
+        "tencentcloud-sdk-python>=3.0.0,<4.0.0",
     ],
     extras_require={
         "dev": [
             "pytest>=8.0.0",
             "pytest-cov>=5.0.0",
+            "types-PyYAML>=6.0.0",
             "black>=24.0.0",
             "flake8>=7.0.0",
             "mypy>=1.10.0",
@@ -188,6 +190,7 @@ setup(
             "pytest>=8.0.0",
             "pytest-cov>=5.0.0",
             "pytest-mock>=3.10.0",
+            "types-PyYAML>=6.0.0",
         ],
     },
     entry_points={

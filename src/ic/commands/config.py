@@ -6,24 +6,24 @@ and validation.
 """
 
 import argparse
+import json
 import os
 import sys
-import yaml
-import json
 from pathlib import Path
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
+
+import yaml  # type: ignore
 from rich.console import Console
 from rich.panel import Panel
-from rich.table import Table
 from rich.prompt import Confirm, Prompt
 from rich.syntax import Syntax
+from rich.table import Table
 
 from ..config.manager import ConfigManager
-from ..config.security import SecurityManager
 from ..config.migration import MigrationManager
-from ..config.path_manager import ConfigPathManager
 from ..config.migration_utils import ConfigMigrationUtils, create_migration_confirmation_callback
-from ..core.logging import ICLogger
+from ..config.path_manager import ConfigPathManager
+from ..config.security import SecurityManager
 
 
 class ConfigCommands:
@@ -37,7 +37,7 @@ class ConfigCommands:
         self.path_manager = ConfigPathManager()
         self.migration_utils = ConfigMigrationUtils(self.path_manager)
 
-    def add_subparsers(self, parent_parser: argparse.ArgumentParser) -> None:
+    def add_subparsers(self, parent_parser: Any) -> None:
         """
         Add config subcommands to parent parser.
 
@@ -629,15 +629,7 @@ class ConfigCommands:
                 "",
             ])
 
-        if template in ["azure", "multi-cloud"]:
-            env_content.extend([
-                "# Azure Configuration",
-                "# AZURE_SUBSCRIPTION_ID=your-subscription-id",
-                "# AZURE_TENANT_ID=your-tenant-id",
-                "# AZURE_CLIENT_ID=your-client-id",
-                "# AZURE_CLIENT_SECRET=your-client-secret",
-                "",
-            ])
+
 
         if template in ["gcp", "multi-cloud"]:
             env_content.extend([
@@ -1063,7 +1055,7 @@ class ConfigCommands:
             Tuple of (default_config, secrets_config, secrets_example)
         """
         # Base default configuration (non-sensitive) - based on real config
-        default_config = {
+        default_config: Dict[str, Any] = {
             "version": "2.0",
             "logging": {
                 "console_level": "ERROR",
@@ -1087,12 +1079,12 @@ class ConfigCommands:
         }
 
         # Base secrets configuration (sensitive data)
-        secrets_config = {
+        secrets_config: Dict[str, Any] = {
             "version": "2.0"
         }
 
         # Base secrets example (template for users)
-        secrets_example = {
+        secrets_example: Dict[str, Any] = {
             "version": "2.0"
         }
 
@@ -1130,27 +1122,6 @@ class ConfigCommands:
                 "regions": ["ap-northeast-2"]
             }
 
-        if template in ["azure", "multi-cloud", "full"]:
-            default_config["azure"] = {
-                "subscriptions": [],
-                "locations": [
-                    "East US", "West US 2", "Korea Central", "Southeast Asia"
-                ],
-                "max_workers": 10
-            }
-
-            secrets_config["azure"] = {
-                "tenant_id": "",
-                "client_id": "",
-                "client_secret": ""
-            }
-
-            secrets_example["azure"] = {
-                "tenant_id": "your-tenant-id",
-                "client_id": "your-client-id",
-                "client_secret": "your-client-secret"
-            }
-
         if template in ["gcp", "multi-cloud", "full"]:
             default_config["gcp"] = {
                 "mcp": {
@@ -1172,7 +1143,7 @@ class ConfigCommands:
             }
 
             secrets_example["gcp"] = {
-                "service_account_key_path": "~/gcp-key/cruiser_gcp.json"
+                "service_account_key_path": "~/gcp-key/service-account.json"
             }
 
         if template in ["oci", "multi-cloud", "full"]:
@@ -1184,43 +1155,21 @@ class ConfigCommands:
             # OCI doesn't typically have secrets in the secrets file
             # as it uses the ~/.oci/config file for credentials
 
-        if template in ["ncp", "multi-cloud", "full"]:
-            default_config["ncp"] = {
-                "config_path": "~/.ncp/config",
-                "regions": ["KR"],
+        if template in ["tencent", "multi-cloud", "full"]:
+            default_config["tencent"] = {
+                "config_path": "~/.tencent/credentials",
+                "regions": ["ap-seoul"],
                 "max_workers": 10
             }
 
-            secrets_config["ncp"] = {
-                "access_key": "",
+            secrets_config["tencent"] = {
+                "secret_id": "",
                 "secret_key": ""
             }
 
-            secrets_example["ncp"] = {
-                "access_key": "your-ncp-access-key",
-                "secret_key": "your-ncp-secret-key"
-            }
-
-        if template in ["ncpgov", "multi-cloud", "full"]:
-            default_config["ncpgov"] = {
-                "config_path": "~/.ncpgov/config",
-                "regions": ["KR"],
-                "max_workers": 10,
-                "security": {
-                    "encryption_enabled": True,
-                    "audit_logging_enabled": True,
-                    "access_control_enabled": True
-                }
-            }
-
-            secrets_config["ncpgov"] = {
-                "access_key": "",
-                "secret_key": ""
-            }
-
-            secrets_example["ncpgov"] = {
-                "access_key": "your-ncpgov-access-key",
-                "secret_key": "your-ncpgov-secret-key"
+            secrets_example["tencent"] = {
+                "secret_id": "your-tencent-secret-id",
+                "secret_key": "your-tencent-secret-key"
             }
 
         if template in ["cloudflare", "multi-cloud", "full"]:
@@ -1287,10 +1236,6 @@ class ConfigCommands:
                         "enabled": True,
                         "auto_approve": ["read_documentation", "search_documentation"]
                     },
-                    "azure": {
-                        "enabled": True,
-                        "auto_approve": ["documentation"]
-                    },
                     "slack": {
                         "enabled": False
                     }
@@ -1308,7 +1253,6 @@ class ConfigCommands:
 
             # Add other configuration section
             default_config["other"] = {
-                "azure_subscriptions": "subscription-id-1,subscription-id-2",
                 "mcp_gcp_enabled": "true",
                 "mcp_gcp_endpoint": "http://localhost:8080/gcp",
                 "mcp_gcp_auth_method": "service_account",
@@ -1348,16 +1292,7 @@ class ConfigCommands:
             secrets_config["aws"]["regions"] = region_list
             secrets_example["aws"]["regions"] = region_list
 
-        if template in ["azure", "multi-cloud", "full"]:
-            tenant_id = Prompt.ask("Azure Tenant ID", default="")
-            if tenant_id:
-                secrets_config["azure"]["tenant_id"] = tenant_id
-                secrets_example["azure"]["tenant_id"] = tenant_id
 
-            client_id = Prompt.ask("Azure Client ID", default="")
-            if client_id:
-                secrets_config["azure"]["client_id"] = client_id
-                secrets_example["azure"]["client_id"] = client_id
 
         if template in ["gcp", "multi-cloud", "full"]:
             service_account_path = Prompt.ask("GCP Service Account Key Path", default="~/gcp-key/service-account.json")
@@ -1381,27 +1316,16 @@ class ConfigCommands:
                 secrets_config["cloudflare"]["cloudflare_zones"] = cf_zones
                 secrets_example["cloudflare"]["cloudflare_zones"] = cf_zones
 
-        if template in ["ncp", "multi-cloud", "full"]:
-            ncp_access_key = Prompt.ask("NCP Access Key", default="")
-            if ncp_access_key:
-                secrets_config["ncp"]["access_key"] = ncp_access_key
-                secrets_example["ncp"]["access_key"] = ncp_access_key
+        if template in ["tencent", "multi-cloud", "full"]:
+            tc_secret_id = Prompt.ask("Tencent Secret ID", default="")
+            if tc_secret_id:
+                secrets_config["tencent"]["secret_id"] = tc_secret_id
+                secrets_example["tencent"]["secret_id"] = tc_secret_id
 
-            ncp_secret_key = Prompt.ask("NCP Secret Key", default="")
-            if ncp_secret_key:
-                secrets_config["ncp"]["secret_key"] = ncp_secret_key
-                secrets_example["ncp"]["secret_key"] = ncp_secret_key
-
-        if template in ["ncpgov", "multi-cloud", "full"]:
-            ncpgov_access_key = Prompt.ask("NCP Gov Access Key", default="")
-            if ncpgov_access_key:
-                secrets_config["ncpgov"]["access_key"] = ncpgov_access_key
-                secrets_example["ncpgov"]["access_key"] = ncpgov_access_key
-
-            ncpgov_secret_key = Prompt.ask("NCP Gov Secret Key", default="")
-            if ncpgov_secret_key:
-                secrets_config["ncpgov"]["secret_key"] = ncpgov_secret_key
-                secrets_example["ncpgov"]["secret_key"] = ncpgov_secret_key
+            tc_secret_key = Prompt.ask("Tencent Secret Key", default="")
+            if tc_secret_key:
+                secrets_config["tencent"]["secret_key"] = tc_secret_key
+                secrets_example["tencent"]["secret_key"] = tc_secret_key
 
         if template in ["ssh", "multi-cloud", "full"]:
             ssh_key_dir = Prompt.ask("SSH Key Directory", default="~/aws-key")
@@ -1505,88 +1429,46 @@ class ConfigCommands:
         add_rows(config)
         self.console.print(table)
 
-    def _create_ncp_config_files(self, template: str, secrets_config: Dict[str, Any]) -> None:
+    def _create_tencent_config_files(self, template: str, secrets_config: Dict[str, Any]) -> None:
         """
-        Create NCP configuration files with proper permissions.
+        Create Tencent configuration files with proper permissions.
 
         Args:
             template: Configuration template being used
             secrets_config: Secrets configuration data
         """
         try:
-            if template in ["ncp", "multi-cloud", "full"] and "ncp" in secrets_config:
-                # Create NCP config directory
-                ncp_config_dir = Path.home() / ".ncp"
-                ncp_config_dir.mkdir(mode=0o700, exist_ok=True)
-                ncp_config_path = ncp_config_dir / "config"
+            if template in ["tencent", "multi-cloud", "full"] and "tencent" in secrets_config:
+                tc_config_dir = Path.home() / ".tencent"
+                tc_config_dir.mkdir(mode=0o700, exist_ok=True)
+                tc_config_path = tc_config_dir / "credentials"
 
-                # Create NCP config file
-                ncp_secrets = secrets_config.get("ncp", {})
-                # Handle case where ncp_secrets might be a string or other type
-                if not isinstance(ncp_secrets, dict):
-                    ncp_secrets = {}
+                tc_secrets = secrets_config.get("tencent", {})
+                if not isinstance(tc_secrets, dict):
+                    tc_secrets = {}
 
-                ncp_config_data = {
+                tc_config_data = {
                     "default": {
-                        "access_key": ncp_secrets.get("access_key", ""),
-                        "secret_key": ncp_secrets.get("secret_key", ""),
-                        "region": "KR",
-                        "platform": "VPC"
+                        "secret_id": tc_secrets.get("secret_id", ""),
+                        "secret_key": tc_secrets.get("secret_key", ""),
+                        "region": "ap-seoul"
                     }
                 }
 
-                with open(ncp_config_path, 'w', encoding='utf-8') as f:
-                    yaml.dump(ncp_config_data, f, default_flow_style=False, indent=2)
+                with open(tc_config_path, 'w', encoding='utf-8') as f:
+                    yaml.dump(tc_config_data, f, default_flow_style=False, indent=2)
 
-                # Set proper permissions (600)
-                if os.name != 'nt':  # Unix systems
-                    os.chmod(ncp_config_path, 0o600)
+                if os.name != 'nt':
+                    os.chmod(tc_config_path, 0o600)
 
-                self.console.print(f"✅ NCP configuration created: {ncp_config_path}")
-
-            if template in ["ncpgov", "multi-cloud", "full"] and "ncpgov" in secrets_config:
-                # Create NCP Gov config directory
-                ncpgov_config_dir = Path.home() / ".ncpgov"
-                ncpgov_config_dir.mkdir(mode=0o700, exist_ok=True)
-                ncpgov_config_path = ncpgov_config_dir / "config"
-
-                # Create NCP Gov config file
-                ncpgov_secrets = secrets_config.get("ncpgov", {})
-                # Handle case where ncpgov_secrets might be a string or other type
-                if not isinstance(ncpgov_secrets, dict):
-                    ncpgov_secrets = {}
-
-                ncpgov_config_data = {
-                    "default": {
-                        "access_key": ncpgov_secrets.get("access_key", ""),
-                        "secret_key": ncpgov_secrets.get("secret_key", ""),
-                        "apigw_key": ncpgov_secrets.get("apigw_key", ""),
-                        "region": "KR",
-                        "platform": "VPC",
-                        "security": {
-                            "encryption_enabled": True,
-                            "audit_logging_enabled": True,
-                            "access_control_enabled": True,
-                            "mask_sensitive_data": True
-                        }
-                    }
-                }
-
-                with open(ncpgov_config_path, 'w', encoding='utf-8') as f:
-                    yaml.dump(ncpgov_config_data, f, default_flow_style=False, indent=2)
-
-                # Set proper permissions (600) - required for government cloud
-                if os.name != 'nt':  # Unix systems
-                    os.chmod(ncpgov_config_path, 0o600)
-
-                self.console.print(f"✅ NCP Gov configuration created: {ncpgov_config_path}")
+                self.console.print(f"✅ Tencent configuration created: {tc_config_path}")
 
         except Exception as e:
-            self.console.print(f"❌ Failed to create NCP config files: {e}")
+            self.console.print(f"❌ Failed to create Tencent config files: {e}")
 
-    def _validate_ncp_credentials(self, config_data: Dict[str, Any]) -> List[str]:
+    def _validate_tencent_credentials(self, config_data: Dict[str, Any]) -> List[str]:
         """
-        Validate NCP credentials in configuration.
+        Validate Tencent credentials in configuration.
 
         Args:
             config_data: Configuration data to validate
@@ -1596,123 +1478,21 @@ class ConfigCommands:
         """
         errors = []
 
-        # Validate NCP credentials
-        if 'ncp' in config_data:
-            ncp_config = config_data['ncp']
-            if 'access_key' in ncp_config:
-                access_key = ncp_config['access_key']
-                if not access_key or len(access_key) < 10:
-                    errors.append("NCP access_key appears to be invalid or too short")
+        if 'tencent' in config_data:
+            tc_config = config_data['tencent']
+            if 'secret_id' in tc_config:
+                secret_id = tc_config['secret_id']
+                if not secret_id or len(secret_id) < 10:
+                    errors.append("Tencent secret_id appears to be invalid or too short")
 
-            if 'secret_key' in ncp_config:
-                secret_key = ncp_config['secret_key']
-                if not secret_key or len(secret_key) < 20:
-                    errors.append("NCP secret_key appears to be invalid or too short")
-
-        # Validate NCP Gov credentials
-        if 'ncpgov' in config_data:
-            ncpgov_config = config_data['ncpgov']
-            if 'access_key' in ncpgov_config:
-                access_key = ncpgov_config['access_key']
-                if not access_key or len(access_key) < 10:
-                    errors.append("NCP Gov access_key appears to be invalid or too short")
-
-            if 'secret_key' in ncpgov_config:
-                secret_key = ncpgov_config['secret_key']
-                if not secret_key or len(secret_key) < 20:
-                    errors.append("NCP Gov secret_key appears to be invalid or too short")
+            if 'secret_key' in tc_config:
+                secret_key = tc_config['secret_key']
+                if not secret_key or len(secret_key) < 10:
+                    errors.append("Tencent secret_key appears to be invalid or too short")
 
         return errors
 
-    def _get_separated_template_config(self, template: str) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
-        """
-        Get template configuration separated into default, secrets, and secrets example.
 
-        Args:
-            template: Template name
-
-        Returns:
-            Tuple of (default_config, secrets_config, secrets_example)
-        """
-        base_config = self.config_manager._get_default_config()
-
-        # Default configuration (non-sensitive)
-        default_config = {
-            "version": base_config["version"],
-            "logging": base_config["logging"],
-            "security": base_config["security"],
-        }
-
-        # Add platform-specific default configs
-        if template in ["aws", "multi-cloud", "full"]:
-            default_config["aws"] = {
-                "accounts": [],
-                "regions": base_config["aws"]["regions"],
-                "cross_account_role": base_config["aws"]["cross_account_role"],
-                "session_duration": base_config["aws"]["session_duration"],
-                "max_workers": base_config["aws"]["max_workers"],
-                "tags": base_config["aws"]["tags"]
-            }
-
-        if template in ["gcp", "multi-cloud", "full"]:
-            default_config["gcp"] =  {
-                "projects": [],
-                "regions": base_config["gcp"]["regions"],
-                "zones": base_config["gcp"]["zones"],
-                "max_workers": base_config["gcp"]["max_workers"]
-            }
-
-        # Secrets configuration (sensitive data)
-        secrets_config = {}
-        secrets_example = {}
-
-        if template in ["aws", "multi-cloud", "full"]:
-            secrets_example["aws"] = {
-                "default_profile": "your-aws-profile",
-                "access_key_id": "your-aws-access-key-id",
-                "secret_access_key": "your-aws-secret-access-key"
-            }
-
-        if template in ["gcp", "multi-cloud", "full"]:
-            secrets_example["gcp"] = {
-                "project_id": "your-gcp-project-id",
-                "service_account_key_path": "/path/to/service-account.json"
-            }
-
-        return default_config, secrets_config, secrets_example
-
-    def _interactive_separated_config_setup(self, default_config: Dict[str, Any],
-                                          secrets_config: Dict[str, Any],
-                                          secrets_example: Dict[str, Any],
-                                          template: str) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
-        """
-        Interactive configuration setup for separated configs.
-
-        Args:
-            default_config: Default configuration
-            secrets_config: Secrets configuration
-            secrets_example: Secrets example configuration
-            template: Template name
-
-        Returns:
-            Updated configurations
-        """
-        self.console.print(f"\n🔧 Interactive setup for {template} template:")
-
-        if template in ["aws", "multi-cloud", "full"]:
-            accounts = Prompt.ask("AWS Account IDs (comma-separated)", default="")
-            if accounts:
-                default_config["aws"]["accounts"] = [acc.strip() for acc in accounts.split(",")]
-
-            regions = Prompt.ask("AWS Regions (comma-separated)", default="ap-northeast-2")
-            default_config["aws"]["regions"] = [reg.strip() for reg in regions.split(",")]
-
-        if template in ["gcp", "multi-cloud", "full"]:
-            project_id = Prompt.ask("GCP Project ID", default="")
-            if project_id and "gcp" in secrets_example:
-                secrets_example["gcp"]["project_id"] = project_id
-
-        return default_config, secrets_config, secrets_example
 
     def _create_platform_config_files(self, template: str, secrets_config: Dict[str, Any]) -> None:
         """

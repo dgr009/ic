@@ -208,9 +208,9 @@ Before using IC in production:
 ## 📚 Additional Resources
 
 ### Documentation
-- [Configuration Guide](docs/configuration.md)
-- [Migration Guide](docs/migration.md)
-- [Installation Guide](docs/installation.md)
+- [Installation & Setup Guide](docs/installation.md)
+- [User Guide](docs/user_guide.md)
+- [Security Guide](docs/security.md)
 
 ### Security Tools
 - [OWASP Top 10](https://owasp.org/www-project-top-ten/)
