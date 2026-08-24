@@ -13,8 +13,9 @@ IC CLI provides comprehensive, production-grade management for **Tencent Cloud**
 - **Features**: Query Lightweight server instances, blueprint/OS, status, and network configuration.
 
 ### 3. CLB (Cloud Load Balancer)
-- **Command**: `ic tencent clb info`
-- **Features**: Inspect Load Balancers, listeners, rules, health check paths, and target instance health status.
+- **Commands**: 
+  - `ic tencent clb info`: Inspect Load Balancers, listeners, rules, health check paths, and target instance health status.
+  - `ic tencent clb traffic`: Query network bandwidth statistics (Client Input/Output Bandwidth Avg/Max in Mbps) and total data transfer over a given period (default: 7 days, `-d 30` for 30 days).
 
 ### 4. VPC & Networking
 - **Commands**: `ic tencent vpc info`, `ic tencent nat info`

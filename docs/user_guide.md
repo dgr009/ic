@@ -36,7 +36,7 @@ ic config show
   ic aws healthdashboard reboot -A
 
   # 특정 계정 지정 및 마감(closed) 이력 포함 조회
-  ic aws healthdashboard reboot -a com2usplatform-live,event-live --all-status
+  ic aws healthdashboard reboot -a prod-account,stage-account --all-status
   ```
 
 ### 2. 🟦 Tencent Cloud Services

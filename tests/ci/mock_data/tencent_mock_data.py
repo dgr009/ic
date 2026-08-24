@@ -11,7 +11,7 @@ TENCENT_CVM_MOCK_DATA = [
         "Memory": 4,
         "Placement": {"Zone": "ap-seoul-1"},
         "PrivateIpAddresses": ["10.0.1.10"],
-        "PublicIpAddresses": ["119.28.1.10"]
+        "PublicIpAddresses": ["203.0.113.10"]
     }
 ]
 

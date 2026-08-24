@@ -45,8 +45,10 @@ def fetch_lb_one_account_region(account_id, profile_name, region_name, name_filt
         return []
 
     for lb in lbs:
-        if name_filter and name_filter.lower() not in lb['LoadBalancerName'].lower():
-            continue
+        if name_filter:
+            patterns = [p.strip().lower() for p in name_filter.split(",") if p.strip()]
+            if patterns and not any(p in lb['LoadBalancerName'].lower() or p in lb.get('DNSName', '').lower() for p in patterns):
+                continue
 
         lb_arn = lb['LoadBalancerArn']
         lb_name = lb['LoadBalancerName']
@@ -172,7 +174,7 @@ def print_lb_table(all_rows):
         console.print("[yellow]표시할 로드 밸런서 정보가 없습니다.[/yellow]")
         return
 
-    all_rows.sort(key=lambda x: (x["account"], x["region"], x["lb_name"], x["listener"], x["target_group"]))
+    all_rows.sort(key=lambda x: (x["account"], x["region"], x["lb_name"], x["listener"], x["target_group"], x["targets"]))
 
     table = Table(box=box.HORIZONTALS, expand=False, show_header=True, header_style="bold")
     table.show_edge = False
@@ -276,7 +278,7 @@ def main(args):
 def add_arguments(parser):
     parser.add_argument('-a', '--account', help='특정 AWS 계정 ID 목록(,) (없으면 .env 사용)')
     parser.add_argument('-r', '--regions', help='리전 목록(,) (없으면 .env/DEFINED_REGIONS)')
-    parser.add_argument('-n', '--name', help='LB 이름 필터 (부분 일치)')
+    parser.add_argument('-n', '--name', help='LB 이름 필터 (콤마(,)로 복수 검색 가능, 예: web,api)')
 
 
 if __name__ == "__main__":

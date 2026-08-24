@@ -73,14 +73,15 @@ def fetch_ec2_one_account_region(account_id, profile_name, region_name, name_fil
         return []
 
     # Collect resource IDs for batch lookups
+    vpc_ids = {inst["VpcId"] for inst in all_instances if "VpcId" in inst}
     subnet_ids = {inst["SubnetId"] for inst in all_instances if "SubnetId" in inst}
     sg_ids = {sgi["GroupId"] for inst in all_instances for sgi in inst.get("SecurityGroups", [])}
     volume_ids = {bdm["Ebs"]["VolumeId"] for inst in all_instances for bdm in inst.get("BlockDeviceMappings", []) if "Ebs" in bdm and "VolumeId" in bdm["Ebs"]}
     instance_types = {inst["InstanceType"] for inst in all_instances if "InstanceType" in inst}
     
-    log_info_non_console(f"Collecting resource details: {len(subnet_ids)} subnets, {len(sg_ids)} security groups, {len(volume_ids)} volumes, {len(instance_types)} instance types")
+    log_info_non_console(f"Collecting resource details: {len(vpc_ids)} vpcs, {len(subnet_ids)} subnets, {len(sg_ids)} security groups, {len(volume_ids)} volumes, {len(instance_types)} instance types")
 
-    def get_resource_map(resource_ids, describe_func, result_key, id_key, value_key, resource_type):
+    def get_resource_map(resource_ids, describe_func, result_key, id_key, resource_type):
         resource_map = {}
         if not resource_ids:
             return resource_map
@@ -88,19 +89,32 @@ def fetch_ec2_one_account_region(account_id, profile_name, region_name, name_fil
             log_info_non_console(f"Fetching {len(resource_ids)} {resource_type} details for {account_id}/{region_name}")
             response = describe_func(**{f"{id_key}s": list(resource_ids)})
             for item in response[result_key]:
-                name = item.get(value_key)
-                if value_key == "Tags":
-                    name = next((t['Value'] for t in item.get('Tags', []) if t['Key'] == 'Name'), item[id_key.replace('Id', 's')[:-1] + 'Id'])
-                elif not name:
-                    name = item[id_key]
-                resource_map[item[id_key]] = name
+                item_id = item[id_key]
+                tags = item.get("Tags", [])
+                name_tag = next((t["Value"] for t in tags if t.get("Key") == "Name" and t.get("Value")), None)
+                resource_map[item_id] = name_tag if name_tag else item_id
             log_info_non_console(f"Successfully fetched {len(resource_map)} {resource_type} details")
         except Exception as e:
             log_info_non_console(f"{result_key} 정보 조회 실패: {e}")
         return resource_map
 
-    subnet_map = get_resource_map(subnet_ids, ec2_client.describe_subnets, "Subnets", "SubnetId", "Tags", "subnets")
-    sg_map = get_resource_map(sg_ids, ec2_client.describe_security_groups, "SecurityGroups", "GroupId", "GroupName", "security groups")
+    vpc_map = get_resource_map(vpc_ids, ec2_client.describe_vpcs, "Vpcs", "VpcId", "vpcs")
+    subnet_map = get_resource_map(subnet_ids, ec2_client.describe_subnets, "Subnets", "SubnetId", "subnets")
+
+    sg_map = {}
+    if sg_ids:
+        try:
+            log_info_non_console(f"Fetching {len(sg_ids)} security groups details for {account_id}/{region_name}")
+            sg_resp = ec2_client.describe_security_groups(GroupIds=list(sg_ids))
+            for item in sg_resp.get("SecurityGroups", []):
+                gid = item["GroupId"]
+                tags = item.get("Tags", [])
+                name_tag = next((t["Value"] for t in tags if t.get("Key") == "Name" and t.get("Value")), None)
+                group_name = item.get("GroupName")
+                sg_map[gid] = name_tag if name_tag else (group_name if group_name else gid)
+            log_info_non_console(f"Successfully fetched {len(sg_map)} security groups details")
+        except Exception as e:
+            log_info_non_console(f"SecurityGroups 정보 조회 실패: {e}")
     
     volume_map = {}
     if volume_ids:
@@ -147,8 +161,9 @@ def fetch_ec2_one_account_region(account_id, profile_name, region_name, name_fil
             "vcpu": str(vcpu),
             "memory": str(mem_gb),
             "vol_size": str(total_vol),
-            "subnet": subnet_map.get(inst.get("SubnetId"), "-"),
-            "sgs": ", ".join([sg_map.get(sgi["GroupId"], sgi["GroupId"]) for sgi in inst.get("SecurityGroups", [])]),
+            "vpc": vpc_map.get(inst.get("VpcId"), inst.get("VpcId", "-")),
+            "subnet": subnet_map.get(inst.get("SubnetId"), inst.get("SubnetId", "-")),
+            "sgs": ", ".join([sg_map.get(sgi["GroupId"], sgi.get("GroupName", sgi["GroupId"])) for sgi in inst.get("SecurityGroups", [])]) or "-",
             "created_by": tags.get('CreateBy', '-')
         })
     return rows
@@ -164,8 +179,8 @@ def print_ec2_table(all_rows, verbose):
     # table.show_edge = False
   
     if verbose:
-        headers = ["Account", "Region", "Instance Name", "State", "Private IP", "Public IP", "Type", "vCPU", "Memory", "Volume", "Subnet", "Security Groups", "Create"]
-        keys = ["account", "region", "name", "state", "private_ip", "public_ip", "itype", "vcpu", "memory", "vol_size", "subnet", "sgs", "created_by"]
+        headers = ["Account", "Region", "Instance Name", "State", "Private IP", "Public IP", "Type", "vCPU", "Memory", "Volume", "VPC", "Subnet", "Security Groups", "Create"]
+        keys = ["account", "region", "name", "state", "private_ip", "public_ip", "itype", "vcpu", "memory", "vol_size", "vpc", "subnet", "sgs", "created_by"]
     else:
         headers = ["Account", "Region", "Name", "State", "Private IP", "Public IP", "Type", "CPU", "Mem", "Vol"]
         keys = ["account", "region", "name", "state", "private_ip", "public_ip", "itype", "vcpu", "memory", "vol_size"]

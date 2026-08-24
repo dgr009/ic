@@ -84,6 +84,31 @@ def fetch_clb_one_account_region(
     try:
         client = clb_client.ClbClient(cred, region, make_client_profile())
 
+        # 0. EIP 매핑 수집 (VPC DescribeAddresses with pagination)
+        eip_map = {}
+        try:
+            from tencentcloud.vpc.v20170312 import vpc_client as t_vpc_client, models as vpc_models
+            v_cli = t_vpc_client.VpcClient(cred, region, make_client_profile())
+            offset_eip = 0
+            limit_eip = 100
+            while True:
+                req_eip = vpc_models.DescribeAddressesRequest()
+                req_eip.Offset = offset_eip
+                req_eip.Limit = limit_eip
+                resp_eip = v_cli.DescribeAddresses(req_eip)
+                addrs = resp_eip.AddressSet or []
+                for addr in addrs:
+                    if addr.AddressIp:
+                        if addr.InstanceId:
+                            eip_map.setdefault(addr.InstanceId, []).append(addr.AddressIp)
+                        if addr.PrivateAddressIp:
+                            eip_map.setdefault(addr.PrivateAddressIp, []).append(addr.AddressIp)
+                offset_eip += len(addrs)
+                if offset_eip >= (resp_eip.TotalCount or 0) or len(addrs) < limit_eip:
+                    break
+        except Exception as e:
+            log_info_non_console(f"[CLB] DescribeAddresses 실패: {e}")
+
         offset = 0
         limit = 100
         while True:
@@ -98,12 +123,29 @@ def fetch_clb_one_account_region(
                 lb_name = lb.LoadBalancerName or "-"
 
                 if name_filter:
-                    nf = name_filter.lower()
-                    if nf not in lb_name.lower() and nf not in lb_id.lower():
+                    patterns = [p.strip().lower() for p in name_filter.split(",") if p.strip()]
+                    if patterns and not any(p in lb_name.lower() or p in lb_id.lower() for p in patterns):
                         continue
                 lb_type_raw = lb.LoadBalancerType or "-"
                 lb_type = _LB_TYPE_COLORS.get(lb_type_raw, lb_type_raw)
-                vips = ", ".join(lb.LoadBalancerVips or []) or "-"
+
+                raw_vips = lb.LoadBalancerVips or []
+                matched_eips = eip_map.get(lb_id, [])
+                for vip_ip in raw_vips:
+                    if vip_ip in eip_map:
+                        for e in eip_map[vip_ip]:
+                            if e not in matched_eips:
+                                matched_eips.append(e)
+
+                if raw_vips and matched_eips:
+                    vips = f"{', '.join(raw_vips)} / {', '.join(matched_eips)}"
+                elif raw_vips:
+                    vips = ", ".join(raw_vips)
+                elif matched_eips:
+                    vips = ", ".join(matched_eips)
+                else:
+                    vips = "-"
+
                 dns = lb.LoadBalancerDomain or "-"
                 status = _get_status_display(lb.Status if lb.Status is not None else 1)
                 vpc_id = lb.VpcId or "-"
@@ -243,7 +285,7 @@ def print_clb_table(all_rows: List[Dict[str, Any]], verbose: bool) -> None:
         console.print("[yellow]표시할 CLB 정보가 없습니다.[/yellow]")
         return
 
-    all_rows.sort(key=lambda x: (x["account"], x["region"], x["lb_name"], x["listener"], x["domain_url"]))
+    all_rows.sort(key=lambda x: (x["account"], x["region"], x["lb_name"], x["listener"], x["domain_url"], x["targets"]))
 
     table = Table(box=box.HORIZONTALS, expand=False, show_header=True, header_style="bold")
 
@@ -367,7 +409,7 @@ def main(args) -> None:
 def add_arguments(parser) -> None:
     parser.add_argument("-a", "--account", help="계정 이름 또는 ID 목록(,) (없으면 전체 계정 조회)")
     parser.add_argument("-r", "--regions", help="리전 목록(,) 예: ap-seoul,ap-tokyo")
-    parser.add_argument("-n", "--name", help="LB 이름 필터")
+    parser.add_argument("-n", "--name", help="CLB 이름/ID 필터 (콤마(,)로 복수 검색 가능, 예: web,api)")
     parser.add_argument("-v", "--verbose", action="store_true", help="상세 정보 출력 (LB ID, DNS, VPC, 과금 방식 등)")
 
 

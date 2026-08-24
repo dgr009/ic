@@ -89,7 +89,7 @@ def fetch_cvm_one_account_region(
     try:
         client = cvm_client.CvmClient(cred, region, make_client_profile())
 
-        rows = []
+        all_instances = []
         offset = 0
         limit = 100
 
@@ -114,61 +114,138 @@ def fetch_cvm_one_account_region(
                     if nf not in inst_name.lower() and nf not in (inst.InstanceId or "").lower():
                         continue
 
-                # 스펙 정보
-                itype = inst.InstanceType or "-"
-                cpu = str(inst.CPU) if inst.CPU is not None else "?"
-                mem_gb = str(inst.Memory) if inst.Memory is not None else "?"
-
-                # 디스크 크기
-                disk_size = "-"
-                if inst.SystemDisk:
-                    disk_size = str(inst.SystemDisk.DiskSize or 0)
-                    if inst.DataDisks:
-                        extra = sum(d.DiskSize or 0 for d in inst.DataDisks)
-                        disk_size = str((inst.SystemDisk.DiskSize or 0) + extra)
-
-                # IP 주소
-                private_ip = "-"
-                if inst.PrivateIpAddresses:
-                    private_ip = inst.PrivateIpAddresses[0]
-
-                public_ip = "-"
-                if inst.PublicIpAddresses:
-                    public_ip = inst.PublicIpAddresses[0]
-
-                # VPC / 서브넷
-                vpc_id = getattr(inst.VirtualPrivateCloud, "VpcId", "-") if inst.VirtualPrivateCloud else "-"
-                subnet_id = getattr(inst.VirtualPrivateCloud, "SubnetId", "-") if inst.VirtualPrivateCloud else "-"
-
-                # Security Groups
-                sg_names = ", ".join(
-                    sg if isinstance(sg, str) else getattr(sg, "SecurityGroupId", str(sg))
-                    for sg in (inst.SecurityGroupIds or [])
-                ) or "-"
-
-                rows.append({
-                    "account":      account_name,
-                    "region":       region,
-                    "name":         inst_name,
-                    "instance_id":  inst.InstanceId or "-",
-                    "state":        color_state(state),
-                    "private_ip":   private_ip,
-                    "public_ip":    public_ip,
-                    "itype":        itype,
-                    "vcpu":         cpu,
-                    "memory":       mem_gb,
-                    "disk":         disk_size,
-                    "vpc_id":       vpc_id,
-                    "subnet_id":    subnet_id,
-                    "sgs":          sg_names,
-                    "charge_type":  inst.InstanceChargeType or "-",
-                    "created_time": (inst.CreatedTime or "-")[:10],
-                })
+                all_instances.append(inst)
 
             # 페이지네이션
             offset += len(instances)
             if offset >= (resp.TotalCount or 0) or len(instances) < limit:
                 break
+
+        if not all_instances:
+            return []
+
+        # VPC / Subnet / Security Group 이름 조회를 위한 ID 수집
+        vpc_ids = set()
+        subnet_ids = set()
+        sg_ids = set()
+
+        for inst in all_instances:
+            if inst.VirtualPrivateCloud:
+                v_id = getattr(inst.VirtualPrivateCloud, "VpcId", None)
+                s_id = getattr(inst.VirtualPrivateCloud, "SubnetId", None)
+                if v_id:
+                    vpc_ids.add(v_id)
+                if s_id:
+                    subnet_ids.add(s_id)
+            for sg in (inst.SecurityGroupIds or []):
+                sg_id_str = sg if isinstance(sg, str) else getattr(sg, "SecurityGroupId", str(sg))
+                if sg_id_str:
+                    sg_ids.add(sg_id_str)
+
+        vpc_map = {}
+        subnet_map = {}
+        sg_map = {}
+
+        if vpc_ids or subnet_ids or sg_ids:
+            try:
+                from tencentcloud.vpc.v20170312 import vpc_client as tencent_vpc_client, models as vpc_models
+                v_client = tencent_vpc_client.VpcClient(cred, region, make_client_profile())
+
+                if vpc_ids:
+                    try:
+                        req_vpc = vpc_models.DescribeVpcsRequest()
+                        req_vpc.VpcIds = list(vpc_ids)
+                        req_vpc.Limit = str(len(vpc_ids))
+                        resp_vpc = v_client.DescribeVpcs(req_vpc)
+                        for v in (resp_vpc.VpcSet or []):
+                            vpc_map[v.VpcId] = v.VpcName if v.VpcName else v.VpcId
+                    except Exception as e:
+                        log_info_non_console(f"[CVM] VPC 이름 조회 실패: {e}")
+
+                if subnet_ids:
+                    try:
+                        req_sub = vpc_models.DescribeSubnetsRequest()
+                        req_sub.SubnetIds = list(subnet_ids)
+                        req_sub.Limit = str(len(subnet_ids))
+                        resp_sub = v_client.DescribeSubnets(req_sub)
+                        for s in (resp_sub.SubnetSet or []):
+                            subnet_map[s.SubnetId] = s.SubnetName if s.SubnetName else s.SubnetId
+                    except Exception as e:
+                        log_info_non_console(f"[CVM] Subnet 이름 조회 실패: {e}")
+
+                if sg_ids:
+                    try:
+                        req_sg = vpc_models.DescribeSecurityGroupsRequest()
+                        req_sg.SecurityGroupIds = list(sg_ids)
+                        req_sg.Limit = str(len(sg_ids))
+                        resp_sg = v_client.DescribeSecurityGroups(req_sg)
+                        for g in (resp_sg.SecurityGroupSet or []):
+                            sg_map[g.SecurityGroupId] = g.SecurityGroupName if g.SecurityGroupName else g.SecurityGroupId
+                    except Exception as e:
+                        log_info_non_console(f"[CVM] SecurityGroup 이름 조회 실패: {e}")
+            except Exception as e:
+                log_info_non_console(f"[CVM] VPC 클라이언트 초기화 실패: {e}")
+
+        rows = []
+        for inst in all_instances:
+            state = inst.InstanceState or "UNKNOWN"
+            inst_name = inst.InstanceName or inst.InstanceId or "-"
+
+            # 스펙 정보
+            itype = inst.InstanceType or "-"
+            cpu = str(inst.CPU) if inst.CPU is not None else "?"
+            mem_gb = str(inst.Memory) if inst.Memory is not None else "?"
+
+            # 디스크 크기
+            disk_size = "-"
+            if inst.SystemDisk:
+                disk_size = str(inst.SystemDisk.DiskSize or 0)
+                if inst.DataDisks:
+                    extra = sum(d.DiskSize or 0 for d in inst.DataDisks)
+                    disk_size = str((inst.SystemDisk.DiskSize or 0) + extra)
+
+            # IP 주소
+            private_ip = "-"
+            if inst.PrivateIpAddresses:
+                private_ip = inst.PrivateIpAddresses[0]
+
+            public_ip = "-"
+            if inst.PublicIpAddresses:
+                public_ip = inst.PublicIpAddresses[0]
+
+            # VPC / 서브넷 (이름 우선, 없으면 ID)
+            raw_vpc_id = getattr(inst.VirtualPrivateCloud, "VpcId", None) if inst.VirtualPrivateCloud else None
+            raw_subnet_id = getattr(inst.VirtualPrivateCloud, "SubnetId", None) if inst.VirtualPrivateCloud else None
+
+            vpc_display = vpc_map.get(raw_vpc_id, raw_vpc_id) if raw_vpc_id else "-"
+            subnet_display = subnet_map.get(raw_subnet_id, raw_subnet_id) if raw_subnet_id else "-"
+
+            # Security Groups (이름 우선, 없으면 ID)
+            sg_display_list = []
+            for sg in (inst.SecurityGroupIds or []):
+                sg_id_str = sg if isinstance(sg, str) else getattr(sg, "SecurityGroupId", str(sg))
+                if sg_id_str:
+                    sg_display_list.append(sg_map.get(sg_id_str, sg_id_str))
+            sg_names = ", ".join(sg_display_list) or "-"
+
+            rows.append({
+                "account":      account_name,
+                "region":       region,
+                "name":         inst_name,
+                "instance_id":  inst.InstanceId or "-",
+                "state":        color_state(state),
+                "private_ip":   private_ip,
+                "public_ip":    public_ip,
+                "itype":        itype,
+                "vcpu":         cpu,
+                "memory":       mem_gb,
+                "disk":         disk_size,
+                "vpc_id":       vpc_display,
+                "subnet_id":    subnet_display,
+                "sgs":          sg_names,
+                "charge_type":  inst.InstanceChargeType or "-",
+                "created_time": (inst.CreatedTime or "-")[:10],
+            })
 
         log_info_non_console(f"[CVM] {len(rows)}개 수집 완료: account={account_name}, region={region}")
         return rows

@@ -164,11 +164,11 @@ def print_vpc_table(all_rows):
     
     table.add_column("Account", style="bold magenta")
     table.add_column("Region", style="bold cyan")
-    table.add_column("VPC Name", max_width=15, overflow="ellipsis",style="bold green")
-    table.add_column("VPC CIDR",style="green")
-    table.add_column("Subnet Name", max_width=11, overflow="ellipsis",style="cyan")
-    table.add_column("Subnet CIDR",style="cyan")
-    table.add_column("Route Table", max_width=35, overflow="ellipsis",style="white")
+    table.add_column("VPC Name", max_width=25, overflow="ellipsis", style="bold green")
+    table.add_column("VPC CIDR", style="green")
+    table.add_column("Subnet Name", max_width=35, overflow="ellipsis", style="cyan")
+    table.add_column("Subnet CIDR", style="cyan")
+    table.add_column("Route Table", max_width=35, overflow="ellipsis", style="white")
     table.add_column("Route Rule")
 
 

@@ -32,7 +32,7 @@ A comprehensive, production-grade Infrastructure Command Line Interface tool for
 ### 2. 🟦 Tencent Cloud Services (Production Ready)
 - **Compute**: CVM instances (with CPU, Mem, Disk, IP, SGs), Lighthouse lightweight application servers
 - **Containers**: TKE (Tencent Kubernetes Engine) clusters & node details
-- **Networking**: VPC, Subnets, NAT Gateways, CLB (Load Balancers - with listener rules, health check path & target health analysis), Security Groups (with Ingress/Egress rules & tree view)
+- **Networking**: VPC, Subnets, NAT Gateways, CLB (Load Balancers - listener rules, health check, target health analysis & network traffic bandwidth statistics), Security Groups (with Ingress/Egress rules & tree view)
 - **Authentication**: Multi-account STS AssumeRole support, Profile management (`ic tencent profile info` via `~/.tencent/credentials`)
 
 ### 3. 🟩 GCP Services (Production Ready)

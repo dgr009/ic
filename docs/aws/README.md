@@ -39,7 +39,7 @@ ic aws healthdashboard reboot
 ic aws healthdashboard reboot -A
 
 # 특정 계정 지정 조회
-ic aws healthdashboard reboot -a com2usplatform-live,event-live
+ic aws healthdashboard reboot -a prod-account,stage-account
 
 # 이미 마감(closed/RESOLVED)된 과거 일정까지 포함하여 조회
 ic aws healthdashboard reboot --all-status
