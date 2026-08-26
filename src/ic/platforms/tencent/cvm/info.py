@@ -110,8 +110,8 @@ def fetch_cvm_one_account_region(
                 inst_name = inst.InstanceName or inst.InstanceId or "-"
 
                 if name_filter:
-                    nf = name_filter.lower()
-                    if nf not in inst_name.lower() and nf not in (inst.InstanceId or "").lower():
+                    patterns = [p.strip().lower() for p in name_filter.split(",") if p.strip()]
+                    if patterns and not any(p in inst_name.lower() or p in (inst.InstanceId or "").lower() for p in patterns):
                         continue
 
                 all_instances.append(inst)
@@ -335,6 +335,22 @@ def print_cvm_table(all_rows: List[Dict[str, Any]], verbose: bool) -> None:
     console.print(table)
 
 
+def print_paste_format(all_rows: List[Dict[str, Any]]) -> None:
+    """스프레드시트 복사용 콤마(,) 구분 형식으로 출력합니다."""
+    if not all_rows:
+        return
+    all_rows.sort(key=lambda x: (x["account"], x["region"], x["name"]))
+    for row in all_rows:
+        name = row.get("name", "-")
+        inst_id = row.get("instance_id", "-")
+        priv_ip = row.get("private_ip", "-")
+        pub_ip = row.get("public_ip", "-")
+        itype = row.get("itype", "-")
+        vcpu = row.get("vcpu", "-")
+        mem = row.get("memory", "-")
+        print(f"{name},{inst_id},{priv_ip},{pub_ip},{itype},{vcpu},{mem}")
+
+
 def main(args) -> None:
     if not check_sdk_available():
         console.print("[red]❌ tencentcloud-sdk-python 이 설치되지 않았습니다.[/red]")
@@ -376,14 +392,18 @@ def main(args) -> None:
                     log_info_non_console(f"[CVM] Future 실패: {acct_name}/{region}: {e}")
                     progress.update(f"Failed {acct_name}/{region}", advance=1)
 
-    print_cvm_table(all_rows, verbose)
+    if getattr(args, "paste", False):
+        print_paste_format(all_rows)
+    else:
+        print_cvm_table(all_rows, verbose)
 
 
 def add_arguments(parser) -> None:
     parser.add_argument("-a", "--account", help="계정 이름 또는 ID 목록(,) (없으면 전체 계정 조회)")
     parser.add_argument("-r", "--regions", help="리전 목록(,) 예: ap-seoul,ap-tokyo")
-    parser.add_argument("-n", "--name", help="인스턴스 이름 필터 (부분 일치)")
-    parser.add_argument("-v", "--verbose", action="store_true", help="상세 정보 출력")
+    parser.add_argument("-n", "--name", help="인스턴스 이름/ID 필터 (콤마(,)로 복수 검색 가능, 예: web,api)")
+    parser.add_argument("-v", "--verbose", action="store_true", help="상세 정보 출력 (Instance ID, VPC, Subnet, SG 등)")
+    parser.add_argument("-p", "--paste", action="store_true", help="스프레드시트 복사용 콤마(,) 구분 텍스트 출력 (Name,ID,PrivateIP,PublicIP,Type,vCPU,Mem)")
 
 
 if __name__ == "__main__":

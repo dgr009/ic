@@ -4,7 +4,7 @@ IC (Infra Resource Management CLI) - A comprehensive tool for managing cloud inf
 This package provides CLI tools and libraries for managing AWS, GCP, OCI, CloudFlare, and SSH resources.
 """
 
-__version__ = "1.3.2"
+__version__ = "1.3.3"
 __author__ = "SangYun"
 __email__ = "cruiser594@gmail.com"
 

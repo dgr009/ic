@@ -57,11 +57,12 @@ def fetch_ec2_one_account_region(account_id, profile_name, region_name, name_fil
                 for inst in rsv["Instances"]:
                     if inst['State']['Name'] == 'terminated':
                         continue
-                    
-                    inst_name = next((t.get('Value') for t in inst.get('Tags', []) if t.get('Key') == 'Name'), None)
+                    inst_name = next((t.get('Value') for t in inst.get('Tags', []) if t.get('Key') == 'Name'), None) or inst.get('InstanceId', '')
 
-                    if name_filter and name_filter not in (inst_name or ''):
-                        continue
+                    if name_filter:
+                        patterns = [p.strip().lower() for p in name_filter.split(",") if p.strip()]
+                        if patterns and not any(p in (inst_name or '').lower() or p in inst.get('InstanceId', '').lower() for p in patterns):
+                            continue
                     all_instances.append(inst)
         
         log_info_non_console(f"Found {len(all_instances)} instances across {page_count} pages for {account_id}/{region_name}")
@@ -98,24 +99,10 @@ def fetch_ec2_one_account_region(account_id, profile_name, region_name, name_fil
             log_info_non_console(f"{result_key} 정보 조회 실패: {e}")
         return resource_map
 
-    vpc_map = get_resource_map(vpc_ids, ec2_client.describe_vpcs, "Vpcs", "VpcId", "vpcs")
-    subnet_map = get_resource_map(subnet_ids, ec2_client.describe_subnets, "Subnets", "SubnetId", "subnets")
+    vpc_map = get_resource_map(vpc_ids, ec2_client.describe_vpcs, "Vpcs", "VpcId", "vpc")
+    subnet_map = get_resource_map(subnet_ids, ec2_client.describe_subnets, "Subnets", "SubnetId", "subnet")
+    sg_map = get_resource_map(sg_ids, ec2_client.describe_security_groups, "SecurityGroups", "GroupId", "security group")
 
-    sg_map = {}
-    if sg_ids:
-        try:
-            log_info_non_console(f"Fetching {len(sg_ids)} security groups details for {account_id}/{region_name}")
-            sg_resp = ec2_client.describe_security_groups(GroupIds=list(sg_ids))
-            for item in sg_resp.get("SecurityGroups", []):
-                gid = item["GroupId"]
-                tags = item.get("Tags", [])
-                name_tag = next((t["Value"] for t in tags if t.get("Key") == "Name" and t.get("Value")), None)
-                group_name = item.get("GroupName")
-                sg_map[gid] = name_tag if name_tag else (group_name if group_name else gid)
-            log_info_non_console(f"Successfully fetched {len(sg_map)} security groups details")
-        except Exception as e:
-            log_info_non_console(f"SecurityGroups 정보 조회 실패: {e}")
-    
     volume_map = {}
     if volume_ids:
         try:
@@ -154,12 +141,14 @@ def fetch_ec2_one_account_region(account_id, profile_name, region_name, name_fil
             "account": account_id,
             "region": region_name,
             "name": tags.get('Name', inst["InstanceId"]),
+            "instance_id": inst["InstanceId"],
             "state": color_state(inst["State"]["Name"]),
             "private_ip": inst.get("PrivateIpAddress", "-"),
             "public_ip": inst.get("PublicIpAddress", "-"),
             "itype": itype,
             "vcpu": str(vcpu),
             "memory": str(mem_gb),
+            "disk": str(total_vol),
             "vol_size": str(total_vol),
             "vpc": vpc_map.get(inst.get("VpcId"), inst.get("VpcId", "-")),
             "subnet": subnet_map.get(inst.get("SubnetId"), inst.get("SubnetId", "-")),
@@ -167,6 +156,21 @@ def fetch_ec2_one_account_region(account_id, profile_name, region_name, name_fil
             "created_by": tags.get('CreateBy', '-')
         })
     return rows
+
+def print_paste_format(all_rows):
+    """스프레드시트 복사용 콤마(,) 구분 형식으로 출력합니다."""
+    if not all_rows:
+        return
+    all_rows.sort(key=lambda x: (x["account"], x["region"], x["name"]))
+    for row in all_rows:
+        name = row.get("name", "-")
+        inst_id = row.get("instance_id", "-")
+        priv_ip = row.get("private_ip", "-")
+        pub_ip = row.get("public_ip", "-")
+        itype = row.get("itype", "-")
+        vcpu = row.get("vcpu", "-")
+        mem = row.get("memory", "-")
+        print(f"{name},{inst_id},{priv_ip},{pub_ip},{itype},{vcpu},{mem}")
 
 def print_ec2_table(all_rows, verbose):
     if not all_rows:
@@ -176,20 +180,33 @@ def print_ec2_table(all_rows, verbose):
     all_rows.sort(key=lambda x: (x["account"], x["region"], x["name"]))
 
     table = Table(box=box.HORIZONTALS, expand=False, show_header=True, header_style="bold")
-    # table.show_edge = False
   
     if verbose:
-        headers = ["Account", "Region", "Instance Name", "State", "Private IP", "Public IP", "Type", "vCPU", "Memory", "Volume", "VPC", "Subnet", "Security Groups", "Create"]
-        keys = ["account", "region", "name", "state", "private_ip", "public_ip", "itype", "vcpu", "memory", "vol_size", "vpc", "subnet", "sgs", "created_by"]
+        headers = [
+            "Account", "Region", "Name", "Instance ID", "State",
+            "Private IP", "Public IP", "Type", "vCPU", "Mem(GB)", "Disk(GB)",
+            "VPC", "Subnet", "Security Groups", "Created"
+        ]
+        keys = [
+            "account", "region", "name", "instance_id", "state",
+            "private_ip", "public_ip", "itype", "vcpu", "memory", "disk",
+            "vpc", "subnet", "sgs", "created_by"
+        ]
     else:
-        headers = ["Account", "Region", "Name", "State", "Private IP", "Public IP", "Type", "CPU", "Mem", "Vol"]
-        keys = ["account", "region", "name", "state", "private_ip", "public_ip", "itype", "vcpu", "memory", "vol_size"]
+        headers = [
+            "Account", "Region", "Name", "State",
+            "Private IP", "Public IP", "Type", "vCPU", "Mem", "Disk"
+        ]
+        keys = [
+            "account", "region", "name", "state",
+            "private_ip", "public_ip", "itype", "vcpu", "memory", "disk"
+        ]
 
     for h in headers:
         style = {}
         if h == "Account": style = {"style": "bold magenta"}
         elif h == "Region": style = {"style": "bold cyan"}
-        elif h in ["vCPU", "Memory", "Volume", "CPU", "Mem", "Vol"]: style = {"justify": "right"}
+        elif h in ["vCPU", "Mem", "Mem(GB)", "Disk", "Disk(GB)"]: style = {"justify": "right"}
         elif h == "State": style = {"justify": "center"}
         table.add_column(h, **style)
 
@@ -225,7 +242,7 @@ def main(args):
     accounts = get_env_accounts(args.account)
     regions = args.regions.split(",") if args.regions else DEFINED_REGIONS
     profiles_map = get_profiles()
-    name_filter = args.name.lower() if hasattr(args, 'name') and args.name else None
+    name_filter = args.name
 
     # Calculate total operations for progress tracking
     valid_accounts = []
@@ -263,13 +280,17 @@ def main(args):
                     log_info_non_console(f"Failed to collect EC2 data for {acct}/{reg}: {e}")
                     progress.update(f"Failed {acct}/{reg} - {str(e)[:50]}...", advance=1)
 
-    print_ec2_table(all_rows, args.verbose)
+    if getattr(args, 'paste', False):
+        print_paste_format(all_rows)
+    else:
+        print_ec2_table(all_rows, getattr(args, 'verbose', False))
 
 def add_arguments(parser):
     parser.add_argument('-a', '--account', help='특정 AWS 계정 ID 목록(,) (없으면 .env 사용)')
     parser.add_argument('-r', '--regions', help='리전 목록(,) (없으면 .env/DEFINED_REGIONS)')
-    parser.add_argument('-n', '--name', help='인스턴스 이름 필터 (부분 일치)')
-    parser.add_argument('-v', '--verbose', action='store_true', help='상세 정보 출력')
+    parser.add_argument('-n', '--name', help='인스턴스 이름/ID 필터 (콤마(,)로 복수 검색 가능, 예: web,api)')
+    parser.add_argument('-v', '--verbose', action='store_true', help='상세 정보 출력 (Instance ID, VPC, Subnet, SG 등)')
+    parser.add_argument('-p', '--paste', action='store_true', help='스프레드시트 복사용 콤마(,) 구분 텍스트 출력 (Name,ID,PrivateIP,PublicIP,Type,vCPU,Mem)')
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="EC2 인스턴스 정보 (병렬 수집)")

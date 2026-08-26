@@ -33,7 +33,7 @@ python3 -m build
 ### Step 3: Publish to PyPI
 ```bash
 # Upload via script
-./scripts/deploy.sh 1.3.2 prod
+./scripts/deploy.sh 1.3.3 prod
 
 # Or manually via twine
 python3 -m twine upload dist/*
