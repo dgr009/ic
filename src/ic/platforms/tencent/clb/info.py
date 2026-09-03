@@ -159,10 +159,20 @@ def fetch_clb_one_account_region(
                     req_l.LoadBalancerId = lb_id
                     resp_l = client.DescribeListeners(req_l)
                     for l in (resp_l.Listeners or []):
-                        for r in (l.Rules or []):
-                            hc = r.HealthCheck
-                            hc_path = (hc.HttpCheckPath if hc and hc.HealthSwitch == 1 else None) or "-"
-                            hc_map[(l.Protocol, l.Port, r.Domain or "", r.Url or "")] = hc_path
+                        if l.Rules:
+                            for r in l.Rules:
+                                hc = r.HealthCheck
+                                hc_path = (hc.HttpCheckPath if hc and getattr(hc, "HealthSwitch", 0) == 1 else None) or "-"
+                                hc_map[(l.Protocol, l.Port, r.Domain or "", r.Url or "")] = hc_path
+                        else:
+                            # 4계층 리스너 (TCP, UDP 등)
+                            hc = getattr(l, "HealthCheck", None)
+                            if hc and getattr(hc, "HealthSwitch", 0) == 1:
+                                path = getattr(hc, "HttpCheckPath", None)
+                                hc_path = path if path else "-"
+                            else:
+                                hc_path = "-"
+                            hc_map[(l.Protocol, l.Port, "", "")] = hc_path
                 except Exception as e:
                     log_info_non_console(f"[CLB] DescribeListeners 실패 ({lb_id}): {e}")
 
@@ -174,10 +184,30 @@ def fetch_clb_one_account_region(
                     resp_h = client.DescribeTargetHealth(req_h)
                     for lb_h in (resp_h.LoadBalancers or []):
                         for l_h in (lb_h.Listeners or []):
+                            proto = l_h.Protocol or ""
+                            port = l_h.Port
+
+                            # 7계층 및 4계층 (Tencent DescribeTargetHealth는 4계층도 Rules 내의 가상 Rule로 반환됨)
                             for r_h in (l_h.Rules or []):
+                                domain_val = r_h.Domain or ""
+                                url_val = r_h.Url or ""
                                 for t_h in (r_h.Targets or []):
-                                    key = (l_h.Protocol, l_h.Port, r_h.Domain or "", r_h.Url or "", t_h.TargetId or t_h.IP or "", t_h.Port)
-                                    health_map[key] = (t_h.HealthStatus, t_h.HealthStatusDetail or "")
+                                    val = (t_h.HealthStatus, t_h.HealthStatusDetail or "")
+                                    health_map[(proto, port, domain_val, url_val, t_h.TargetId or "", t_h.Port)] = val
+                                    if getattr(t_h, "IP", None):
+                                        health_map[(proto, port, domain_val, url_val, t_h.IP, t_h.Port)] = val
+                                    # 4계층 fallback (domain이나 url이 없는 경우 ("", "")으로도 매핑)
+                                    if not domain_val and not url_val:
+                                        health_map[(proto, port, "", "", t_h.TargetId or "", t_h.Port)] = val
+                                        if getattr(t_h, "IP", None):
+                                            health_map[(proto, port, "", "", t_h.IP, t_h.Port)] = val
+
+                            # Listener에 직접 Targets가 있는 경우 대비
+                            for t_h in (getattr(l_h, "Targets", None) or []):
+                                val = (t_h.HealthStatus, t_h.HealthStatusDetail or "")
+                                health_map[(proto, port, "", "", t_h.TargetId or "", t_h.Port)] = val
+                                if getattr(t_h, "IP", None):
+                                    health_map[(proto, port, "", "", t_h.IP, t_h.Port)] = val
                 except Exception as e:
                     log_info_non_console(f"[CLB] DescribeTargetHealth 실패 ({lb_id}): {e}")
 
@@ -201,22 +231,58 @@ def fetch_clb_one_account_region(
                         listener_str = f"{l_t.Protocol}:{l_t.Port}"
                         rules_t = l_t.Rules or []
 
-                        if not rules_t:
-                            rows.append({
+                        def _create_target_row(target, domain_url, hc_path, domain_key, url_key):
+                            inst_name = target.InstanceName or target.InstanceId or "-"
+                            ip = target.PrivateIpAddresses[0] if target.PrivateIpAddresses else "-"
+                            target_port = target.Port
+                            target_str = f"{inst_name} ({ip}:{target_port})"
+
+                            h_key1 = (l_t.Protocol, l_t.Port, domain_key, url_key, target.InstanceId or "", target_port)
+                            h_key2 = (l_t.Protocol, l_t.Port, domain_key, url_key, ip, target_port)
+                            h_status, h_detail = health_map.get(h_key1) or health_map.get(h_key2) or (None, "")
+
+                            if h_status is True:
+                                target_health = "[bold green]Healthy[/bold green]"
+                            elif h_status is False:
+                                detail_str = f" ({h_detail})" if h_detail else ""
+                                target_health = f"[bold red]Unhealthy{detail_str}[/bold red]"
+                            else:
+                                target_health = "-"
+
+                            return {
                                 "account": account_name, "region": region, "lb_name": lb_name, "lb_id": lb_id,
                                 "type": lb_type, "vips": vips, "dns": dns, "status": status, "vpc_id": vpc_id,
-                                "listener": listener_str, "domain_url": "-", "hc_path": "-",
-                                "targets": "(No Rules)", "target_health": "-", "charge_type": charge_type, "create_time": create_time,
-                            })
-                            continue
+                                "listener": listener_str, "domain_url": domain_url, "hc_path": hc_path,
+                                "targets": target_str, "target_health": target_health,
+                                "charge_type": charge_type, "create_time": create_time,
+                            }
 
-                        for r_t in rules_t:
-                            domain_val = r_t.Domain or "*"
-                            url_val = r_t.Url or "/"
-                            domain_url = f"{domain_val}{url_val}" if domain_val != "*" or url_val != "/" else "*"
-                            hc_path = hc_map.get((l_t.Protocol, l_t.Port, r_t.Domain or "", r_t.Url or ""), "-")
+                        if rules_t:
+                            # 7계층 리스너 (HTTP, HTTPS 등)
+                            for r_t in rules_t:
+                                domain_val = r_t.Domain or "*"
+                                url_val = r_t.Url or "/"
+                                domain_url = f"{domain_val}{url_val}" if domain_val != "*" or url_val != "/" else "*"
+                                hc_path = hc_map.get((l_t.Protocol, l_t.Port, r_t.Domain or "", r_t.Url or ""), "-")
 
-                            targets_t = r_t.Targets or []
+                                targets_t = r_t.Targets or []
+                                if not targets_t:
+                                    rows.append({
+                                        "account": account_name, "region": region, "lb_name": lb_name, "lb_id": lb_id,
+                                        "type": lb_type, "vips": vips, "dns": dns, "status": status, "vpc_id": vpc_id,
+                                        "listener": listener_str, "domain_url": domain_url, "hc_path": hc_path,
+                                        "targets": "(No Targets)", "target_health": "-", "charge_type": charge_type, "create_time": create_time,
+                                    })
+                                    continue
+
+                                for target in targets_t:
+                                    rows.append(_create_target_row(target, domain_url, hc_path, r_t.Domain or "", r_t.Url or ""))
+                        else:
+                            # 4계층 리스너 (TCP, UDP, TCP_SSL 등)
+                            domain_url = "-"
+                            hc_path = hc_map.get((l_t.Protocol, l_t.Port, "", ""), "-")
+                            targets_t = l_t.Targets or []
+
                             if not targets_t:
                                 rows.append({
                                     "account": account_name, "region": region, "lb_name": lb_name, "lb_id": lb_id,
@@ -227,29 +293,7 @@ def fetch_clb_one_account_region(
                                 continue
 
                             for target in targets_t:
-                                inst_name = target.InstanceName or target.InstanceId or "-"
-                                ip = target.PrivateIpAddresses[0] if target.PrivateIpAddresses else "-"
-                                target_port = target.Port
-                                target_str = f"{inst_name} ({ip}:{target_port})"
-
-                                h_key = (l_t.Protocol, l_t.Port, r_t.Domain or "", r_t.Url or "", target.InstanceId or ip or "", target_port)
-                                h_status, h_detail = health_map.get(h_key, (None, ""))
-
-                                if h_status is True:
-                                    target_health = "[bold green]Healthy[/bold green]"
-                                elif h_status is False:
-                                    detail_str = f" ({h_detail})" if h_detail else ""
-                                    target_health = f"[bold red]Unhealthy{detail_str}[/bold red]"
-                                else:
-                                    target_health = "-"
-
-                                rows.append({
-                                    "account": account_name, "region": region, "lb_name": lb_name, "lb_id": lb_id,
-                                    "type": lb_type, "vips": vips, "dns": dns, "status": status, "vpc_id": vpc_id,
-                                    "listener": listener_str, "domain_url": domain_url, "hc_path": hc_path,
-                                    "targets": target_str, "target_health": target_health,
-                                    "charge_type": charge_type, "create_time": create_time,
-                                })
+                                rows.append(_create_target_row(target, domain_url, hc_path, "", ""))
 
                 except Exception as e:
                     log_info_non_console(f"[CLB] DescribeTargets 실패 ({lb_id}): {e}")
