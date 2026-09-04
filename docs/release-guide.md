@@ -33,7 +33,7 @@ python3 -m build
 ### Step 3: Publish to PyPI
 ```bash
 # Upload via script
-./scripts/deploy.sh 1.3.3 prod
+./scripts/deploy.sh 1.3.4 prod
 
 # Or manually via twine
 python3 -m twine upload dist/*
@@ -42,9 +42,9 @@ python3 -m twine upload dist/*
 ### Step 4: Tag Release in Git
 ```bash
 git add -A
-git commit -m "release: bump version to 1.3.2"
-git tag -a v1.3.2 -m "Release v1.3.2"
+git commit -m "release: bump version to 1.3.4"
+git tag -a v1.3.4 -m "Release v1.3.4"
 
 git push origin main
-git push origin v1.3.2
+git push origin v1.3.4
 ```
