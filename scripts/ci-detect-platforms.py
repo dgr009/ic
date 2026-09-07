@@ -64,7 +64,9 @@ def detect_platforms_from_files(changed_files, all_platforms):
     for file_path in changed_files:
         for platform in all_platforms:
             if f"src/ic/platforms/{platform}/" in file_path or \
-               f"tests/platforms/{platform}/" in file_path:
+               f"tests/platforms/{platform}/" in file_path or \
+               f"test_{platform}" in file_path or \
+               f"_{platform}_" in file_path:
                 detected.add(platform)
     
     return list(detected)
@@ -76,16 +78,15 @@ def filter_platforms_with_tests(platforms):
     
     for platform in platforms:
         test_dir = Path(f"tests/platforms/{platform}")
-        if test_dir.exists():
-            # Check if there are any test files
-            test_files = list(test_dir.rglob("test_*.py"))
-            if test_files:
-                platforms_with_tests.append(platform)
-                print(f"✓ Platform {platform} has {len(test_files)} test files")
-            else:
-                print(f"⚠ Platform {platform} directory exists but has no test files")
+        platform_tests = list(test_dir.rglob("test_*.py")) if test_dir.exists() else []
+        unit_tests = list(Path("tests").rglob(f"test_*{platform}*.py"))
+        
+        all_tests = set(platform_tests + unit_tests)
+        if all_tests:
+            platforms_with_tests.append(platform)
+            print(f"✓ Platform {platform} has {len(all_tests)} test files")
         else:
-            print(f"⚠ Platform {platform} has no test directory")
+            print(f"⚠ Platform {platform} has no test files")
     
     return platforms_with_tests
 
@@ -129,6 +130,11 @@ def main():
     # Remove duplicates and sort
     platforms_with_tests = sorted(set(platforms_with_tests))
     
+    # If no platforms with tests detected, fallback to aws
+    if not platforms_with_tests:
+        print("⚠ No platforms with tests detected, falling back to: aws")
+        platforms_with_tests = ["aws"]
+    
     # Output as JSON (compact, single line)
     platforms_json = json.dumps(platforms_with_tests, separators=(',', ':'))
     print(f"\nFinal platforms to test: {platforms_json}")
@@ -144,7 +150,7 @@ def main():
         print(f"platforms={platforms_json}")
         print(f"should-run-tests={'true' if platforms_with_tests else 'false'}")
     
-    return 0 if platforms_with_tests else 1
+    return 0
 
 
 if __name__ == "__main__":

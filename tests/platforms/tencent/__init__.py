@@ -1,0 +1,3 @@
+"""
+Tencent Cloud platform tests.
+"""
