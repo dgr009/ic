@@ -1,0 +1,28 @@
+[
+  {
+    "project_id": "gcp-project-prod-67890",
+    "project_name": "Production Project",
+    "region": "asia-northeast3",
+    "name": "prod-auth-service",
+    "ready": true,
+    "uri": "https://auth-service-abcde-an.a.run.app",
+    "cpu": "1000m",
+    "memory": "512Mi",
+    "min_instances": 1,
+    "max_instances": 10,
+    "image": "gcr.io/gcp-project-prod-67890/auth-service:v1.2.0"
+  },
+  {
+    "project_id": "gcp-project-dev-12345",
+    "project_name": "Dev Project",
+    "region": "asia-northeast3",
+    "name": "dev-webhook-handler",
+    "ready": true,
+    "uri": "https://webhook-handler-xyz12-an.a.run.app",
+    "cpu": "1000m",
+    "memory": "256Mi",
+    "min_instances": 0,
+    "max_instances": 5,
+    "image": "gcr.io/gcp-project-dev-12345/webhook:latest"
+  }
+]

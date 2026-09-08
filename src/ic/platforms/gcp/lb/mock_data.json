@@ -1,0 +1,28 @@
+[
+  {
+    "project_id": "gcp-project-prod-67890",
+    "project_name": "Production Project",
+    "scope": "GLOBAL",
+    "name": "prod-global-https-lb",
+    "type": "HTTP_HTTPS",
+    "ip_address": "34.120.55.80",
+    "ip_protocol": "TCP",
+    "port_range": "443",
+    "backend_services": ["prod-backend-api", "prod-backend-web"],
+    "health_checks": ["prod-hc-api", "prod-hc-web"],
+    "ssl_certificates": ["prod-wildcard-cert"]
+  },
+  {
+    "project_id": "gcp-project-dev-12345",
+    "project_name": "Dev Project",
+    "scope": "REGIONAL (asia-northeast3)",
+    "name": "dev-internal-tcp-lb",
+    "type": "INTERNAL_TCP_UDP",
+    "ip_address": "10.128.1.100",
+    "ip_protocol": "TCP",
+    "port_range": "8080",
+    "backend_services": ["dev-backend-svc"],
+    "health_checks": ["dev-hc-tcp"],
+    "ssl_certificates": []
+  }
+]

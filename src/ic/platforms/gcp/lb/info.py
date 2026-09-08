@@ -3,19 +3,33 @@ import argparse
 import json
 import os
 from typing import Dict, List, Optional, Any
-from google.cloud.compute_v1 import (
-    ForwardingRulesClient, BackendServicesClient, UrlMapsClient,
-    TargetHttpProxiesClient, TargetHttpsProxiesClient, TargetTcpProxiesClient,
-    TargetSslProxiesClient, HealthChecksClient, SslCertificatesClient
-)
-from google.cloud.compute_v1.types import (
-    ListForwardingRulesRequest, ListBackendServicesRequest, ListUrlMapsRequest,
-    ListTargetHttpProxiesRequest, ListTargetHttpsProxiesRequest,
-    ListTargetTcpProxiesRequest, ListTargetSslProxiesRequest,
-    ListHealthChecksRequest, ListSslCertificatesRequest,
-    AggregatedListForwardingRulesRequest
-)
-from google.api_core import exceptions as gcp_exceptions
+try:
+    from google.cloud.compute_v1 import (
+        ForwardingRulesClient, BackendServicesClient, UrlMapsClient,
+        TargetHttpProxiesClient, TargetHttpsProxiesClient, TargetTcpProxiesClient,
+        TargetSslProxiesClient, HealthChecksClient, SslCertificatesClient
+    )
+    from google.cloud.compute_v1.types import (
+        ListForwardingRulesRequest, ListBackendServicesRequest, ListUrlMapsRequest,
+        ListTargetHttpProxiesRequest, ListTargetHttpsProxiesRequest,
+        ListTargetTcpProxiesRequest, ListTargetSslProxiesRequest,
+        ListHealthChecksRequest, ListSslCertificatesRequest,
+        AggregatedListForwardingRulesRequest
+    )
+    from google.api_core import exceptions as gcp_exceptions
+    GCP_LB_AVAILABLE = True
+except ImportError:
+    GCP_LB_AVAILABLE = False
+    ForwardingRulesClient = None
+    BackendServicesClient = None
+    UrlMapsClient = None
+    TargetHttpProxiesClient = None
+    TargetHttpsProxiesClient = None
+    TargetTcpProxiesClient = None
+    TargetSslProxiesClient = None
+    HealthChecksClient = None
+    SslCertificatesClient = None
+    gcp_exceptions = None
 from rich.console import Console
 from rich.table import Table
 from rich import box
@@ -838,31 +852,40 @@ def format_tree_output(load_balancers: List[Dict]) -> None:
                 if backend_services:
                     backends_node = lb_node.add(f"🔧 Backend Services ({len(backend_services)})")
                     for backend in backend_services:
-                        backend_name = backend.get('name', 'N/A')
-                        backend_protocol = backend.get('protocol', 'N/A')
-                        backend_count = backend.get('backends', 0)
-                        backends_node.add(
-                            f"• {backend_name} ({backend_protocol}) - {backend_count} backends"
-                        )
+                        if isinstance(backend, dict):
+                            backend_name = backend.get('name', 'N/A')
+                            backend_protocol = backend.get('protocol', 'N/A')
+                            backend_count = backend.get('backends', 0)
+                            backends_node.add(
+                                f"• {backend_name} ({backend_protocol}) - {backend_count} backends"
+                            )
+                        else:
+                            backends_node.add(f"• {backend}")
                 
                 # Health Checks 정보
                 health_checks = lb.get('health_checks', [])
                 if health_checks:
                     hc_node = lb_node.add(f"❤️ Health Checks ({len(health_checks)})")
                     for hc in health_checks:
-                        hc_name = hc.get('name', 'N/A')
-                        hc_type = hc.get('type', 'N/A')
-                        hc_interval = hc.get('check_interval_sec', 'N/A')
-                        hc_node.add(f"• {hc_name} ({hc_type}) - {hc_interval}s interval")
+                        if isinstance(hc, dict):
+                            hc_name = hc.get('name', 'N/A')
+                            hc_type = hc.get('type', 'N/A')
+                            hc_interval = hc.get('check_interval_sec', 'N/A')
+                            hc_node.add(f"• {hc_name} ({hc_type}) - {hc_interval}s interval")
+                        else:
+                            hc_node.add(f"• {hc}")
                 
                 # SSL Certificates 정보
                 ssl_certs = lb.get('ssl_certificates', [])
                 if ssl_certs:
                     ssl_node = lb_node.add(f"🔐 SSL Certificates ({len(ssl_certs)})")
                     for cert in ssl_certs:
-                        cert_name = cert.get('name', 'N/A')
-                        cert_type = cert.get('type', 'N/A')
-                        ssl_node.add(f"• {cert_name} ({cert_type})")
+                        if isinstance(cert, dict):
+                            cert_name = cert.get('name', 'N/A')
+                            cert_type = cert.get('type', 'N/A')
+                            ssl_node.add(f"• {cert_name} ({cert_type})")
+                        else:
+                            ssl_node.add(f"• {cert}")
                 
                 # URL Map 정보
                 url_map = lb.get('url_map', {})
@@ -905,112 +928,122 @@ def format_output(load_balancers: List[Dict], output_format: str = 'table') -> s
         return ""
 
 
-def main(args):
-    """
-    메인 함수 - GCP Load Balancer 정보를 조회하고 출력합니다.
-    
-    Args:
-        args: CLI 인자 객체
-    """
-    try:
-        log_info("GCP Load Balancer 조회 시작")
-        
-        # GCP 인증 및 프로젝트 관리자 초기화
-        auth_manager = GCPAuthManager()
-        if not auth_manager.validate_credentials():
-            console.print("[bold red]GCP 인증에 실패했습니다. 인증 정보를 확인해주세요.[/bold red]")
-            return
-        
-        project_manager = GCPProjectManager(auth_manager)
-        resource_collector = GCPResourceCollector(auth_manager)
-        
-        # 프로젝트 목록 가져오기
-        if args.project:
-            # 특정 프로젝트 지정된 경우
-            projects = [args.project]
-        else:
-            # 모든 접근 가능한 프로젝트 사용
-            projects = project_manager.get_projects()
-        
-        if not projects:
-            console.print("[yellow]접근 가능한 GCP 프로젝트가 없습니다.[/yellow]")
-            return
-        
-        log_info(f"조회할 프로젝트: {len(projects)}개")
-        
-        # 병렬로 Load Balancer 수집
-        all_load_balancers = resource_collector.parallel_collect(
-            projects, 
-            fetch_load_balancers,
-            getattr(args, 'region', None)
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+class GcpLbInfoCommand(BaseCommand):
+    """GCP Load Balancer 정보 조회 커맨드"""
+
+    @classmethod
+    def add_arguments(cls, parser) -> None:
+        cls.add_common_arguments(parser)
+        parser.add_argument(
+            '-p', '--project', 
+            help='GCP 프로젝트 ID로 필터링 (예: my-project-123)'
         )
-        
-        if not all_load_balancers:
-            console.print("[yellow]조회된 Load Balancer가 없습니다.[/yellow]")
-            return
-        
-        # 필터 적용
-        filters = {}
-        if hasattr(args, 'lb_name') and args.lb_name:
-            filters['name'] = args.lb_name
-        if hasattr(args, 'project') and args.project:
-            filters['project'] = args.project
-        if hasattr(args, 'region') and args.region:
-            filters['scope'] = args.region
-        if hasattr(args, 'lb_type') and args.lb_type:
-            filters['type'] = args.lb_type
-        
-        filtered_load_balancers = resource_collector.apply_filters(all_load_balancers, filters)
-        
-        # 출력 형식 결정
-        output_format = getattr(args, 'output', 'table')
-        
-        # 결과 출력
-        if output_format in ['json', 'yaml']:
-            output_text = format_output(filtered_load_balancers, output_format)
-            console.print(output_text)
-        else:
-            format_output(filtered_load_balancers, output_format)
-        
-        log_info(f"총 {len(filtered_load_balancers)}개 Load Balancer 조회 완료")
-        
-    except KeyboardInterrupt:
-        console.print("\n[yellow]사용자에 의해 중단되었습니다.[/yellow]")
-    except Exception as e:
-        log_exception(e)
-        console.print(f"[bold red]오류 발생: {e}[/bold red]")
+        parser.add_argument(
+            '-n', '--lb-name', 
+            help='Load Balancer 이름으로 필터링 (부분 일치)'
+        )
+        parser.add_argument(
+            '-r', '--region', 
+            help='리전으로 필터링 (예: us-central1, global)'
+        )
+        parser.add_argument(
+            '-t', '--lb-type',
+            choices=['HTTP_HTTPS', 'TCP_PROXY', 'SSL_PROXY', 'NETWORK_TCP_UDP', 'INTERNAL_TCP_UDP', 'INTERNAL_HTTP_HTTPS'],
+            help='Load Balancer 타입으로 필터링'
+        )
+        parser.add_argument(
+            '--mock',
+            action='store_true',
+            help='Mock 데이터를 사용하여 오프라인으로 실행'
+        )
+
+    def execute(self, args, config=None) -> CommandResult:
+        if getattr(args, 'mock', False):
+            lbs = load_mock_data()
+            filtered = []
+            name_filter = getattr(args, 'lb_name', None)
+            proj_filter = getattr(args, 'project', None)
+            region_filter = getattr(args, 'region', None)
+            type_filter = getattr(args, 'lb_type', None)
+            for lb in lbs:
+                if name_filter and name_filter.lower() not in str(lb.get('name', '')).lower():
+                    continue
+                if proj_filter and proj_filter.lower() not in str(lb.get('project_id', '')).lower():
+                    continue
+                if region_filter and region_filter.lower() not in str(lb.get('scope', '')).lower():
+                    continue
+                if type_filter and type_filter.upper() != str(lb.get('type', '')).upper():
+                    continue
+                filtered.append(lb)
+            return CommandResult(
+                data=filtered,
+                table_renderer=format_table_output,
+                tree_renderer=format_tree_output,
+            )
+
+        if not GCP_LB_AVAILABLE:
+            console.print("[red]❌ google-cloud-compute 패키지가 설치되지 않았습니다.[/red]")
+            console.print("[yellow]   pip install 'ic-cli[gcp]' 또는 pip install google-cloud-compute[/yellow]")
+            console.print("[yellow]   Mock 데이터로 테스트하려면 --mock 옵션을 사용하세요.[/yellow]")
+            return CommandResult(data=[], error="google-cloud-compute is not installed", success=False)
+
+        try:
+            log_info("GCP Load Balancer 조회 시작")
+            auth_manager = GCPAuthManager()
+            if not auth_manager.validate_credentials():
+                console.print("[bold red]GCP 인증에 실패했습니다. 인증 정보를 확인해주세요.[/bold red]")
+                console.print("[yellow]   Mock 데이터로 테스트하려면 --mock 옵션을 사용하세요.[/yellow]")
+                return CommandResult(data=[], error="GCP authentication failed", success=False)
+
+            project_manager = GCPProjectManager(auth_manager)
+            resource_collector = GCPResourceCollector(auth_manager)
+
+            if getattr(args, 'project', None):
+                projects = [args.project]
+            else:
+                projects = project_manager.get_projects()
+
+            if not projects:
+                console.print("[yellow]접근 가능한 GCP 프로젝트가 없습니다.[/yellow]")
+                return CommandResult(data=[], table_renderer=format_table_output, tree_renderer=format_tree_output)
+
+            all_load_balancers = resource_collector.parallel_collect(
+                projects, 
+                fetch_load_balancers,
+                getattr(args, 'region', None)
+            )
+
+            filters = {}
+            if getattr(args, 'lb_name', None):
+                filters['name'] = args.lb_name
+            if getattr(args, 'project', None):
+                filters['project'] = args.project
+            if getattr(args, 'region', None):
+                filters['scope'] = args.region
+            if getattr(args, 'lb_type', None):
+                filters['type'] = args.lb_type
+
+            filtered_load_balancers = resource_collector.apply_filters(all_load_balancers, filters)
+            return CommandResult(
+                data=filtered_load_balancers,
+                table_renderer=format_table_output,
+                tree_renderer=format_tree_output,
+            )
+        except Exception as e:
+            log_exception(e)
+            console.print(f"[bold red]오류 발생: {e}[/bold red]")
+            return CommandResult(data=[], error=str(e), success=False)
 
 
-def add_arguments(parser):
-    """
-    CLI 인자를 추가합니다.
-    
-    Args:
-        parser: argparse.ArgumentParser 객체
-    """
-    parser.add_argument(
-        '-p', '--project', 
-        help='GCP 프로젝트 ID로 필터링 (예: my-project-123)'
-    )
-    parser.add_argument(
-        '-n', '--lb-name', 
-        help='Load Balancer 이름으로 필터링 (부분 일치)'
-    )
-    parser.add_argument(
-        '-r', '--region', 
-        help='리전으로 필터링 (예: us-central1, global)'
-    )
-    parser.add_argument(
-        '-t', '--lb-type',
-        choices=['HTTP_HTTPS', 'TCP_PROXY', 'SSL_PROXY', 'NETWORK_TCP_UDP', 'INTERNAL_TCP_UDP', 'INTERNAL_HTTP_HTTPS'],
-        help='Load Balancer 타입으로 필터링'
-    )
-    parser.add_argument(
-        '-o', '--output', 
-        choices=['table', 'tree', 'json', 'yaml'],
-        default='table',
-        help='출력 형식 선택 (기본값: table)'
-    )
+def main(args, config=None) -> None:
+    GcpLbInfoCommand().run(args, config)
+
+
+def add_arguments(parser) -> None:
+    GcpLbInfoCommand.add_arguments(parser)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,53 @@
+[
+  {
+    "project_id": "gcp-project-dev-12345",
+    "project_name": "Dev Project",
+    "network": "default",
+    "name": "default-allow-internal",
+    "direction": "INGRESS",
+    "action": "ALLOW",
+    "priority": 65534,
+    "allowed_rules": [{"ip_protocol": "tcp", "ports": ["0-65535"]}, {"ip_protocol": "udp", "ports": ["0-65535"]}, {"ip_protocol": "icmp", "ports": []}],
+    "denied_rules": [],
+    "source_ranges": ["10.128.0.0/9"],
+    "destination_ranges": [],
+    "source_tags": [],
+    "target_tags": [],
+    "log_config": {"enable": false},
+    "disabled": false
+  },
+  {
+    "project_id": "gcp-project-dev-12345",
+    "project_name": "Dev Project",
+    "network": "default",
+    "name": "default-allow-ssh",
+    "direction": "INGRESS",
+    "action": "ALLOW",
+    "priority": 65534,
+    "allowed_rules": [{"ip_protocol": "tcp", "ports": ["22"]}],
+    "denied_rules": [],
+    "source_ranges": ["0.0.0.0/0"],
+    "destination_ranges": [],
+    "source_tags": [],
+    "target_tags": [],
+    "log_config": {"enable": true},
+    "disabled": false
+  },
+  {
+    "project_id": "gcp-project-prod-67890",
+    "project_name": "Production Project",
+    "network": "prod-vpc",
+    "name": "prod-allow-https",
+    "direction": "INGRESS",
+    "action": "ALLOW",
+    "priority": 1000,
+    "allowed_rules": [{"ip_protocol": "tcp", "ports": ["443", "80"]}],
+    "denied_rules": [],
+    "source_ranges": ["0.0.0.0/0"],
+    "destination_ranges": [],
+    "source_tags": [],
+    "target_tags": ["lb-target", "web-tier"],
+    "log_config": {"enable": true},
+    "disabled": false
+  }
+]

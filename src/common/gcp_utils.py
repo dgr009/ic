@@ -251,6 +251,11 @@ class GCPProjectManager:
         if gcp_projects:
             return gcp_projects
         
+        # 기본 프로젝트가 설정되어 있거나 ADC에서 확인되면 우선 사용
+        default_proj = self.auth_manager.get_default_project_id()
+        if default_proj:
+            return [default_proj]
+        
         # 없으면 모든 접근 가능한 프로젝트 사용
         discovered_projects = self.discover_projects()
         return [p.project_id for p in discovered_projects]

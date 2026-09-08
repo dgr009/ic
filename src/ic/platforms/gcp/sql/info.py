@@ -27,7 +27,10 @@ except ImportError:
         pass
     class SqlDatabasesListRequest:
         pass
-from google.api_core import exceptions as gcp_exceptions
+try:
+    from google.api_core import exceptions as gcp_exceptions
+except ImportError:
+    gcp_exceptions = None
 from rich.console import Console
 from rich.table import Table
 from rich import box
@@ -488,7 +491,7 @@ def format_tree_output(instances: List[Dict]) -> None:
                 
                 databases = instance.get('databases', [])
                 if databases:
-                    db_names = [db['name'] for db in databases]
+                    db_names = [db['name'] if isinstance(db, dict) else str(db) for db in databases]
                     instance_node.add(f"🗃️  Databases: {', '.join(db_names)}")
                 
                 if instance.get('replica_names'):
@@ -531,98 +534,101 @@ def format_output(instances: List[Dict], output_format: str = 'table') -> str:
         return ""
 
 
-def main(args):
-    """
-    메인 함수 - GCP Cloud SQL 인스턴스 정보를 조회하고 출력합니다.
-    
-    Args:
-        args: CLI 인자 객체
-    """
-    try:
-        log_info("GCP Cloud SQL 인스턴스 조회 시작")
-        
-        # GCP 인증 및 프로젝트 관리자 초기화
-        auth_manager = GCPAuthManager()
-        if not auth_manager.validate_credentials():
-            console.print("[bold red]GCP 인증에 실패했습니다. 인증 정보를 확인해주세요.[/bold red]")
-            return
-        
-        project_manager = GCPProjectManager(auth_manager)
-        resource_collector = GCPResourceCollector(auth_manager)
-        
-        # 프로젝트 목록 가져오기
-        if args.project:
-            # 특정 프로젝트 지정된 경우
-            projects = [args.project]
-        else:
-            # 모든 접근 가능한 프로젝트 사용
-            projects = project_manager.get_projects()
-        
-        if not projects:
-            console.print("[yellow]접근 가능한 GCP 프로젝트가 없습니다.[/yellow]")
-            return
-        
-        log_info(f"조회할 프로젝트: {len(projects)}개")
-        
-        # 병렬로 SQL 인스턴스 수집
-        all_instances = resource_collector.parallel_collect(
-            projects, 
-            fetch_sql_instances
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+class GcpSqlInfoCommand(BaseCommand):
+    """GCP Cloud SQL 인스턴스 정보 조회 커맨드"""
+
+    @classmethod
+    def add_arguments(cls, parser) -> None:
+        cls.add_common_arguments(parser)
+        parser.add_argument(
+            '-p', '--project', 
+            help='GCP 프로젝트 ID로 필터링 (예: my-project-123)'
         )
-        
-        if not all_instances:
-            console.print("[yellow]조회된 Cloud SQL 인스턴스가 없습니다.[/yellow]")
-            return
-        
-        # 필터 적용
-        filters = {}
-        if hasattr(args, 'instance') and args.instance:
-            filters['name'] = args.instance
-        if hasattr(args, 'project') and args.project:
-            filters['project'] = args.project
-        
-        filtered_instances = resource_collector.apply_filters(all_instances, filters)
-        
-        # 출력 형식 결정
-        output_format = getattr(args, 'output', 'table')
-        
-        # 결과 출력
-        if output_format in ['json', 'yaml']:
-            output_text = format_output(filtered_instances, output_format)
-            console.print(output_text)
-        else:
-            format_output(filtered_instances, output_format)
-        
-        log_info(f"총 {len(filtered_instances)}개 SQL 인스턴스 조회 완료")
-        
-    except KeyboardInterrupt:
-        console.print("\n[yellow]사용자에 의해 중단되었습니다.[/yellow]")
-    except Exception as e:
-        log_exception(e)
-        console.print(f"[bold red]오류 발생: {e}[/bold red]")
+        parser.add_argument(
+            '-i', '--instance', 
+            help='SQL 인스턴스 이름으로 필터링 (부분 일치)'
+        )
+        parser.add_argument(
+            '--mock',
+            action='store_true',
+            help='Mock 데이터를 사용하여 오프라인으로 실행'
+        )
+
+    def execute(self, args, config=None) -> CommandResult:
+        if getattr(args, 'mock', False):
+            instances = load_mock_data()
+            filtered = []
+            inst_filter = getattr(args, 'instance', None)
+            proj_filter = getattr(args, 'project', None)
+            for inst in instances:
+                if inst_filter and inst_filter.lower() not in str(inst.get('name', '')).lower():
+                    continue
+                if proj_filter and proj_filter.lower() not in str(inst.get('project_id', '')).lower():
+                    continue
+                filtered.append(inst)
+            return CommandResult(
+                data=filtered,
+                table_renderer=format_table_output,
+                tree_renderer=format_tree_output,
+            )
+
+        if not SQL_ADMIN_AVAILABLE:
+            console.print("[red]❌ google-cloud-sql-admin 패키지가 설치되지 않았습니다.[/red]")
+            console.print("[yellow]   Mock 데이터로 테스트하려면 --mock 옵션을 사용하세요.[/yellow]")
+            return CommandResult(data=[], error="google-cloud-sql-admin is not installed", success=False)
+
+        try:
+            log_info("GCP Cloud SQL 인스턴스 조회 시작")
+            auth_manager = GCPAuthManager()
+            if not auth_manager.validate_credentials():
+                console.print("[bold red]GCP 인증에 실패했습니다. 인증 정보를 확인해주세요.[/bold red]")
+                console.print("[yellow]   Mock 데이터로 테스트하려면 --mock 옵션을 사용하세요.[/yellow]")
+                return CommandResult(data=[], error="GCP authentication failed", success=False)
+
+            project_manager = GCPProjectManager(auth_manager)
+            resource_collector = GCPResourceCollector(auth_manager)
+
+            if getattr(args, 'project', None):
+                projects = [args.project]
+            else:
+                projects = project_manager.get_projects()
+
+            if not projects:
+                console.print("[yellow]접근 가능한 GCP 프로젝트가 없습니다.[/yellow]")
+                return CommandResult(data=[], table_renderer=format_table_output, tree_renderer=format_tree_output)
+
+            all_instances = resource_collector.parallel_collect(
+                projects, 
+                fetch_sql_instances
+            )
+
+            filters = {}
+            if getattr(args, 'instance', None):
+                filters['name'] = args.instance
+            if getattr(args, 'project', None):
+                filters['project'] = args.project
+
+            filtered_instances = resource_collector.apply_filters(all_instances, filters)
+            return CommandResult(
+                data=filtered_instances,
+                table_renderer=format_table_output,
+                tree_renderer=format_tree_output,
+            )
+        except Exception as e:
+            log_exception(e)
+            console.print(f"[bold red]오류 발생: {e}[/bold red]")
+            return CommandResult(data=[], error=str(e), success=False)
 
 
-def add_arguments(parser):
-    """
-    CLI 인자를 추가합니다.
-    
-    Args:
-        parser: argparse.ArgumentParser 객체
-    """
-    parser.add_argument(
-        '-p', '--project', 
-        help='GCP 프로젝트 ID로 필터링 (예: my-project-123)'
-    )
-    parser.add_argument(
-        '-i', '--instance', 
-        help='SQL 인스턴스 이름으로 필터링 (부분 일치)'
-    )
-    parser.add_argument(
-        '-o', '--output', 
-        choices=['table', 'tree', 'json', 'yaml'],
-        default='table',
-        help='출력 형식 선택 (기본값: table)'
-    )
+def main(args, config=None) -> None:
+    GcpSqlInfoCommand().run(args, config)
+
+
+def add_arguments(parser) -> None:
+    GcpSqlInfoCommand.add_arguments(parser)
 
 
 if __name__ == "__main__":

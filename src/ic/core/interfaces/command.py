@@ -31,9 +31,9 @@ class BaseCommand(abc.ABC):
             try:
                 parser.add_argument(
                     "-o", "--output",
-                    choices=["table", "json", "yaml"],
+                    choices=["table", "tree", "json", "yaml"],
                     default="table",
-                    help="출력 형식 선택 (table, json, yaml). 기본값: table"
+                    help="출력 형식 선택 (table, tree, json, yaml). 기본값: table"
                 )
             except Exception:
                 pass

@@ -364,7 +364,7 @@ def setup_platform_parsers(platform_subparsers):
             platform_parser = platform_subparsers.add_parser(
                 platform_name,
                 help=help_text,
-                formatter_class=lambda prog: DevelopmentStatusHelpFormatter(platform_name.upper(), prog)
+                formatter_class=lambda prog, p=platform_name: DevelopmentStatusHelpFormatter(p.upper(), prog)
             )
         else:
             platform_parser = platform_subparsers.add_parser(platform_name, help=help_text)
@@ -468,7 +468,7 @@ def main():
     args = parser.parse_args()
     
     # Check for multi-service commands (comma-separated services)
-    if hasattr(args, 'service') and hasattr(args, 'command') and ',' in args.service:
+    if getattr(args, 'service', None) and getattr(args, 'command', None) and ',' in args.service:
         services = [s.strip() for s in args.service.split(',')]
         execute_multi_service_command(args.platform, services, args.command, args)
     else:

@@ -21,6 +21,7 @@ class CommandResult:
     """
     data: Any = field(default_factory=list)
     table_renderer: Optional[Callable[..., Any]] = None
+    tree_renderer: Optional[Callable[..., Any]] = None
     paste_renderer: Optional[Callable[..., Any]] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
     success: bool = True
@@ -93,6 +94,25 @@ class CommandResult:
                         self.table_renderer(self.data)
                     except TypeError:
                         self.table_renderer()
+
+    def render_tree(self) -> None:
+        """Call the tree renderer if provided, otherwise fallback to table renderer."""
+        if self.tree_renderer:
+            import inspect
+            try:
+                sig = inspect.signature(self.tree_renderer)
+                pos_params = [p for p in sig.parameters.values() if p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)]
+                if len(pos_params) == 0:
+                    self.tree_renderer()
+                else:
+                    self.tree_renderer(self.data)
+            except Exception:
+                try:
+                    self.tree_renderer(self.data)
+                except TypeError:
+                    self.tree_renderer()
+        else:
+            self.render_table()
 
     def render_paste(self) -> None:
         """Call the spreadsheet paste renderer if provided."""

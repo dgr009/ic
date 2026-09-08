@@ -1,0 +1,28 @@
+[
+  {
+    "project_id": "gcp-project-prod-67890",
+    "project_name": "Production Project",
+    "name": "prod-mysql-master",
+    "database_version": "MYSQL_8_0",
+    "region": "asia-northeast3",
+    "tier": "db-custom-4-16384",
+    "state": "RUNNABLE",
+    "high_availability": true,
+    "backup_enabled": true,
+    "ip_address": "10.128.5.20",
+    "databases": ["app_db", "user_db", "order_db"]
+  },
+  {
+    "project_id": "gcp-project-dev-12345",
+    "project_name": "Dev Project",
+    "name": "dev-postgres-instance",
+    "database_version": "POSTGRES_15",
+    "region": "asia-northeast3",
+    "tier": "db-f1-micro",
+    "state": "RUNNABLE",
+    "high_availability": false,
+    "backup_enabled": false,
+    "ip_address": "10.128.5.21",
+    "databases": ["dev_test"]
+  }
+]

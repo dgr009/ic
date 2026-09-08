@@ -42,7 +42,7 @@ class OutputFormatter:
     Formats CommandResult into table (TUI), json, yaml, or paste output.
     """
 
-    SUPPORTED_FORMATS = ("table", "json", "yaml", "paste")
+    SUPPORTED_FORMATS = ("table", "tree", "json", "yaml", "paste")
 
     @classmethod
     def format_and_print(
@@ -57,7 +57,7 @@ class OutputFormatter:
         
         Args:
             result: The CommandResult instance to display.
-            output_format: One of ('table', 'json', 'yaml', 'paste'). Default: 'table'.
+            output_format: One of ('table', 'tree', 'json', 'yaml', 'paste'). Default: 'table'.
             verbose: Verbose output flag (-v).
             paste_mode: Paste mode flag (-p). If True and format is 'table', uses paste renderer.
         """
@@ -76,6 +76,8 @@ class OutputFormatter:
             cls.print_json(result.data)
         elif fmt == "yaml":
             cls.print_yaml(result.data)
+        elif fmt == "tree":
+            result.render_tree()
         else:
             # Default: Table format (100% preserves existing platform TUI)
             result.render_table(verbose=verbose)

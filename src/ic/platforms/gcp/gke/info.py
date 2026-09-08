@@ -3,9 +3,17 @@ import argparse
 import json
 import os
 from typing import Dict, List, Optional, Any
-from google.cloud.container_v1 import ClusterManagerClient
-from google.cloud.container_v1.types import ListClustersRequest, GetClusterRequest
-from google.api_core import exceptions as gcp_exceptions
+try:
+    from google.cloud.container_v1 import ClusterManagerClient
+    from google.cloud.container_v1.types import ListClustersRequest, GetClusterRequest
+    from google.api_core import exceptions as gcp_exceptions
+    GCP_GKE_AVAILABLE = True
+except ImportError:
+    GCP_GKE_AVAILABLE = False
+    ClusterManagerClient = None
+    ListClustersRequest = None
+    GetClusterRequest = None
+    gcp_exceptions = None
 from rich.console import Console
 from rich.table import Table
 from rich import box
@@ -702,105 +710,112 @@ def print_cluster_table(clusters):
     format_table_output(clusters)
 
 
-def main(args):
-    """
-    메인 함수 - GCP GKE 클러스터 정보를 조회하고 출력합니다.
-    
-    Args:
-        args: CLI 인자 객체
-    """
-    try:
-        log_info("GCP GKE 클러스터 조회 시작")
-        
-        # GCP 인증 및 프로젝트 관리자 초기화
-        auth_manager = GCPAuthManager()
-        if not auth_manager.validate_credentials():
-            console.print("[bold red]GCP 인증에 실패했습니다. 인증 정보를 확인해주세요.[/bold red]")
-            return
-        
-        project_manager = GCPProjectManager(auth_manager)
-        resource_collector = GCPResourceCollector(auth_manager)
-        
-        # 프로젝트 목록 가져오기
-        if args.project:
-            # 특정 프로젝트 지정된 경우
-            projects = [args.project]
-        else:
-            # 모든 접근 가능한 프로젝트 사용
-            projects = project_manager.get_projects()
-        
-        if not projects:
-            console.print("[yellow]접근 가능한 GCP 프로젝트가 없습니다.[/yellow]")
-            return
-        
-        log_info(f"조회할 프로젝트: {len(projects)}개")
-        
-        # 병렬로 GKE 클러스터 수집
-        all_clusters = resource_collector.parallel_collect(
-            projects, 
-            fetch_gke_clusters,
-            args.location if hasattr(args, 'location') else None
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+class GcpGkeInfoCommand(BaseCommand):
+    """GCP GKE 클러스터 정보 조회 커맨드"""
+
+    @classmethod
+    def add_arguments(cls, parser) -> None:
+        cls.add_common_arguments(parser)
+        parser.add_argument(
+            '-p', '--project', 
+            help='GCP 프로젝트 ID로 필터링 (예: my-project-123)'
         )
-        
-        if not all_clusters:
-            console.print("[yellow]조회된 GKE 클러스터가 없습니다.[/yellow]")
-            return
-        
-        # 필터 적용
-        filters = {}
-        if hasattr(args, 'cluster') and args.cluster:
-            filters['name'] = args.cluster
-        if hasattr(args, 'project') and args.project:
-            filters['project'] = args.project
-        if hasattr(args, 'location') and args.location:
-            filters['zone'] = args.location  # location을 zone 필터로 사용
-        
-        filtered_clusters = resource_collector.apply_filters(all_clusters, filters)
-        
-        # 출력 형식 결정
-        output_format = getattr(args, 'output', 'table')
-        
-        # 결과 출력
-        if output_format in ['json', 'yaml']:
-            output_text = format_output(filtered_clusters, output_format)
-            console.print(output_text)
-        else:
-            format_output(filtered_clusters, output_format)
-        
-        log_info(f"총 {len(filtered_clusters)}개 GKE 클러스터 조회 완료")
-        
-    except KeyboardInterrupt:
-        console.print("\n[yellow]사용자에 의해 중단되었습니다.[/yellow]")
-    except Exception as e:
-        log_exception(e)
-        console.print(f"[bold red]오류 발생: {e}[/bold red]")
+        parser.add_argument(
+            '-c', '--cluster', 
+            help='클러스터 이름으로 필터링 (부분 일치)'
+        )
+        parser.add_argument(
+            '-l', '--location', 
+            help='위치로 필터링 (존 또는 지역, 예: us-central1-a 또는 us-central1)'
+        )
+        parser.add_argument(
+            '--mock',
+            action='store_true',
+            help='Mock 데이터를 사용하여 오프라인으로 실행'
+        )
+
+    def execute(self, args, config=None) -> CommandResult:
+        if getattr(args, 'mock', False):
+            clusters = load_mock_data()
+            filtered = []
+            cluster_filter = getattr(args, 'cluster', None)
+            proj_filter = getattr(args, 'project', None)
+            loc_filter = getattr(args, 'location', None)
+            for cl in clusters:
+                if cluster_filter and cluster_filter.lower() not in str(cl.get('name', '')).lower():
+                    continue
+                if proj_filter and proj_filter.lower() not in str(cl.get('project_id', '')).lower():
+                    continue
+                if loc_filter and loc_filter.lower() not in str(cl.get('location', '')).lower() and loc_filter.lower() not in str(cl.get('zone', '')).lower():
+                    continue
+                filtered.append(cl)
+            return CommandResult(
+                data=filtered,
+                table_renderer=format_table_output,
+                tree_renderer=format_tree_output,
+            )
+
+        if not GCP_GKE_AVAILABLE:
+            console.print("[red]❌ google-cloud-container 패키지가 설치되지 않았습니다.[/red]")
+            console.print("[yellow]   pip install 'ic-cli[gcp]' 또는 pip install google-cloud-container[/yellow]")
+            console.print("[yellow]   Mock 데이터로 테스트하려면 --mock 옵션을 사용하세요.[/yellow]")
+            return CommandResult(data=[], error="google-cloud-container is not installed", success=False)
+
+        try:
+            log_info("GCP GKE 클러스터 조회 시작")
+            auth_manager = GCPAuthManager()
+            if not auth_manager.validate_credentials():
+                console.print("[bold red]GCP 인증에 실패했습니다. 인증 정보를 확인해주세요.[/bold red]")
+                console.print("[yellow]   Mock 데이터로 테스트하려면 --mock 옵션을 사용하세요.[/yellow]")
+                return CommandResult(data=[], error="GCP authentication failed", success=False)
+
+            project_manager = GCPProjectManager(auth_manager)
+            resource_collector = GCPResourceCollector(auth_manager)
+
+            if getattr(args, 'project', None):
+                projects = [args.project]
+            else:
+                projects = project_manager.get_projects()
+
+            if not projects:
+                console.print("[yellow]접근 가능한 GCP 프로젝트가 없습니다.[/yellow]")
+                return CommandResult(data=[], table_renderer=format_table_output, tree_renderer=format_tree_output)
+
+            all_clusters = resource_collector.parallel_collect(
+                projects, 
+                fetch_gke_clusters,
+                getattr(args, 'location', None)
+            )
+
+            filters = {}
+            if getattr(args, 'cluster', None):
+                filters['name'] = args.cluster
+            if getattr(args, 'project', None):
+                filters['project'] = args.project
+            if getattr(args, 'location', None):
+                filters['zone'] = args.location
+
+            filtered_clusters = resource_collector.apply_filters(all_clusters, filters)
+            return CommandResult(
+                data=filtered_clusters,
+                table_renderer=format_table_output,
+                tree_renderer=format_tree_output,
+            )
+        except Exception as e:
+            log_exception(e)
+            console.print(f"[bold red]오류 발생: {e}[/bold red]")
+            return CommandResult(data=[], error=str(e), success=False)
 
 
-def add_arguments(parser):
-    """
-    CLI 인자를 추가합니다.
-    
-    Args:
-        parser: argparse.ArgumentParser 객체
-    """
-    parser.add_argument(
-        '-p', '--project', 
-        help='GCP 프로젝트 ID로 필터링 (예: my-project-123)'
-    )
-    parser.add_argument(
-        '-c', '--cluster', 
-        help='클러스터 이름으로 필터링 (부분 일치)'
-    )
-    parser.add_argument(
-        '-l', '--location', 
-        help='위치로 필터링 (존 또는 지역, 예: us-central1-a 또는 us-central1)'
-    )
-    parser.add_argument(
-        '-o', '--output', 
-        choices=['table', 'tree', 'json', 'yaml'],
-        default='table',
-        help='출력 형식 선택 (기본값: table)'
-    )
+def main(args, config=None) -> None:
+    GcpGkeInfoCommand().run(args, config)
+
+
+def add_arguments(parser) -> None:
+    GcpGkeInfoCommand.add_arguments(parser)
 
 
 if __name__ == "__main__":

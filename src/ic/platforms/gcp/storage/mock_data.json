@@ -1,0 +1,38 @@
+[
+  {
+    "project_id": "gcp-project-dev-12345",
+    "project_name": "Dev Project",
+    "name": "dev-data-lake-bucket-01",
+    "location": "ASIA-NORTHEAST3",
+    "storage_class": "STANDARD",
+    "versioning_enabled": true,
+    "object_count": 1420,
+    "total_size": 10737418240,
+    "creation_time": "2024-01-15T09:30:00Z",
+    "labels": {"env": "dev", "team": "data"}
+  },
+  {
+    "project_id": "gcp-project-prod-67890",
+    "project_name": "Production Project",
+    "name": "prod-backup-archive-bucket",
+    "location": "ASIA-NORTHEAST3",
+    "storage_class": "COLDLINE",
+    "versioning_enabled": true,
+    "object_count": 52300,
+    "total_size": 107374182400,
+    "creation_time": "2023-11-20T14:10:00Z",
+    "labels": {"env": "prod", "retention": "365d"}
+  },
+  {
+    "project_id": "gcp-project-prod-67890",
+    "project_name": "Production Project",
+    "name": "prod-static-assets-web",
+    "location": "MULTI-REGION-ASIA",
+    "storage_class": "STANDARD",
+    "versioning_enabled": false,
+    "object_count": 8900,
+    "total_size": 2147483648,
+    "creation_time": "2024-03-01T12:00:00Z",
+    "labels": {"env": "prod", "service": "frontend"}
+  }
+]

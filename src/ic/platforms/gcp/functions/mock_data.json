@@ -1,0 +1,26 @@
+[
+  {
+    "project_id": "gcp-project-prod-67890",
+    "project_name": "Production Project",
+    "region": "asia-northeast3",
+    "name": "image-resizer-fn",
+    "runtime": "python311",
+    "trigger_type": "Event",
+    "status": "ACTIVE",
+    "memory_mb": 512,
+    "timeout_seconds": 60,
+    "env_var_count": 4
+  },
+  {
+    "project_id": "gcp-project-dev-12345",
+    "project_name": "Dev Project",
+    "region": "asia-northeast3",
+    "name": "slack-alert-webhook",
+    "runtime": "nodejs20",
+    "trigger_type": "HTTP",
+    "status": "ACTIVE",
+    "memory_mb": 256,
+    "timeout_seconds": 30,
+    "env_var_count": 2
+  }
+]

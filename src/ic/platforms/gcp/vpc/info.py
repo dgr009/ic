@@ -3,12 +3,27 @@ import argparse
 import json
 import os
 from typing import Dict, List, Optional, Any
-from google.cloud.compute_v1 import NetworksClient, SubnetworksClient, FirewallsClient, RegionsClient
-from google.cloud.compute_v1.types import (
-    ListNetworksRequest, ListSubnetworksRequest, ListFirewallsRequest, 
-    ListRegionsRequest, GetNetworkRequest, GetSubnetworkRequest
-)
-from google.api_core import exceptions as gcp_exceptions
+try:
+    from google.cloud.compute_v1 import NetworksClient, SubnetworksClient, FirewallsClient, RegionsClient
+    from google.cloud.compute_v1.types import (
+        ListNetworksRequest, ListSubnetworksRequest, ListFirewallsRequest, 
+        ListRegionsRequest, GetNetworkRequest, GetSubnetworkRequest
+    )
+    from google.api_core import exceptions as gcp_exceptions
+    GCP_VPC_AVAILABLE = True
+except ImportError:
+    GCP_VPC_AVAILABLE = False
+    NetworksClient = None
+    SubnetworksClient = None
+    FirewallsClient = None
+    RegionsClient = None
+    ListNetworksRequest = None
+    ListSubnetworksRequest = None
+    ListFirewallsRequest = None
+    ListRegionsRequest = None
+    GetNetworkRequest = None
+    GetSubnetworkRequest = None
+    gcp_exceptions = None
 from rich.console import Console
 from rich.table import Table
 from rich import box
@@ -595,105 +610,112 @@ def print_network_table(networks):
     format_table_output(networks)
 
 
-def main(args):
-    """
-    메인 함수 - GCP VPC 네트워크 정보를 조회하고 출력합니다.
-    
-    Args:
-        args: CLI 인자 객체
-    """
-    try:
-        log_info("GCP VPC 네트워크 조회 시작")
-        
-        # GCP 인증 및 프로젝트 관리자 초기화
-        auth_manager = GCPAuthManager()
-        if not auth_manager.validate_credentials():
-            console.print("[bold red]GCP 인증에 실패했습니다. 인증 정보를 확인해주세요.[/bold red]")
-            return
-        
-        project_manager = GCPProjectManager(auth_manager)
-        resource_collector = GCPResourceCollector(auth_manager)
-        
-        # 프로젝트 목록 가져오기
-        if args.project:
-            # 특정 프로젝트 지정된 경우
-            projects = [args.project]
-        else:
-            # 모든 접근 가능한 프로젝트 사용
-            projects = project_manager.get_projects()
-        
-        if not projects:
-            console.print("[yellow]접근 가능한 GCP 프로젝트가 없습니다.[/yellow]")
-            return
-        
-        log_info(f"조회할 프로젝트: {len(projects)}개")
-        
-        # 병렬로 VPC 네트워크 수집
-        all_networks = resource_collector.parallel_collect(
-            projects, 
-            fetch_vpc_networks,
-            args.region if hasattr(args, 'region') else None
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+class GcpVpcInfoCommand(BaseCommand):
+    """GCP VPC 네트워크 정보 조회 커맨드"""
+
+    @classmethod
+    def add_arguments(cls, parser) -> None:
+        cls.add_common_arguments(parser)
+        parser.add_argument(
+            '-p', '--project', 
+            help='GCP 프로젝트 ID로 필터링 (예: my-project-123)'
         )
-        
-        if not all_networks:
-            console.print("[yellow]조회된 VPC 네트워크가 없습니다.[/yellow]")
-            return
-        
-        # 필터 적용
-        filters = {}
-        if hasattr(args, 'name') and args.name:
-            filters['name'] = args.name
-        if hasattr(args, 'project') and args.project:
-            filters['project'] = args.project
-        if hasattr(args, 'region') and args.region:
-            filters['region'] = args.region
-        
-        filtered_networks = resource_collector.apply_filters(all_networks, filters)
-        
-        # 출력 형식 결정
-        output_format = getattr(args, 'output', 'table')
-        
-        # 결과 출력
-        if output_format in ['json', 'yaml']:
-            output_text = format_output(filtered_networks, output_format)
-            console.print(output_text)
-        else:
-            format_output(filtered_networks, output_format)
-        
-        log_info(f"총 {len(filtered_networks)}개 VPC 네트워크 조회 완료")
-        
-    except KeyboardInterrupt:
-        console.print("\n[yellow]사용자에 의해 중단되었습니다.[/yellow]")
-    except Exception as e:
-        log_exception(e)
-        console.print(f"[bold red]오류 발생: {e}[/bold red]")
+        parser.add_argument(
+            '-n', '--name', 
+            help='네트워크 이름으로 필터링 (부분 일치)'
+        )
+        parser.add_argument(
+            '-r', '--region', 
+            help='지역으로 필터링 (예: us-central1)'
+        )
+        parser.add_argument(
+            '--mock',
+            action='store_true',
+            help='Mock 데이터를 사용하여 오프라인으로 실행'
+        )
+
+    def execute(self, args, config=None) -> CommandResult:
+        if getattr(args, 'mock', False):
+            networks = load_mock_data()
+            filtered = []
+            name_filter = getattr(args, 'name', None)
+            proj_filter = getattr(args, 'project', None)
+            region_filter = getattr(args, 'region', None)
+            for net in networks:
+                if name_filter and name_filter.lower() not in str(net.get('name', '')).lower():
+                    continue
+                if proj_filter and proj_filter.lower() not in str(net.get('project_id', '')).lower():
+                    continue
+                if region_filter and region_filter.lower() not in str(net.get('region', '')).lower():
+                    continue
+                filtered.append(net)
+            return CommandResult(
+                data=filtered,
+                table_renderer=format_table_output,
+                tree_renderer=format_tree_output,
+            )
+
+        if not GCP_VPC_AVAILABLE:
+            console.print("[red]❌ google-cloud-compute 패키지가 설치되지 않았습니다.[/red]")
+            console.print("[yellow]   pip install 'ic-cli[gcp]' 또는 pip install google-cloud-compute[/yellow]")
+            console.print("[yellow]   Mock 데이터로 테스트하려면 --mock 옵션을 사용하세요.[/yellow]")
+            return CommandResult(data=[], error="google-cloud-compute is not installed", success=False)
+
+        try:
+            log_info("GCP VPC 네트워크 조회 시작")
+            auth_manager = GCPAuthManager()
+            if not auth_manager.validate_credentials():
+                console.print("[bold red]GCP 인증에 실패했습니다. 인증 정보를 확인해주세요.[/bold red]")
+                console.print("[yellow]   Mock 데이터로 테스트하려면 --mock 옵션을 사용하세요.[/yellow]")
+                return CommandResult(data=[], error="GCP authentication failed", success=False)
+
+            project_manager = GCPProjectManager(auth_manager)
+            resource_collector = GCPResourceCollector(auth_manager)
+
+            if getattr(args, 'project', None):
+                projects = [args.project]
+            else:
+                projects = project_manager.get_projects()
+
+            if not projects:
+                console.print("[yellow]접근 가능한 GCP 프로젝트가 없습니다.[/yellow]")
+                return CommandResult(data=[], table_renderer=format_table_output, tree_renderer=format_tree_output)
+
+            all_networks = resource_collector.parallel_collect(
+                projects, 
+                fetch_vpc_networks,
+                getattr(args, 'region', None)
+            )
+
+            filters = {}
+            if getattr(args, 'name', None):
+                filters['name'] = args.name
+            if getattr(args, 'project', None):
+                filters['project'] = args.project
+            if getattr(args, 'region', None):
+                filters['region'] = args.region
+
+            filtered_networks = resource_collector.apply_filters(all_networks, filters)
+            return CommandResult(
+                data=filtered_networks,
+                table_renderer=format_table_output,
+                tree_renderer=format_tree_output,
+            )
+        except Exception as e:
+            log_exception(e)
+            console.print(f"[bold red]오류 발생: {e}[/bold red]")
+            return CommandResult(data=[], error=str(e), success=False)
 
 
-def add_arguments(parser):
-    """
-    CLI 인자를 추가합니다.
-    
-    Args:
-        parser: argparse.ArgumentParser 객체
-    """
-    parser.add_argument(
-        '-p', '--project', 
-        help='GCP 프로젝트 ID로 필터링 (예: my-project-123)'
-    )
-    parser.add_argument(
-        '-n', '--name', 
-        help='네트워크 이름으로 필터링 (부분 일치)'
-    )
-    parser.add_argument(
-        '-r', '--region', 
-        help='지역으로 필터링 (예: us-central1)'
-    )
-    parser.add_argument(
-        '-o', '--output', 
-        choices=['table', 'tree', 'json', 'yaml'],
-        default='table',
-        help='출력 형식 선택 (기본값: table)'
-    )
+def main(args, config=None) -> None:
+    GcpVpcInfoCommand().run(args, config)
+
+
+def add_arguments(parser) -> None:
+    GcpVpcInfoCommand.add_arguments(parser)
 
 
 if __name__ == "__main__":
