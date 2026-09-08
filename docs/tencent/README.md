@@ -2,11 +2,19 @@
 
 IC CLI provides comprehensive, production-grade management for **Tencent Cloud** resources.
 
+## 🖥️ Terminal UI Preview
+
+### CVM Instance Inspection (`ic tencent cvm info`)
+![Tencent CVM Info Terminal UI](tencent_cmv_ui_sample.png)
+
+---
+
 ## 📦 Supported Tencent Cloud Services
 
 ### 1. CVM (Cloud Virtual Machine)
-- **Command**: `ic tencent cvm info`
-- **Features**: List CVM instances across regions/accounts, displaying Instance ID, Name, State, CPU/Memory, Zone, Private/Public IPs, and attached Security Groups.
+- **Commands**:
+  - `ic tencent cvm info`: List CVM instances across regions/accounts, displaying Instance ID, Name, State, CPU/Memory, Zone, Private/Public IPs, and attached Security Groups.
+  - `ic tencent cvm desc`: Deep inspection of CVM instance attributes in tree, JSON, or YAML format with key filtering (`-k / --keys`, `-l / --list-keys`).
 
 ### 2. Lighthouse (Lightweight Application Server)
 - **Command**: `ic tencent lighthouse info`
@@ -16,6 +24,7 @@ IC CLI provides comprehensive, production-grade management for **Tencent Cloud**
 - **Commands**: 
   - `ic tencent clb info`: Inspect Load Balancers, listeners, rules, health check paths, and target instance health status.
   - `ic tencent clb traffic`: Query network bandwidth statistics (Client Input/Output Bandwidth Avg/Max in Mbps) and total data transfer over a given period (default: 7 days, `-d 30` for 30 days).
+  - `ic tencent clb desc`: Detailed CLB configuration and listener/rule hierarchy inspection with dot-notation key filtering.
 
 ### 4. VPC & Networking
 - **Commands**: `ic tencent vpc info`, `ic tencent nat info`

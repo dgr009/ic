@@ -20,6 +20,12 @@ A comprehensive, production-grade Infrastructure Command Line Interface tool for
 
 ---
 
+## 🖥️ Terminal UI Preview
+
+![Tencent CVM Info Terminal UI](docs/tencent/tencent_cmv_ui_sample.png)
+
+---
+
 ## 📦 Supported Platforms & Services
 
 ### 1. 🟧 AWS Services (Production Ready)
