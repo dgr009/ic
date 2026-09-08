@@ -27,6 +27,9 @@ jobs:
     - name: Check package
       run: twine check dist/*
     
+    - name: Run clean environment smoke test
+      run: bash scripts/ci-smoke-test.sh
+    
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:

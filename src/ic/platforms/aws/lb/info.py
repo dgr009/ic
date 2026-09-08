@@ -9,13 +9,14 @@ Usage:
     ic aws lb info -a 123456789012
     ic aws lb info -r ap-northeast-2
     ic aws lb info -n "my-alb"
+    ic aws lb info -v
 """
 
-import os
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Any, Dict, List, Optional
 
-import boto3
+import boto3  # type: ignore
 from dotenv import load_dotenv
 from rich.console import Console
 from rich.table import Table
@@ -25,18 +26,33 @@ from rich.rule import Rule
 from common.log import log_info_non_console
 from common.progress_decorator import ManualProgress
 from common.utils import get_env_accounts, get_profiles, DEFINED_REGIONS
+from ic.core.interfaces import BaseCommand, CommandResult
 
 load_dotenv()
 console = Console()
 
 
-def fetch_lb_one_account_region(account_id, profile_name, region_name, name_filter):
+def _format_created_time(created_time: Any) -> str:
+    if not created_time:
+        return "-"
+    try:
+        return created_time.strftime("%Y-%m-%d %H:%M")
+    except Exception:
+        return str(created_time)[:16]
+
+
+def fetch_lb_one_account_region(
+    account_id: str,
+    profile_name: str,
+    region_name: str,
+    name_filter: Optional[str]
+) -> List[Dict[str, Any]]:
     log_info_non_console(f"LB 정보 수집 시작: Account={account_id}, Region={region_name}")
     session = boto3.Session(profile_name=profile_name, region_name=region_name)
     elbv2_client = session.client("elbv2", region_name=region_name)
     ec2_client = session.client("ec2", region_name=region_name)
 
-    rows = []
+    rows: List[Dict[str, Any]] = []
 
     try:
         lbs = elbv2_client.describe_load_balancers().get("LoadBalancers", [])
@@ -55,6 +71,9 @@ def fetch_lb_one_account_region(account_id, profile_name, region_name, name_filt
         lb_type = lb['Type']
         lb_scheme = lb['Scheme']
         lb_dns = lb.get('DNSName', '-')
+        vpc_id = lb.get('VpcId', '-')
+        state_code = lb.get('State', {}).get('Code', '-') if isinstance(lb.get('State'), dict) else str(lb.get('State', '-'))
+        create_time = _format_created_time(lb.get('CreatedTime'))
 
         try:
             listeners = elbv2_client.describe_listeners(LoadBalancerArn=lb_arn).get('Listeners', [])
@@ -64,8 +83,10 @@ def fetch_lb_one_account_region(account_id, profile_name, region_name, name_filt
 
         if not listeners:
             rows.append({
-                "account": account_id, "region": region_name, "lb_name": lb_name, "type": lb_type,
-                "scheme": lb_scheme, "dns": lb_dns, "listener": "(No Listeners)", "target_group": "-",
+                "account": account_id, "region": region_name, "lb_name": lb_name, "lb_arn": lb_arn,
+                "type": lb_type, "scheme": lb_scheme, "dns": lb_dns, "status": state_code,
+                "vpc_id": vpc_id, "create_time": create_time,
+                "listener": "(No Listeners)", "target_group": "-",
                 "hc_path": "-", "targets": "-", "health": "-"
             })
             continue
@@ -86,8 +107,10 @@ def fetch_lb_one_account_region(account_id, profile_name, region_name, name_filt
 
             if not target_groups:
                 rows.append({
-                    "account": account_id, "region": region_name, "lb_name": lb_name, "type": lb_type,
-                    "scheme": lb_scheme, "dns": lb_dns, "listener": listener_str, "target_group": "(No Target Groups)",
+                    "account": account_id, "region": region_name, "lb_name": lb_name, "lb_arn": lb_arn,
+                    "type": lb_type, "scheme": lb_scheme, "dns": lb_dns, "status": state_code,
+                    "vpc_id": vpc_id, "create_time": create_time,
+                    "listener": listener_str, "target_group": "(No Target Groups)",
                     "hc_path": "-", "targets": "-", "health": "-"
                 })
                 continue
@@ -101,8 +124,10 @@ def fetch_lb_one_account_region(account_id, profile_name, region_name, name_filt
 
             if not tg_details:
                 rows.append({
-                    "account": account_id, "region": region_name, "lb_name": lb_name, "type": lb_type,
-                    "scheme": lb_scheme, "dns": lb_dns, "listener": listener_str, "target_group": "(Target Group Error)",
+                    "account": account_id, "region": region_name, "lb_name": lb_name, "lb_arn": lb_arn,
+                    "type": lb_type, "scheme": lb_scheme, "dns": lb_dns, "status": state_code,
+                    "vpc_id": vpc_id, "create_time": create_time,
+                    "listener": listener_str, "target_group": "(Target Group Error)",
                     "hc_path": "-", "targets": "-", "health": "-"
                 })
                 continue
@@ -119,8 +144,10 @@ def fetch_lb_one_account_region(account_id, profile_name, region_name, name_filt
 
                 if not health_checks:
                     rows.append({
-                        "account": account_id, "region": region_name, "lb_name": lb_name, "type": lb_type,
-                        "scheme": lb_scheme, "dns": lb_dns, "listener": listener_str, "target_group": tg_name,
+                        "account": account_id, "region": region_name, "lb_name": lb_name, "lb_arn": lb_arn,
+                        "type": lb_type, "scheme": lb_scheme, "dns": lb_dns, "status": state_code,
+                        "vpc_id": vpc_id, "create_time": create_time,
+                        "listener": listener_str, "target_group": tg_name,
                         "hc_path": hc_path, "targets": "(No Targets)", "health": "-"
                     })
                     continue
@@ -161,15 +188,17 @@ def fetch_lb_one_account_region(account_id, profile_name, region_name, name_filt
                         health_colored = f"[bold yellow]{health_status.capitalize()}[/bold yellow]"
 
                     rows.append({
-                        "account": account_id, "region": region_name, "lb_name": lb_name, "type": lb_type,
-                        "scheme": lb_scheme, "dns": lb_dns, "listener": listener_str, "target_group": tg_name,
+                        "account": account_id, "region": region_name, "lb_name": lb_name, "lb_arn": lb_arn,
+                        "type": lb_type, "scheme": lb_scheme, "dns": lb_dns, "status": state_code,
+                        "vpc_id": vpc_id, "create_time": create_time,
+                        "listener": listener_str, "target_group": tg_name,
                         "hc_path": hc_path, "targets": target_name, "health": health_colored
                     })
 
     return rows
 
 
-def print_lb_table(all_rows):
+def print_lb_table(all_rows: List[Dict[str, Any]], verbose: bool = False) -> None:
     if not all_rows:
         console.print("[yellow]표시할 로드 밸런서 정보가 없습니다.[/yellow]")
         return
@@ -179,20 +208,35 @@ def print_lb_table(all_rows):
     table = Table(box=box.HORIZONTALS, expand=False, show_header=True, header_style="bold")
     table.show_edge = False
 
-    headers = ["Account", "Region", "LB Name", "Type", "Scheme", "Listener", "Target Group", "Health Path", "Target (Instance / IP:Port)", "Health"]
-    keys = ["account", "region", "lb_name", "type", "scheme", "listener", "target_group", "hc_path", "targets", "health"]
+    if verbose:
+        headers = [
+            "Account", "Region", "LB Name", "Type", "Scheme", "Status",
+            "DNS", "Listener", "Target Group", "Health Path",
+            "Target (Instance / IP:Port)", "Health", "VPC", "Created"
+        ]
+    else:
+        headers = [
+            "Account", "Region", "LB Name", "Type", "Scheme",
+            "Listener", "Target Group", "Health Path",
+            "Target (Instance / IP:Port)", "Health"
+        ]
 
     for h in headers:
         if h == "Account":
             table.add_column(h, style="bold magenta")
         elif h == "Region":
             table.add_column(h, style="bold cyan")
-        elif h == "Health":
+        elif h in ["Health", "Status"]:
             table.add_column(h, justify="center")
         else:
             table.add_column(h)
 
-    last_account, last_region, last_lb, last_listener, last_tg = None, None, None, None, None
+    last_account = None
+    last_region = None
+    last_lb = None
+    last_listener = None
+    last_tg = None
+
     for i, row in enumerate(all_rows):
         account_changed = row["account"] != last_account
         region_changed = row["region"] != last_region
@@ -208,36 +252,54 @@ def print_lb_table(all_rows):
             elif lb_changed:
                 table.add_row("", "", *[Rule(style="dim") for _ in headers[2:]])
             elif listener_changed:
-                table.add_row("", "", "", "", "", *[Rule(style="dim") for _ in headers[5:]])
+                offset = 7 if verbose else 5
+                table.add_row(*["" for _ in range(offset)], *[Rule(style="dim") for _ in headers[offset:]])
             elif tg_changed:
-                table.add_row("", "", "", "", "", "", *[Rule(style="dim") for _ in headers[6:]])
+                offset = 8 if verbose else 6
+                table.add_row(*["" for _ in range(offset)], *[Rule(style="dim") for _ in headers[offset:]])
 
-        display_values = []
+        display_values: List[str] = []
         display_values.append(row["account"] if account_changed else "")
         display_values.append(row["region"] if account_changed or region_changed else "")
         display_values.append(row["lb_name"] if lb_changed else "")
         display_values.append(row["type"] if lb_changed else "")
         display_values.append(row["scheme"] if lb_changed else "")
-        display_values.append(row["listener"] if listener_changed else "")
-        display_values.append(row["target_group"] if tg_changed else "")
-        display_values.append(row["hc_path"] if tg_changed else "")
-        display_values.append(row["targets"])
-        display_values.append(row["health"])
+
+        if verbose:
+            display_values.append(row.get("status", "-") if lb_changed else "")
+            display_values.append(row.get("dns", "-") if lb_changed else "")
+            display_values.append(row["listener"] if listener_changed else "")
+            display_values.append(row["target_group"] if tg_changed else "")
+            display_values.append(row["hc_path"] if tg_changed else "")
+            display_values.append(row["targets"])
+            display_values.append(row["health"])
+            display_values.append(row.get("vpc_id", "-") if lb_changed else "")
+            display_values.append(row.get("create_time", "-") if lb_changed else "")
+        else:
+            display_values.append(row["listener"] if listener_changed else "")
+            display_values.append(row["target_group"] if tg_changed else "")
+            display_values.append(row["hc_path"] if tg_changed else "")
+            display_values.append(row["targets"])
+            display_values.append(row["health"])
 
         table.add_row(*display_values)
 
-        last_account, last_region, last_lb, last_listener, last_tg = row["account"], row["region"], row["lb_name"], row["listener"], row["target_group"]
+        last_account = row["account"]
+        last_region = row["region"]
+        last_lb = row["lb_name"]
+        last_listener = row["listener"]
+        last_tg = row["target_group"]
 
     console.print(table)
 
 
-def main(args):
-    accounts = get_env_accounts(args.account)
-    regions = args.regions.split(",") if args.regions else DEFINED_REGIONS
+def collect_lb_data(args: argparse.Namespace) -> List[Dict[str, Any]]:
+    """Collect AWS Load Balancer information across accounts and regions."""
+    accounts = get_env_accounts(getattr(args, "account", None))
+    regions = args.regions.split(",") if getattr(args, "regions", None) else DEFINED_REGIONS
     profiles_map = get_profiles()
-    name_filter = args.name if hasattr(args, 'name') and args.name else None
+    name_filter = getattr(args, "name", None)
 
-    # Filter out accounts without valid profiles
     valid_accounts = []
     for acct in accounts:
         profile_name = profiles_map.get(acct)
@@ -245,8 +307,8 @@ def main(args):
             valid_accounts.append((acct, profile_name))
 
     total_operations = len(valid_accounts) * len(regions)
+    all_rows: List[Dict[str, Any]] = []
 
-    all_rows = []
     with ManualProgress("Collecting Load Balancer information across accounts and regions", total=total_operations) as progress:
         with ThreadPoolExecutor() as executor:
             futures = []
@@ -272,17 +334,37 @@ def main(args):
                     log_info_non_console(f"Failed to collect LB data for {acct}/{reg}: {e}")
                     progress.update(f"Failed {acct}/{reg} - {str(e)[:50]}...", advance=1)
 
-    print_lb_table(all_rows)
+    return all_rows
 
 
-def add_arguments(parser):
-    parser.add_argument('-a', '--account', help='특정 AWS 계정 ID 목록(,) (없으면 .env 사용)')
-    parser.add_argument('-r', '--regions', help='리전 목록(,) (없으면 .env/DEFINED_REGIONS)')
-    parser.add_argument('-n', '--name', help='LB 이름 필터 (콤마(,)로 복수 검색 가능, 예: web,api)')
+class AwsLbInfoCommand(BaseCommand):
+    """AWS Load Balancer (ALB/NLB) info command implementation."""
+
+    @classmethod
+    def add_arguments(cls, parser: argparse.ArgumentParser) -> None:
+        cls.add_common_arguments(parser)
+        parser.add_argument('-a', '--account', help='특정 AWS 계정 ID 목록(,) (없으면 .env 사용)')
+        parser.add_argument('-r', '--regions', help='리전 목록(,) (없으면 .env/DEFINED_REGIONS)')
+        parser.add_argument('-n', '--name', help='LB 이름 필터 (콤마(,)로 복수 검색 가능, 예: web,api)')
+        parser.add_argument('-v', '--verbose', action='store_true', help='상세 정보 출력 (Status, DNS, VPC, Created 등)')
+
+    def execute(self, args: argparse.Namespace, config: Optional[Any] = None) -> CommandResult:
+        rows = collect_lb_data(args)
+        return CommandResult(
+            data=rows,
+            table_renderer=print_lb_table,
+        )
+
+
+def main(args: argparse.Namespace, config: Optional[Any] = None) -> None:
+    AwsLbInfoCommand().run(args, config)
+
+
+def add_arguments(parser: argparse.ArgumentParser) -> None:
+    AwsLbInfoCommand.add_arguments(parser)
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="AWS LB 정보 (병렬 수집)")
     add_arguments(parser)
-    args = parser.parse_args()
-    main(args)
+    main(parser.parse_args())

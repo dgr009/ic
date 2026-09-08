@@ -43,11 +43,9 @@ class DependencyValidator:
     
     # Core dependencies required for basic functionality
     CORE_DEPENDENCIES = {
-        "boto3": ">=1.26.0",
         "requests": ">=2.28.0", 
         "rich": ">=12.0.0",
         "PyYAML": ">=6.0",
-        "paramiko": ">=2.11.0",
         "python-dotenv": ">=0.19.0",
         "cryptography": ">=3.4.8",
         "tqdm": ">=4.67.0",
@@ -56,8 +54,12 @@ class DependencyValidator:
     # Optional dependencies for specific cloud platforms
     OPTIONAL_DEPENDENCIES = {
         "aws": {
+            "boto3": ">=1.26.0",
             "awscli": ">=1.42.0",
             "kubernetes": ">=29.0.0",
+        },
+        "tencent": {
+            "tencentcloud-sdk-python": ">=3.0.0",
         },
         "oci": {
             "oci": ">=2.149.0",

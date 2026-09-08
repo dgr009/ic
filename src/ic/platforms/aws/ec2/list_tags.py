@@ -6,42 +6,31 @@ from rich.console import Console
 from rich.table import Table
 
 console = Console()
+config = None
 
 # 새로운 설정 시스템에서 태그 키 가져오기
 def get_tag_keys():
     """설정에서 태그 키를 가져옵니다."""
-    # 함수 내부에서 ConfigManager 로드
-    try:
-        from ic.config.manager import ConfigManager
-        config_manager = ConfigManager()
-        config_manager.load_config()  # 기본 설정 로드
-        secrets = config_manager.load_secrets_config()  # secrets.yaml 로드
-        config = config_manager.get_config()  # 기본 설정 가져오기
-        
-        # secrets의 aws 설정을 config에 병합
-        if secrets and 'aws' in secrets:
-            if 'aws' not in config:
-                config['aws'] = {}
-            config['aws'].update(secrets['aws'])
-    except ImportError:
+    global config
+    cfg = config
+    if cfg is None:
         try:
             from ic.config.manager import ConfigManager
             config_manager = ConfigManager()
             config_manager.load_config()  # 기본 설정 로드
             secrets = config_manager.load_secrets_config()  # secrets.yaml 로드
-            config = config_manager.get_config()  # 기본 설정 가져오기
+            cfg = config_manager.get_config()  # 기본 설정 가져오기
             
             # secrets의 aws 설정을 config에 병합
             if secrets and 'aws' in secrets:
-                if 'aws' not in config:
-                    config['aws'] = {}
-                config['aws'].update(secrets['aws'])
-        except ImportError:
-            # Legacy fallback
-            config = {}
+                if 'aws' not in cfg:
+                    cfg['aws'] = {}
+                cfg['aws'].update(secrets['aws'])
+        except Exception:
+            cfg = {}
     
-    if config and 'aws' in config and 'tags' in config['aws']:
-        aws_tags = config['aws']['tags']
+    if cfg and 'aws' in cfg and 'tags' in cfg['aws']:
+        aws_tags = cfg['aws']['tags']
         required_tags = aws_tags.get('required', [])
         optional_tags = aws_tags.get('optional', [])
     else:

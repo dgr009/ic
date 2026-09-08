@@ -16,6 +16,8 @@ Features:
 
 import functools
 import inspect
+import os
+import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -83,13 +85,18 @@ class ProgressBarDecorator:
         self.show_spinner = show_spinner
         self.auto_detect = auto_detect
         self.max_workers = max_workers or 4
-        self.console = Console() if RICH_AVAILABLE else None
+        # Route progress bars to stderr so stdout remains clean for piping (JSON, YAML, jq, etc.)
+        self.console = Console(stderr=True) if RICH_AVAILABLE else None
         
     def __call__(self, func: Callable) -> Callable:
         """Apply the progress bar decorator to a function."""
         
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
+            # Check if progress bars should be suppressed
+            if os.environ.get("IC_DISABLE_PROGRESS_BARS", "").lower() in ("true", "1", "yes"):
+                return func(*args, **kwargs)
+
             # Extract function name for default description
             func_name = getattr(func, '__name__', 'Operation')
             display_name = self.description or f"Running {func_name.replace('_', ' ').title()}"
@@ -328,17 +335,19 @@ class ProgressBarDecorator:
     
     def _fallback_execution(self, func: Callable, description: str, *args, **kwargs) -> Any:
         """Fallback execution when Rich is not available."""
-        print(f"Starting: {description}")
+        if os.environ.get("IC_DISABLE_PROGRESS_BARS", "").lower() in ("true", "1", "yes"):
+            return func(*args, **kwargs)
+        print(f"Starting: {description}", file=sys.stderr)
         start_time = time.time()
         
         try:
             result = func(*args, **kwargs)
             elapsed = time.time() - start_time
-            print(f"Completed: {description} (took {elapsed:.2f}s)")
+            print(f"Completed: {description} (took {elapsed:.2f}s)", file=sys.stderr)
             return result
         except Exception as e:
             elapsed = time.time() - start_time
-            print(f"Failed: {description} (took {elapsed:.2f}s) - {str(e)}")
+            print(f"Failed: {description} (took {elapsed:.2f}s) - {str(e)}", file=sys.stderr)
             raise
 
 
@@ -416,15 +425,22 @@ class ManualProgress:
     """
     
     def __init__(self, description: str, total: Optional[int] = None, **kwargs):
+        import os
         self.description = description
         self.total = total
         self.kwargs = kwargs
         self.progress = None
         self.task_id = None
-        self.console = Console() if RICH_AVAILABLE else None
+        
+        # Check if progress bars should be suppressed
+        is_disabled = os.environ.get("IC_DISABLE_PROGRESS_BARS", "").lower() in ("true", "1", "yes")
+        self.disabled = is_disabled or kwargs.get("disable", False)
+        
+        # Route progress bars to stderr so stdout remains clean for piping (JSON, YAML, jq, etc.)
+        self.console = Console(stderr=True) if (RICH_AVAILABLE and not self.disabled) else None
     
     def __enter__(self):
-        if RICH_AVAILABLE:
+        if RICH_AVAILABLE and not self.disabled:
             columns = [
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
@@ -465,7 +481,8 @@ class ManualProgress:
             if update_kwargs:
                 self.progress.update(self.task_id, **update_kwargs)
         elif not RICH_AVAILABLE and description:
-            print(f"Progress: {description}")
+            if not self.disabled:
+                print(f"Progress: {description}", file=sys.stderr)
     
     def advance(self, amount: int = 1):
         """Advance progress by specified amount."""

@@ -413,11 +413,7 @@ def print_clb_table(all_rows: List[Dict[str, Any]], verbose: bool) -> None:
     console.print(table)
 
 
-def main(args) -> None:
-    if not check_sdk_available():
-        console.print("[red]❌ tencentcloud-sdk-python 이 설치되지 않았습니다.[/red]")
-        sys.exit(1)
-
+def collect_clb_data(args) -> List[Dict[str, Any]]:
     accounts    = get_accounts(getattr(args, "account", None))
     if not accounts:
         console.print("[red]❌ Tencent 계정 설정이 없습니다.[/red]")
@@ -425,7 +421,6 @@ def main(args) -> None:
 
     regions     = get_tencent_regions(getattr(args, "regions", None))
     name_filter = getattr(args, "name", None)
-    verbose     = getattr(args, "verbose", False)
     total_ops   = len(accounts) * len(regions)
     all_rows: List[Dict[str, Any]] = []
 
@@ -447,14 +442,40 @@ def main(args) -> None:
                     log_info_non_console(f"[CLB] Future 실패: {acct_name}/{region}: {e}")
                     progress.update(f"Failed {acct_name}/{region}", advance=1)
 
-    print_clb_table(all_rows, verbose)
+    return all_rows
+
+
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+class TencentClbInfoCommand(BaseCommand):
+    """Tencent CLB info command implementation."""
+
+    @classmethod
+    def add_arguments(cls, parser) -> None:
+        cls.add_common_arguments(parser)
+        parser.add_argument("-a", "--account", help="계정 이름 또는 ID 목록(,) (없으면 전체 계정 조회)")
+        parser.add_argument("-r", "--regions", help="리전 목록(,) 예: ap-seoul,ap-tokyo")
+        parser.add_argument("-n", "--name", help="CLB 이름/ID 필터 (콤마(,)로 복수 검색 가능, 예: web,api)")
+        parser.add_argument("-v", "--verbose", action="store_true", help="상세 정보 출력 (LB ID, DNS, VPC, 과금 방식 등)")
+
+    def execute(self, args, config=None) -> CommandResult:
+        if not check_sdk_available():
+            console.print("[red]❌ tencentcloud-sdk-python 이 설치되지 않았습니다.[/red]")
+            sys.exit(1)
+        rows = collect_clb_data(args)
+        return CommandResult(
+            data=rows,
+            table_renderer=print_clb_table,
+        )
+
+
+def main(args, config=None) -> None:
+    TencentClbInfoCommand().run(args, config)
 
 
 def add_arguments(parser) -> None:
-    parser.add_argument("-a", "--account", help="계정 이름 또는 ID 목록(,) (없으면 전체 계정 조회)")
-    parser.add_argument("-r", "--regions", help="리전 목록(,) 예: ap-seoul,ap-tokyo")
-    parser.add_argument("-n", "--name", help="CLB 이름/ID 필터 (콤마(,)로 복수 검색 가능, 예: web,api)")
-    parser.add_argument("-v", "--verbose", action="store_true", help="상세 정보 출력 (LB ID, DNS, VPC, 과금 방식 등)")
+    TencentClbInfoCommand.add_arguments(parser)
 
 
 if __name__ == "__main__":

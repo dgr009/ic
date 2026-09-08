@@ -18,8 +18,14 @@ from typing import Dict, Optional, Tuple, Any
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-import boto3
-from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError
+try:
+    import boto3  # type: ignore
+    from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError  # type: ignore
+    BOTO3_AVAILABLE = True
+except ImportError:
+    boto3 = None  # type: ignore
+    BotoCoreError = ClientError = NoCredentialsError = Exception  # type: ignore
+    BOTO3_AVAILABLE = False
 
 from .logging import get_logger
 
@@ -39,7 +45,7 @@ class ProfileInfo:
 @dataclass
 class SessionInfo:
     """Information about an AWS session"""
-    session: boto3.Session
+    session: Any
     account_id: str
     account_alias: str
     region: str
@@ -158,7 +164,7 @@ class AWSSessionManager:
             logger.log_info_file_only(f"Could not get account ID for profile {profile_name}: {e}")
             return None
     
-    def create_session(self, account_id: str, region: str) -> Optional[boto3.Session]:
+    def create_session(self, account_id: str, region: str) -> Optional[Any]:
         """
         Create an AWS session for the specified account and region
         
@@ -220,7 +226,7 @@ class AWSSessionManager:
             
         return None
     
-    def _create_assume_role_session(self, profile_info: ProfileInfo, region: str) -> Optional[boto3.Session]:
+    def _create_assume_role_session(self, profile_info: ProfileInfo, region: str) -> Optional[Any]:
         """Create session using assume role"""
         if not profile_info.source_profile or not profile_info.role_arn:
             logger.log_error(f"Missing source_profile or role_arn for assume_role profile {profile_info.name}")
@@ -253,7 +259,7 @@ class AWSSessionManager:
             logger.log_error(f"Failed to assume role {profile_info.role_arn}: {e}")
             return None
     
-    def _create_direct_session(self, profile_info: ProfileInfo, region: str) -> Optional[boto3.Session]:
+    def _create_direct_session(self, profile_info: ProfileInfo, region: str) -> Optional[Any]:
         """Create session using direct credentials"""
         try:
             return boto3.Session(
@@ -274,7 +280,7 @@ class AWSSessionManager:
             age = datetime.now() - session_info.created_at
             return age < timedelta(hours=1)  # Refresh after 1 hour
     
-    def get_account_alias(self, session: boto3.Session) -> str:
+    def get_account_alias(self, session: Any) -> str:
         """
         Get account alias with fallback to account ID
         
@@ -311,7 +317,7 @@ class AWSSessionManager:
             logger.log_info_file_only(f"Failed to get account alias: {e}")
             return account_id if account_id else "unknown"
     
-    def create_sessions_parallel(self, account_regions: list) -> Dict[str, boto3.Session]:
+    def create_sessions_parallel(self, account_regions: list) -> Dict[str, Any]:
         """
         Create multiple sessions in parallel
         
@@ -373,7 +379,7 @@ def get_profiles() -> Dict[str, str]:
     return {account_id: profile.name for account_id, profile in profiles.items()}
 
 
-def create_session(profile_name: str, region_name: str) -> Optional[boto3.Session]:
+def create_session(profile_name: str, region_name: str) -> Optional[Any]:
     """
     Backward compatibility function for existing code
     

@@ -238,7 +238,7 @@ def print_ec2_table(all_rows, verbose):
         
     console.print(table)
 
-def main(args):
+def collect_ec2_data(args):
     accounts = get_env_accounts(args.account)
     regions = args.regions.split(",") if args.regions else DEFINED_REGIONS
     profiles_map = get_profiles()
@@ -280,17 +280,40 @@ def main(args):
                     log_info_non_console(f"Failed to collect EC2 data for {acct}/{reg}: {e}")
                     progress.update(f"Failed {acct}/{reg} - {str(e)[:50]}...", advance=1)
 
-    if getattr(args, 'paste', False):
-        print_paste_format(all_rows)
-    else:
-        print_ec2_table(all_rows, getattr(args, 'verbose', False))
+    return all_rows
+
+
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+class AwsEc2InfoCommand(BaseCommand):
+    """AWS EC2 info command implementation."""
+
+    @classmethod
+    def add_arguments(cls, parser):
+        cls.add_common_arguments(parser)
+        parser.add_argument('-a', '--account', help='특정 AWS 계정 ID 목록(,) (없으면 .env 사용)')
+        parser.add_argument('-r', '--regions', help='리전 목록(,) (없으면 .env/DEFINED_REGIONS)')
+        parser.add_argument('-n', '--name', help='인스턴스 이름/ID 필터 (콤마(,)로 복수 검색 가능, 예: web,api)')
+        parser.add_argument('-v', '--verbose', action='store_true', help='상세 정보 출력 (Instance ID, VPC, Subnet, SG 등)')
+        parser.add_argument('-p', '--paste', action='store_true', help='스프레드시트 복사용 콤마(,) 구분 텍스트 출력 (Name,ID,PrivateIP,PublicIP,Type,vCPU,Mem)')
+
+    def execute(self, args, config=None) -> CommandResult:
+        rows = collect_ec2_data(args)
+        return CommandResult(
+            data=rows,
+            table_renderer=print_ec2_table,
+            paste_renderer=print_paste_format,
+        )
+
+
+def main(args, config=None):
+    AwsEc2InfoCommand().run(args, config)
+
 
 def add_arguments(parser):
-    parser.add_argument('-a', '--account', help='특정 AWS 계정 ID 목록(,) (없으면 .env 사용)')
-    parser.add_argument('-r', '--regions', help='리전 목록(,) (없으면 .env/DEFINED_REGIONS)')
-    parser.add_argument('-n', '--name', help='인스턴스 이름/ID 필터 (콤마(,)로 복수 검색 가능, 예: web,api)')
-    parser.add_argument('-v', '--verbose', action='store_true', help='상세 정보 출력 (Instance ID, VPC, Subnet, SG 등)')
-    parser.add_argument('-p', '--paste', action='store_true', help='스프레드시트 복사용 콤마(,) 구분 텍스트 출력 (Name,ID,PrivateIP,PublicIP,Type,vCPU,Mem)')
+    AwsEc2InfoCommand.add_arguments(parser)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="EC2 인스턴스 정보 (병렬 수집)")

@@ -11,7 +11,7 @@ import sys
 import importlib
 import inspect
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Tuple, Any, Callable
 from dataclasses import dataclass
 
 
@@ -20,8 +20,8 @@ class ServiceInfo:
     """Information about a discovered service."""
     name: str
     module: Any
-    add_arguments: Optional[callable] = None
-    main: Optional[callable] = None
+    add_arguments: Optional[Callable[..., Any]] = None
+    main: Optional[Callable[..., Any]] = None
     available: bool = True
     error: Optional[str] = None
 
@@ -33,6 +33,74 @@ class PlatformInfo:
     services: Dict[str, ServiceInfo]
     available: bool = True
     error: Optional[str] = None
+
+
+class LazyCommandModule:
+    """
+    Lazy proxy for command modules to avoid loading heavyweight cloud SDKs during parser initialization.
+    Defers importing the underlying implementation until arguments need to be parsed or command is executed.
+    """
+    def __init__(self, platform_name: str, service_name: str, command_name: str, module_path: str):
+        self.platform_name = platform_name
+        self.service_name = service_name
+        self.command_name = command_name
+        self.module_path = module_path
+        self._real_module: Optional[Any] = None
+        self._import_error: Optional[Exception] = None
+
+    def _load_module(self) -> Optional[Any]:
+        if self._real_module is None and self._import_error is None:
+            try:
+                self._real_module = importlib.import_module(self.module_path)
+            except ImportError:
+                # Try fallback path for development mode
+                try:
+                    fallback_path = self.module_path.replace('ic.', 'src.ic.') if self.module_path.startswith('ic.') else f"src.{self.module_path}"
+                    self._real_module = importlib.import_module(fallback_path)
+                except ImportError as e2:
+                    self._import_error = e2
+            except Exception as e:
+                self._import_error = e
+        return self._real_module
+
+    def add_arguments(self, parser) -> None:
+        mod = self._load_module()
+        if mod and hasattr(mod, "add_arguments"):
+            try:
+                mod.add_arguments(parser)
+            except Exception as e:
+                if "--verbose" in sys.argv or "-v" in sys.argv:
+                    print(f"Warning: Could not add arguments for {self.platform_name}.{self.service_name}.{self.command_name}: {e}")
+        elif self._import_error:
+            # SDK missing: allow parser to register without crashing, provide help guidance
+            parser.description = f"⚠️  {self.platform_name.upper()} SDK가 설치되지 않았습니다. pip install 'ic-code[{self.platform_name}]'을 실행하세요."
+
+    def main(self, *args, **kwargs) -> Any:
+        mod = self._load_module()
+        if mod and hasattr(mod, "main"):
+            real_main = getattr(mod, "main")
+            try:
+                sig = inspect.signature(real_main)
+                params = [p for p in sig.parameters.values() if p.kind in (inspect.Parameter.POSITIONAL_ONLY, inspect.Parameter.POSITIONAL_OR_KEYWORD)]
+                if len(params) == 1 and len(args) > 1:
+                    return real_main(args[0])
+            except Exception:
+                pass
+            return real_main(*args, **kwargs)
+        elif self._import_error:
+            print(f"❌ {self.platform_name.upper()} 관련 의존성 패키지가 설치되지 않았거나 로드할 수 없습니다.")
+            print(f"   오류 내용: {self._import_error}")
+            print(f"💡 설치 방법: pip install 'ic-code[{self.platform_name}]'")
+            sys.exit(1)
+        else:
+            print(f"❌ Command '{self.command_name}' does not have a main function")
+            sys.exit(1)
+
+    def __getattr__(self, name: str) -> Any:
+        mod = self._load_module()
+        if mod and hasattr(mod, name):
+            return getattr(mod, name)
+        raise AttributeError(f"Module '{self.module_path}' has no attribute '{name}'")
 
 
 class PlatformDiscovery:
@@ -133,7 +201,7 @@ class PlatformDiscovery:
     
     def _discover_service(self, platform_name: str, service_name: str, service_path: Path) -> ServiceInfo:
         """
-        Discover a service within a platform directory.
+        Discover a service within a platform directory using lazy module proxies.
         
         Args:
             platform_name: Name of the platform
@@ -144,17 +212,14 @@ class PlatformDiscovery:
             ServiceInfo object
         """
         try:
-            # Discover all command modules in the service directory
+            # Discover all command modules in the service directory (lazily)
             command_modules = {}
             
             for file_path in service_path.iterdir():
                 if file_path.is_file() and file_path.suffix == '.py' and not file_path.name.startswith('_'):
                     command_name = file_path.stem
                     module_path = f"ic.platforms.{platform_name}.{service_name}.{command_name}"
-                    command_module = self._import_module(module_path)
-                    
-                    if command_module:
-                        command_modules[command_name] = command_module
+                    command_modules[command_name] = LazyCommandModule(platform_name, service_name, command_name, module_path)
             
             # Create a composite service info that can handle multiple commands
             if command_modules:
@@ -170,7 +235,7 @@ class PlatformDiscovery:
                     name=service_name,
                     module=None,
                     available=False,
-                    error=f"No command modules found in service directory"
+                    error="No command modules found in service directory"
                 )
                 
         except Exception as e:
@@ -213,7 +278,7 @@ class PlatformDiscovery:
                     name=service_name,
                     module=None,
                     available=False,
-                    error=f"Could not import service file"
+                    error="Could not import service file"
                 )
                 
         except Exception as e:

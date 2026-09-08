@@ -351,12 +351,7 @@ def print_paste_format(all_rows: List[Dict[str, Any]]) -> None:
         print(f"{name},{inst_id},{priv_ip},{pub_ip},{itype},{vcpu},{mem}")
 
 
-def main(args) -> None:
-    if not check_sdk_available():
-        console.print("[red]❌ tencentcloud-sdk-python 이 설치되지 않았습니다.[/red]")
-        console.print("[yellow]   pip install tencentcloud-sdk-python[/yellow]")
-        sys.exit(1)
-
+def collect_cvm_data(args) -> List[Dict[str, Any]]:
     accounts    = get_accounts(getattr(args, "account", None))
     if not accounts:
         console.print("[red]❌ Tencent 계정 설정이 없습니다.[/red]")
@@ -366,7 +361,6 @@ def main(args) -> None:
 
     regions = get_tencent_regions(getattr(args, "regions", None))
     name_filter = getattr(args, "name", None)
-    verbose = getattr(args, "verbose", False)
 
     total_ops = len(accounts) * len(regions)
     all_rows: List[Dict[str, Any]] = []
@@ -392,18 +386,43 @@ def main(args) -> None:
                     log_info_non_console(f"[CVM] Future 실패: {acct_name}/{region}: {e}")
                     progress.update(f"Failed {acct_name}/{region}", advance=1)
 
-    if getattr(args, "paste", False):
-        print_paste_format(all_rows)
-    else:
-        print_cvm_table(all_rows, verbose)
+    return all_rows
+
+
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+class TencentCvmInfoCommand(BaseCommand):
+    """Tencent CVM info command implementation."""
+
+    @classmethod
+    def add_arguments(cls, parser) -> None:
+        cls.add_common_arguments(parser)
+        parser.add_argument("-a", "--account", help="계정 이름 또는 ID 목록(,) (없으면 전체 계정 조회)")
+        parser.add_argument("-r", "--regions", help="리전 목록(,) 예: ap-seoul,ap-tokyo")
+        parser.add_argument("-n", "--name", help="인스턴스 이름/ID 필터 (콤마(,)로 복수 검색 가능, 예: web,api)")
+        parser.add_argument("-v", "--verbose", action="store_true", help="상세 정보 출력 (Instance ID, VPC, Subnet, SG 등)")
+        parser.add_argument("-p", "--paste", action="store_true", help="스프레드시트 복사용 콤마(,) 구분 텍스트 출력 (Name,ID,PrivateIP,PublicIP,Type,vCPU,Mem)")
+
+    def execute(self, args, config=None) -> CommandResult:
+        if not check_sdk_available():
+            console.print("[red]❌ tencentcloud-sdk-python 이 설치되지 않았습니다.[/red]")
+            console.print("[yellow]   pip install tencentcloud-sdk-python[/yellow]")
+            sys.exit(1)
+        rows = collect_cvm_data(args)
+        return CommandResult(
+            data=rows,
+            table_renderer=print_cvm_table,
+            paste_renderer=print_paste_format,
+        )
+
+
+def main(args, config=None) -> None:
+    TencentCvmInfoCommand().run(args, config)
 
 
 def add_arguments(parser) -> None:
-    parser.add_argument("-a", "--account", help="계정 이름 또는 ID 목록(,) (없으면 전체 계정 조회)")
-    parser.add_argument("-r", "--regions", help="리전 목록(,) 예: ap-seoul,ap-tokyo")
-    parser.add_argument("-n", "--name", help="인스턴스 이름/ID 필터 (콤마(,)로 복수 검색 가능, 예: web,api)")
-    parser.add_argument("-v", "--verbose", action="store_true", help="상세 정보 출력 (Instance ID, VPC, Subnet, SG 등)")
-    parser.add_argument("-p", "--paste", action="store_true", help="스프레드시트 복사용 콤마(,) 구분 텍스트 출력 (Name,ID,PrivateIP,PublicIP,Type,vCPU,Mem)")
+    TencentCvmInfoCommand.add_arguments(parser)
 
 
 if __name__ == "__main__":
