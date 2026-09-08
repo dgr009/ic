@@ -5,7 +5,7 @@ IC CLI provides comprehensive, production-grade management for **Tencent Cloud**
 ## 🖥️ Terminal UI Preview
 
 ### CVM Instance Inspection (`ic tencent cvm info`)
-![Tencent CVM Info Terminal UI](tencent_cmv_ui_sample.png)
+![Tencent CVM Info Terminal UI](use_sample.png)
 
 ---
 

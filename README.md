@@ -22,7 +22,7 @@ A comprehensive, production-grade Infrastructure Command Line Interface tool for
 
 ## 🖥️ Terminal UI Preview
 
-![Tencent CVM Info Terminal UI](docs/tencent/tencent_cmv_ui_sample.png)
+![Tencent CVM Info Terminal UI](docs/tencent/use_sample.png)
 
 ---
 
