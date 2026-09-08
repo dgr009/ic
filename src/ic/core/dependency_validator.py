@@ -207,7 +207,7 @@ class DependencyValidator:
                 
         return all_satisfied
         
-    def validate_optional_dependencies(self, platforms: List[str] = None) -> Dict[str, bool]:
+    def validate_optional_dependencies(self, platforms: Optional[List[str]] = None) -> Dict[str, bool]:
         """
         Validate optional dependencies for specific platforms.
         
@@ -332,7 +332,7 @@ class DependencyValidator:
                 
         print("\n" + "="*60)
         
-    def validate_all(self, platforms: List[str] = None) -> bool:
+    def validate_all(self, platforms: Optional[List[str]] = None) -> bool:
         """
         Run complete dependency validation.
         
@@ -354,7 +354,7 @@ class DependencyValidator:
         return python_ok and core_ok
 
 
-def validate_dependencies(platforms: List[str] = None, verbose: bool = True) -> bool:
+def validate_dependencies(platforms: Optional[List[str]] = None, verbose: bool = True) -> bool:
     """
     Convenience function to validate dependencies.
     

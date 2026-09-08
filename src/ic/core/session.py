@@ -18,12 +18,13 @@ from typing import Dict, Optional, Tuple, Any
 from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+boto3: Any = None
 try:
     import boto3  # type: ignore
     from botocore.exceptions import BotoCoreError, ClientError, NoCredentialsError  # type: ignore
     BOTO3_AVAILABLE = True
 except ImportError:
-    boto3 = None  # type: ignore
+    boto3 = None
     BotoCoreError = ClientError = NoCredentialsError = Exception  # type: ignore
     BOTO3_AVAILABLE = False
 
@@ -98,7 +99,7 @@ class AWSSessionManager:
             logger.log_error(f"Failed to read AWS config: {e}")
             return {}
         
-        profiles = {}
+        profiles: Dict[str, ProfileInfo] = {}
         
         # Process profile sections
         for section in config.sections():
@@ -155,6 +156,8 @@ class AWSSessionManager:
     
     def _get_account_id_from_session(self, profile_name: str) -> Optional[str]:
         """Get account ID from a session using STS get_caller_identity"""
+        if boto3 is None:
+            return None
         try:
             session = boto3.Session(profile_name=profile_name)
             sts = session.client('sts')
@@ -228,6 +231,9 @@ class AWSSessionManager:
     
     def _create_assume_role_session(self, profile_info: ProfileInfo, region: str) -> Optional[Any]:
         """Create session using assume role"""
+        if boto3 is None:
+            logger.log_error("boto3 is not available")
+            return None
         if not profile_info.source_profile or not profile_info.role_arn:
             logger.log_error(f"Missing source_profile or role_arn for assume_role profile {profile_info.name}")
             return None
@@ -261,6 +267,9 @@ class AWSSessionManager:
     
     def _create_direct_session(self, profile_info: ProfileInfo, region: str) -> Optional[Any]:
         """Create session using direct credentials"""
+        if boto3 is None:
+            logger.log_error("boto3 is not available")
+            return None
         try:
             return boto3.Session(
                 profile_name=profile_info.name,
@@ -390,6 +399,9 @@ def create_session(profile_name: str, region_name: str) -> Optional[Any]:
     Returns:
         boto3.Session or None
     """
+    if boto3 is None:
+        logger.log_error("boto3 is not available")
+        return None
     try:
         session = boto3.Session(profile_name=profile_name, region_name=region_name)
         logger.log_info_file_only(f"Created session for profile '{profile_name}' in region '{region_name}'")
