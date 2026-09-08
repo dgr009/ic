@@ -38,6 +38,16 @@ class BaseCommand(abc.ABC):
             except Exception:
                 pass
 
+        if "--paste" not in existing_actions:
+            try:
+                parser.add_argument(
+                    "--paste",
+                    action="store_true",
+                    help="스프레드시트 복사용 콤마(,) 구분 텍스트 출력"
+                )
+            except Exception:
+                pass
+
     @classmethod
     def add_arguments(cls, parser: argparse.ArgumentParser) -> None:
         """Override to add command-specific CLI arguments."""

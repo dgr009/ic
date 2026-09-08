@@ -1,0 +1,20 @@
+[
+  {
+    "name": "default",
+    "is_active": true,
+    "account": "user@example.com",
+    "project": "sample-project-prod",
+    "region": "asia-northeast3",
+    "zone": "asia-northeast3-a",
+    "status": "Active"
+  },
+  {
+    "name": "staging",
+    "is_active": false,
+    "account": "user@example.com",
+    "project": "sample-project-dev",
+    "region": "us-central1",
+    "zone": "us-central1-a",
+    "status": "Inactive"
+  }
+]

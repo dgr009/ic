@@ -74,7 +74,7 @@ class GCPProject:
 class GCPAuthManager:
     """GCP 인증을 관리하는 클래스"""
     
-    def __init__(self, prefer_mcp: bool = False, validate_config: bool = True):
+    def __init__(self, validate_config: bool = True):
         self._credentials = None
         self._project_id = None
         
@@ -143,15 +143,63 @@ class GCPAuthManager:
             return None
     
     def get_default_project_id(self) -> Optional[str]:
-        """기본 프로젝트 ID를 가져옵니다."""
-        gcp_default_project = _get_env_var('GCP_DEFAULT_PROJECT')
+        """기본 프로젝트 ID를 가져옵니다 (환경변수 -> 인증정보 -> gcloud 활성 설정 -> ADC 순)."""
+        # 1. 환경변수 또는 IC 설정
+        gcp_default_project = (
+            _get_env_var('GCP_DEFAULT_PROJECT') 
+            or os.getenv('GCP_PROJECT') 
+            or os.getenv('GOOGLE_CLOUD_PROJECT') 
+            or os.getenv('CLOUDSDK_CORE_PROJECT')
+        )
         if gcp_default_project:
             return gcp_default_project
         
+        # 2. 인증 객체에서 가져온 project_id
         if not self._credentials:
             self.get_credentials()
+        if self._project_id:
+            return self._project_id
         
-        return self._project_id
+        # 3. gcloud active configuration 파싱 (~/.config/gcloud/)
+        try:
+            import configparser
+            from pathlib import Path
+            gcloud_dir = Path.home() / ".config" / "gcloud"
+            active_file = gcloud_dir / "active_config"
+            config_name = os.getenv("CLOUDSDK_ACTIVE_CONFIG_NAME")
+            if not config_name and active_file.exists():
+                config_name = active_file.read_text(encoding="utf-8").strip()
+            if not config_name:
+                config_name = "default"
+            
+            config_file = gcloud_dir / "configurations" / f"config_{config_name}"
+            if config_file.exists():
+                cp = configparser.ConfigParser()
+                cp.read(config_file, encoding="utf-8")
+                if cp.has_option("core", "project"):
+                    project = cp.get("core", "project").strip()
+                    if project:
+                        self._project_id = project
+                        return project
+        except Exception:
+            pass
+
+        # 4. ADC quota_project_id
+        try:
+            from pathlib import Path
+            adc_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS") or (Path.home() / ".config" / "gcloud" / "application_default_credentials.json")
+            adc_path = Path(adc_path)
+            if adc_path.exists():
+                with open(adc_path, "r", encoding="utf-8") as f:
+                    adc_data = json.load(f)
+                    quota_proj = adc_data.get("quota_project_id") or adc_data.get("project_id")
+                    if quota_proj:
+                        self._project_id = quota_proj
+                        return quota_proj
+        except Exception:
+            pass
+        
+        return None
     
     def validate_credentials(self) -> bool:
         """인증 정보가 유효한지 확인합니다."""
@@ -169,7 +217,7 @@ class GCPAuthManager:
             # Resource Manager API를 사용하여 인증 테스트
             if MONITORING_AVAILABLE:
                 with monitor_gcp_operation('resourcemanager', 'search_projects', 
-                                         self.get_default_project_id() or 'unknown', via_mcp=False):
+                                         self.get_default_project_id() or 'unknown'):
                     client = ProjectsClient(credentials=credentials)
                     request = SearchProjectsRequest(
                         query="",
@@ -244,21 +292,25 @@ class GCPProjectManager:
             log_error(f"GCP 프로젝트 발견 실패: {e}")
             return []
     
-    def get_projects(self) -> List[str]:
-        """환경변수 또는 발견된 프로젝트 ID 목록을 가져옵니다."""
-        # 환경변수에 지정된 프로젝트가 있으면 사용
+    def get_projects(self, all_projects: bool = False) -> List[str]:
+        """지정된 프로젝트 또는 활성 프로필 프로젝트를 반환합니다. all_projects=True일 때만 조직 전체 프로젝트를 스캔합니다."""
+        # 1. 환경변수/설정에 지정된 프로젝트가 있으면 사용
         gcp_projects = _get_env_list('GCP_PROJECTS')
         if gcp_projects:
             return gcp_projects
         
-        # 기본 프로젝트가 설정되어 있거나 ADC에서 확인되면 우선 사용
+        # 2. 기본 프로젝트(활성 gcloud config, ADC, 환경변수)가 확인되면 단일 프로젝트 반환
         default_proj = self.auth_manager.get_default_project_id()
         if default_proj:
             return [default_proj]
         
-        # 없으면 모든 접근 가능한 프로젝트 사용
-        discovered_projects = self.discover_projects()
-        return [p.project_id for p in discovered_projects]
+        # 3. 명시적으로 all_projects=True를 요청한 경우에만 조직 전체 프로젝트 검색
+        if all_projects:
+            discovered_projects = self.discover_projects()
+            return [p.project_id for p in discovered_projects]
+        
+        # 4. 아무것도 지정되지 않았고 all_projects도 아니면 빈 리스트 반환 (대규모 조직 보호 가드)
+        return []
     
     def validate_project_access(self, project_id: str) -> bool:
         """프로젝트 접근 권한을 확인합니다."""

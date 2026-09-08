@@ -26,44 +26,7 @@ from common.gcp_utils import (
     )
 from common.log import log_info, log_error, log_exception
 
-# Import MCP integration
-try:
-    from mcp.gcp_connector import MCPGCPService
-    MCP_AVAILABLE = True
-except ImportError:
-    MCP_AVAILABLE = False
-
 console = Console()
-
-
-def fetch_run_services_via_mcp(mcp_connector, project_id: str, region_filter: str = None) -> List[Dict]:
-    """
-    MCP 서버를 통해 GCP Cloud Run 서비스를 가져옵니다.
-    
-    Args:
-        mcp_connector: MCP GCP 커넥터
-        project_id: GCP 프로젝트 ID
-        region_filter: 지역 필터 (선택사항)
-    
-    Returns:
-        Cloud Run 서비스 정보 리스트
-    """
-    try:
-        params = {
-            'project_id': project_id,
-            'region_filter': region_filter
-        }
-        
-        response = mcp_connector.execute_gcp_query('run', 'list_services', params)
-        if response.success:
-            return response.data.get('services', [])
-        else:
-            log_error(f"MCP run services query failed: {response.error}")
-            return []
-            
-    except Exception as e:
-        log_error(f"MCP run services fetch failed: {e}")
-        return []
 
 
 def fetch_run_services_direct(project_id: str, region_filter: str = None) -> List[Dict]:
@@ -140,7 +103,7 @@ def fetch_run_services_direct(project_id: str, region_filter: str = None) -> Lis
 
 def fetch_run_services(project_id: str, region_filter: str = None) -> List[Dict]:
     """
-    GCP Cloud Run 서비스를 가져옵니다 (MCP 우선, 직접 API 폴백).
+    GCP Cloud Run 서비스를 가져옵니다.
     
     Args:
         project_id: GCP 프로젝트 ID
@@ -149,19 +112,6 @@ def fetch_run_services(project_id: str, region_filter: str = None) -> List[Dict]
     Returns:
         Cloud Run 서비스 정보 리스트
     """
-    # MCP 서비스 사용 시도
-    if MCP_AVAILABLE:
-        try:
-            mcp_service = MCPGCPService('run')
-            return mcp_service.execute_with_fallback(
-                'list_services',
-                {'project_id': project_id, 'region_filter': region_filter},
-                lambda project_id, region_filter: fetch_run_services_direct(project_id, region_filter)
-            )
-        except Exception as e:
-            log_error(f"MCP service failed, using direct API: {e}")
-    
-    # 직접 API 사용
     return fetch_run_services_direct(project_id, region_filter)
 
 
@@ -649,6 +599,20 @@ def format_output(services: List[Dict], output_format: str = 'table') -> str:
         return ""
 
 
+def format_paste_output(services: List[Dict]) -> None:
+    """Cloud Run 서비스 목록을 -p (paste) 모드용 CSV로 출력합니다."""
+    for s in services:
+        row = [
+            s.get('project_id', '-'),
+            s.get('region', '-'),
+            s.get('name', '-'),
+            s.get('url', '-'),
+            s.get('last_modifier', '-'),
+            s.get('status', '-'),
+        ]
+        print(",".join(str(c) for c in row))
+
+
 from ic.core.interfaces import BaseCommand, CommandResult
 
 
@@ -661,6 +625,11 @@ class GcpRunInfoCommand(BaseCommand):
         parser.add_argument(
             '-p', '--project', 
             help='GCP 프로젝트 ID로 필터링 (예: my-project-123)'
+        )
+        parser.add_argument(
+            '--all-projects',
+            action='store_true',
+            help='접근 가능한 모든 GCP 프로젝트 조회 (대규모 환경 주의)'
         )
         parser.add_argument(
             '-n', '--name', '--service-name',
@@ -696,6 +665,7 @@ class GcpRunInfoCommand(BaseCommand):
                 data=filtered,
                 table_renderer=format_table_output,
                 tree_renderer=format_tree_output,
+                paste_renderer=format_paste_output,
             )
 
         if not GCP_RUN_AVAILABLE:
@@ -718,11 +688,12 @@ class GcpRunInfoCommand(BaseCommand):
             if getattr(args, 'project', None):
                 projects = [args.project]
             else:
-                projects = project_manager.get_projects()
+                projects = project_manager.get_projects(all_projects=getattr(args, 'all_projects', False))
 
             if not projects:
-                console.print("[yellow]접근 가능한 GCP 프로젝트가 없습니다.[/yellow]")
-                return CommandResult(data=[], table_renderer=format_table_output, tree_renderer=format_tree_output)
+                console.print("[yellow]⚠️  GCP 프로젝트가 지정되지 않았습니다.[/yellow]")
+                console.print("💡 [dim]--project <PROJECT_ID> 옵션을 지정하거나 활성 gcloud 프로필을 설정하세요. (전체 조회를 원하시면 --all-projects 옵션을 사용하세요)[/dim]")
+                return CommandResult(data=[], table_renderer=format_table_output, tree_renderer=format_tree_output, paste_renderer=format_paste_output)
 
             all_services = resource_collector.parallel_collect(
                 projects, 
@@ -731,8 +702,8 @@ class GcpRunInfoCommand(BaseCommand):
             )
 
             filters = {}
-            if getattr(args, 'service', None):
-                filters['name'] = args.service
+            if getattr(args, 'name', None):
+                filters['name'] = args.name
             if getattr(args, 'project', None):
                 filters['project'] = args.project
             if getattr(args, 'region', None):
@@ -743,6 +714,7 @@ class GcpRunInfoCommand(BaseCommand):
                 data=filtered_services,
                 table_renderer=format_table_output,
                 tree_renderer=format_tree_output,
+                paste_renderer=format_paste_output,
             )
         except Exception as e:
             log_exception(e)

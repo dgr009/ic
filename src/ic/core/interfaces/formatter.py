@@ -32,6 +32,13 @@ def safe_serialize(obj: Any) -> Any:
         return obj.dict()
     if hasattr(obj, "to_dict") and callable(getattr(obj, "to_dict")):
         return obj.to_dict()
+    # Google Cloud Protobuf Message handling
+    if hasattr(obj, "__class__") and "google.protobuf" in str(obj.__class__):
+        try:
+            from google.protobuf.json_format import MessageToDict
+            return MessageToDict(obj)
+        except Exception:
+            pass
     if hasattr(obj, "__dict__"):
         return {k: v for k, v in obj.__dict__.items() if not k.startswith("_")}
     return str(obj)

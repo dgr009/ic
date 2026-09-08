@@ -25,42 +25,7 @@ from common.gcp_utils import (
     )
 from common.log import log_info, log_error, log_exception
 
-# Import MCP integration
-try:
-    from mcp.gcp_connector import MCPGCPService
-    MCP_AVAILABLE = True
-except ImportError:
-    MCP_AVAILABLE = False
-
 console = Console()
-
-
-def fetch_storage_buckets_via_mcp(mcp_connector, project_id: str) -> List[Dict]:
-    """
-    MCP 서버를 통해 GCP Cloud Storage 버킷을 가져옵니다.
-    
-    Args:
-        mcp_connector: MCP GCP 커넥터
-        project_id: GCP 프로젝트 ID
-    
-    Returns:
-        Cloud Storage 버킷 정보 리스트
-    """
-    try:
-        params = {
-            'project_id': project_id
-        }
-        
-        response = mcp_connector.execute_gcp_query('storage', 'list_buckets', params)
-        if response.success:
-            return response.data.get('buckets', [])
-        else:
-            log_error(f"MCP storage buckets query failed: {response.error}")
-            return []
-            
-    except Exception as e:
-        log_error(f"MCP storage buckets fetch failed: {e}")
-        return []
 
 
 def fetch_storage_buckets_direct(project_id: str) -> List[Dict]:
@@ -113,7 +78,7 @@ def fetch_storage_buckets_direct(project_id: str) -> List[Dict]:
 
 def fetch_storage_buckets(project_id: str) -> List[Dict]:
     """
-    GCP Cloud Storage 버킷을 가져옵니다 (MCP 우선, 직접 API 폴백).
+    GCP Cloud Storage 버킷을 가져옵니다.
     
     Args:
         project_id: GCP 프로젝트 ID
@@ -121,19 +86,6 @@ def fetch_storage_buckets(project_id: str) -> List[Dict]:
     Returns:
         Cloud Storage 버킷 정보 리스트
     """
-    # MCP 서비스 사용 시도
-    if MCP_AVAILABLE:
-        try:
-            mcp_service = MCPGCPService('storage')
-            return mcp_service.execute_with_fallback(
-                'list_buckets',
-                {'project_id': project_id},
-                lambda project_id: fetch_storage_buckets_direct(project_id)
-            )
-        except Exception as e:
-            log_error(f"MCP service failed, using direct API: {e}")
-    
-    # 직접 API 사용
     return fetch_storage_buckets_direct(project_id)
 
 
@@ -497,6 +449,19 @@ def format_output(buckets: List[Dict], output_format: str = 'table') -> str:
         return ""
 
 
+def format_paste_output(buckets: List[Dict]) -> None:
+    """버킷 목록을 -p (paste) 모드용 CSV로 출력합니다."""
+    for b in buckets:
+        row = [
+            b.get('project_id', '-'),
+            b.get('name', '-'),
+            b.get('location', '-'),
+            b.get('storage_class', '-'),
+            b.get('time_created', '-'),
+        ]
+        print(",".join(str(c) for c in row))
+
+
 from ic.core.interfaces import BaseCommand, CommandResult
 
 
@@ -509,6 +474,11 @@ class GcpStorageInfoCommand(BaseCommand):
         parser.add_argument(
             '-p', '--project', 
             help='GCP 프로젝트 ID로 필터링 (예: my-project-123)'
+        )
+        parser.add_argument(
+            '--all-projects',
+            action='store_true',
+            help='접근 가능한 모든 GCP 프로젝트 조회 (대규모 환경 주의)'
         )
         parser.add_argument(
             '-b', '--bucket', 
@@ -536,6 +506,7 @@ class GcpStorageInfoCommand(BaseCommand):
                 data=filtered,
                 table_renderer=format_table_output,
                 tree_renderer=format_tree_output,
+                paste_renderer=format_paste_output,
             )
 
         if not GCP_STORAGE_AVAILABLE:
@@ -558,11 +529,12 @@ class GcpStorageInfoCommand(BaseCommand):
             if getattr(args, 'project', None):
                 projects = [args.project]
             else:
-                projects = project_manager.get_projects()
+                projects = project_manager.get_projects(all_projects=getattr(args, 'all_projects', False))
 
             if not projects:
-                console.print("[yellow]접근 가능한 GCP 프로젝트가 없습니다.[/yellow]")
-                return CommandResult(data=[], table_renderer=format_table_output, tree_renderer=format_tree_output)
+                console.print("[yellow]⚠️  GCP 프로젝트가 지정되지 않았습니다.[/yellow]")
+                console.print("💡 [dim]--project <PROJECT_ID> 옵션을 지정하거나 활성 gcloud 프로필을 설정하세요. (전체 조회를 원하시면 --all-projects 옵션을 사용하세요)[/dim]")
+                return CommandResult(data=[], table_renderer=format_table_output, tree_renderer=format_tree_output, paste_renderer=format_paste_output)
 
             all_buckets = resource_collector.parallel_collect(
                 projects, 
@@ -580,6 +552,7 @@ class GcpStorageInfoCommand(BaseCommand):
                 data=filtered_buckets,
                 table_renderer=format_table_output,
                 tree_renderer=format_tree_output,
+                paste_renderer=format_paste_output,
             )
         except Exception as e:
             log_exception(e)

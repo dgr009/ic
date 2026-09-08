@@ -155,13 +155,7 @@ def gather_env_for_command(platform, service, command):
     elif platform == "gcp":
         # GCP 서비스들에서 공통으로 사용하는 환경변수
         relevant_keys = [
-            # MCP Server Configuration (Primary)
-            "MCP_GCP_ENABLED",
-            "MCP_GCP_ENDPOINT", 
-            "MCP_GCP_AUTH_METHOD",
-            "GCP_PREFER_MCP",
-            
-            # Authentication (Fallback)
+            # Authentication
             "GCP_SERVICE_ACCOUNT_KEY_PATH",
             "GCP_SERVICE_ACCOUNT_KEY",
             "GOOGLE_APPLICATION_CREDENTIALS",

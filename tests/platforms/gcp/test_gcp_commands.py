@@ -20,10 +20,12 @@ from ic.platforms.gcp.sql.info import GcpSqlInfoCommand
 from ic.platforms.gcp.run.info import GcpRunInfoCommand
 from ic.platforms.gcp.functions.info import GcpFunctionsInfoCommand
 from ic.platforms.gcp.billing.info import GcpBillingInfoCommand
+from ic.platforms.gcp.profile.info import GcpProfileInfoCommand
+from ic.platforms.gcp.dns.info import GcpDnsInfoCommand
 
 
 class TestGCPCommands(unittest.TestCase):
-    """Test suite for all 10 GCP command implementations."""
+    """Test suite for all 12 GCP command implementations."""
 
     COMMANDS = [
         ("compute", GcpComputeInfoCommand),
@@ -36,6 +38,8 @@ class TestGCPCommands(unittest.TestCase):
         ("run", GcpRunInfoCommand),
         ("functions", GcpFunctionsInfoCommand),
         ("billing", GcpBillingInfoCommand),
+        ("profile", GcpProfileInfoCommand),
+        ("dns", GcpDnsInfoCommand),
     ]
 
     def test_base_command_inheritance(self):
@@ -104,6 +108,22 @@ class TestGCPCommands(unittest.TestCase):
                     cmd.run(args_tree)
                 except Exception as e:
                     self.fail(f"{name} failed on tree format: {e}")
+
+    def test_paste_format_with_mock(self):
+        """Verify running with paste format works on services with paste_renderer."""
+        for name, cmd_cls in self.COMMANDS:
+            with self.subTest(command=name):
+                cmd = cmd_cls()
+                parser = argparse.ArgumentParser()
+                cmd_cls.add_arguments(parser)
+                args = parser.parse_args(["--mock"])
+                setattr(args, "paste", True)
+
+                stdout_capture = io.StringIO()
+                with patch("sys.stdout", stdout_capture):
+                    cmd.run(args)
+                output = stdout_capture.getvalue()
+                self.assertGreater(len(output.strip()), 0, f"{name} paste format produced empty output")
 
 
 if __name__ == "__main__":

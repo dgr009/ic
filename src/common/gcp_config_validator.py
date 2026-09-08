@@ -27,9 +27,6 @@ class GCPConfigValidator:
         self.warnings.clear()
         self.suggestions.clear()
         
-        # MCP 설정 검증
-        self._validate_mcp_config()
-        
         # 인증 설정 검증
         self._validate_authentication()
         
@@ -48,34 +45,7 @@ class GCPConfigValidator:
         is_valid = len(self.errors) == 0
         return is_valid, self.errors, self.warnings
     
-    def _validate_mcp_config(self):
-        """MCP 서버 설정 검증"""
-        mcp_config = self.config.get('mcp', {})
-        mcp_enabled = str(mcp_config.get('gcp_enabled', os.getenv('MCP_GCP_ENABLED', 'false'))).lower() == 'true'
-        prefer_mcp = str(self.gcp_config.get('prefer_mcp', os.getenv('GCP_PREFER_MCP', 'true'))).lower() == 'true'
-        
-        if prefer_mcp and not mcp_enabled:
-            self.warnings.append(
-                "GCP_PREFER_MCP is true but MCP_GCP_ENABLED is false. "
-                "Will fallback to direct API access."
-            )
-        
-        if mcp_enabled:
-            endpoint = mcp_config.get('gcp_endpoint', os.getenv('MCP_GCP_ENDPOINT'))
-            if not endpoint:
-                self.errors.append(
-                    "MCP_GCP_ENDPOINT is required when MCP_GCP_ENABLED=true"
-                )
-            
-            auth_method = mcp_config.get('gcp_auth_method', os.getenv('MCP_GCP_AUTH_METHOD'))
-            if auth_method and auth_method not in ['service_account', 'adc', 'gcloud']:
-                self.errors.append(
-                    f"Invalid MCP_GCP_AUTH_METHOD: {auth_method}. "
-                    "Valid options: service_account, adc, gcloud"
-                )
-    
     def _validate_authentication(self):
-        """인증 설정 검증"""
         service_account_path = self.gcp_config.get('service_account_key_path', os.getenv('GCP_SERVICE_ACCOUNT_KEY_PATH'))
         service_account_key = self.gcp_config.get('service_account_key', os.getenv('GCP_SERVICE_ACCOUNT_KEY'))
         google_credentials = self.gcp_config.get('google_application_credentials', os.getenv('GOOGLE_APPLICATION_CREDENTIALS'))
@@ -307,12 +277,7 @@ GCP Configuration Setup Guide:
    - Set: GCP_REGIONS=us-central1,us-east1
    - Set: GCP_ZONES=us-central1-a,us-central1-b
 
-4. MCP Server Configuration (Recommended):
-   - Set: MCP_GCP_ENABLED=true
-   - Set: MCP_GCP_ENDPOINT=http://localhost:8080/gcp
-   - Set: MCP_GCP_AUTH_METHOD=service_account
-
-5. Required GCP APIs:
+4. Required GCP APIs:
    Enable the following APIs in your GCP projects:
    - Compute Engine API (compute.googleapis.com)
    - Kubernetes Engine API (container.googleapis.com)
@@ -321,6 +286,7 @@ GCP Configuration Setup Guide:
    - Cloud Functions API (cloudfunctions.googleapis.com)
    - Cloud Run API (run.googleapis.com)
    - Cloud Billing API (cloudbilling.googleapis.com)
+   - Cloud DNS API (dns.googleapis.com)
 
 For more details, see: https://cloud.google.com/docs/authentication
 """

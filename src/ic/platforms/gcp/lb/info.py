@@ -42,44 +42,7 @@ from common.gcp_utils import (
     )
 from common.log import log_info, log_error, log_exception
 
-# Import MCP integration
-try:
-    from mcp.gcp_connector import MCPGCPService
-    MCP_AVAILABLE = True
-except ImportError:
-    MCP_AVAILABLE = False
-
 console = Console()
-
-
-def fetch_load_balancers_via_mcp(mcp_connector, project_id: str, region_filter: str = None) -> List[Dict]:
-    """
-    MCP 서버를 통해 GCP Load Balancer를 가져옵니다.
-    
-    Args:
-        mcp_connector: MCP GCP 커넥터
-        project_id: GCP 프로젝트 ID
-        region_filter: 리전 필터 (선택사항)
-    
-    Returns:
-        Load Balancer 정보 리스트
-    """
-    try:
-        params = {
-            'project_id': project_id,
-            'region_filter': region_filter
-        }
-        
-        response = mcp_connector.execute_gcp_query('lb', 'list_load_balancers', params)
-        if response.success:
-            return response.data.get('load_balancers', [])
-        else:
-            log_error(f"MCP load balancers query failed: {response.error}")
-            return []
-            
-    except Exception as e:
-        log_error(f"MCP load balancers fetch failed: {e}")
-        return []
 
 
 def fetch_load_balancers_direct(project_id: str, region_filter: str = None) -> List[Dict]:
@@ -654,7 +617,7 @@ def get_ssl_certificate_details(client, project_id: str, cert_name: str) -> Dict
 
 def fetch_load_balancers(project_id: str, region_filter: str = None) -> List[Dict]:
     """
-    GCP Load Balancer를 가져옵니다 (MCP 우선, 직접 API 폴백).
+    GCP Load Balancer를 가져옵니다.
     
     Args:
         project_id: GCP 프로젝트 ID
@@ -663,19 +626,6 @@ def fetch_load_balancers(project_id: str, region_filter: str = None) -> List[Dic
     Returns:
         Load Balancer 정보 리스트
     """
-    # MCP 서비스 사용 시도
-    if MCP_AVAILABLE:
-        try:
-            mcp_service = MCPGCPService('lb')
-            return mcp_service.execute_with_fallback(
-                'list_load_balancers',
-                {'project_id': project_id, 'region_filter': region_filter},
-                lambda project_id, region_filter: fetch_load_balancers_direct(project_id, region_filter)
-            )
-        except Exception as e:
-            log_error(f"MCP service failed, using direct API: {e}")
-    
-    # 직접 API 사용
     return fetch_load_balancers_direct(project_id, region_filter)
 
 def load_mock_data():
@@ -928,6 +878,21 @@ def format_output(load_balancers: List[Dict], output_format: str = 'table') -> s
         return ""
 
 
+def format_paste_output(lbs: List[Dict]) -> None:
+    """로드 밸런서 목록을 -p (paste) 모드용 CSV로 출력합니다."""
+    for lb in lbs:
+        row = [
+            lb.get('project_id', '-'),
+            lb.get('scope', '-'),
+            lb.get('name', '-'),
+            lb.get('type', '-'),
+            lb.get('ip_address', '-'),
+            lb.get('protocol', '-'),
+            lb.get('port_range', '-'),
+        ]
+        print(",".join(str(c) for c in row))
+
+
 from ic.core.interfaces import BaseCommand, CommandResult
 
 
@@ -940,6 +905,11 @@ class GcpLbInfoCommand(BaseCommand):
         parser.add_argument(
             '-p', '--project', 
             help='GCP 프로젝트 ID로 필터링 (예: my-project-123)'
+        )
+        parser.add_argument(
+            '--all-projects',
+            action='store_true',
+            help='접근 가능한 모든 GCP 프로젝트 조회 (대규모 환경 주의)'
         )
         parser.add_argument(
             '-n', '--lb-name', 
@@ -982,6 +952,7 @@ class GcpLbInfoCommand(BaseCommand):
                 data=filtered,
                 table_renderer=format_table_output,
                 tree_renderer=format_tree_output,
+                paste_renderer=format_paste_output,
             )
 
         if not GCP_LB_AVAILABLE:
@@ -1004,11 +975,12 @@ class GcpLbInfoCommand(BaseCommand):
             if getattr(args, 'project', None):
                 projects = [args.project]
             else:
-                projects = project_manager.get_projects()
+                projects = project_manager.get_projects(all_projects=getattr(args, 'all_projects', False))
 
             if not projects:
-                console.print("[yellow]접근 가능한 GCP 프로젝트가 없습니다.[/yellow]")
-                return CommandResult(data=[], table_renderer=format_table_output, tree_renderer=format_tree_output)
+                console.print("[yellow]⚠️  GCP 프로젝트가 지정되지 않았습니다.[/yellow]")
+                console.print("💡 [dim]--project <PROJECT_ID> 옵션을 지정하거나 활성 gcloud 프로필을 설정하세요. (전체 조회를 원하시면 --all-projects 옵션을 사용하세요)[/dim]")
+                return CommandResult(data=[], table_renderer=format_table_output, tree_renderer=format_tree_output, paste_renderer=format_paste_output)
 
             all_load_balancers = resource_collector.parallel_collect(
                 projects, 
@@ -1031,6 +1003,7 @@ class GcpLbInfoCommand(BaseCommand):
                 data=filtered_load_balancers,
                 table_renderer=format_table_output,
                 tree_renderer=format_tree_output,
+                paste_renderer=format_paste_output,
             )
         except Exception as e:
             log_exception(e)
