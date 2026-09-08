@@ -266,13 +266,12 @@ def print_instance_table(console, inst_rows, verbose):
     
     console.print(t)
 
-###############################################################################
-# main
-###############################################################################
-def main(args, config=None):
-    console = Console()
-    name_filter = args.name.lower() if args.name else None
-    compartment_filter = args.compartment.lower() if args.compartment else None
+def collect_oci_vm_data(args, console=None):
+    """OCI VM 인스턴스 정보를 수집합니다."""
+    if console is None:
+        console = Console()
+    name_filter = args.name.lower() if hasattr(args, 'name') and args.name else None
+    compartment_filter = args.compartment.lower() if hasattr(args, 'compartment') and args.compartment else None
 
     # First, get configuration to calculate total jobs
     try:
@@ -280,15 +279,15 @@ def main(args, config=None):
         identity_client = oci.identity.IdentityClient(oci_config)
     except Exception as e:
         console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]")
-        return {"error": str(e), "success": False}
+        return []
 
     # Get regions
-    if args.regions:
+    if getattr(args, 'regions', None):
         subscribed = get_all_subscribed_regions(identity_client, oci_config["tenancy"])
         region_list = [r.strip() for r in args.regions.split(',') if r.strip() and r in subscribed]
         if not region_list:
             console.print("[red]유효한 리전이 없어 종료합니다[/red]")
-            return {"error": "No valid regions found", "success": False}
+            return []
     else:
         region_list = get_all_subscribed_regions(identity_client, oci_config["tenancy"])
 
@@ -301,17 +300,42 @@ def main(args, config=None):
     # Use single progress bar with correct total
     with ManualProgress("Collecting OCI VM Information", total=total_jobs) as progress:
         progress.set_description(f"Processing {len(compartments)} compartments across {len(region_list)} regions")
-
-        # Collect instance information with progress tracking
         inst_rows = collect_instances_parallel_fast(oci_config, compartments, region_list, name_filter, console, progress)
-        
         progress.set_description("Collection complete!")
     
-    # Display results
-    console.print(f"\n[bold green]Collection complete![/bold green] Found {len(inst_rows)} instances.")
-    print_instance_table(console, inst_rows, args.verbose)
-    
-    return {"success": True, "data": {"instances": len(inst_rows)}, "message": f"Found {len(inst_rows)} instances"}
+    return inst_rows
+
+
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+class OciVmInfoCommand(BaseCommand):
+    """OCI VM Instance information command."""
+
+    @classmethod
+    def add_arguments(cls, parser):
+        cls.add_common_arguments(parser)
+        parser.add_argument("-v", "--verbose", action="store_true", help="인스턴스 상세 출력 (전체 컬럼 표시)")
+        parser.add_argument("--name", "-n", default=None, help="이름 필터 (부분 일치)")
+        parser.add_argument("--compartment", "-c", default=None, help="컴파트먼트 이름 필터 (부분 일치)")
+        parser.add_argument("--regions", "-r", default=None, help="조회할 리전(,) 예: ap-seoul-1,us-ashburn-1")
+
+    def execute(self, args, config=None) -> CommandResult:
+        console = Console()
+        inst_rows = collect_oci_vm_data(args, console)
+        return CommandResult(
+            data=inst_rows,
+            table_renderer=lambda data, verbose=False: print_instance_table(console, data, verbose),
+        )
+
+
+def main(args, config=None):
+    OciVmInfoCommand().run(args, config)
+
+
+def add_arguments(parser):
+    OciVmInfoCommand.add_arguments(parser)
+
 
 if __name__ == '__main__':
     import argparse

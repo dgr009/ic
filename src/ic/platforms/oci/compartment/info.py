@@ -203,48 +203,65 @@ class CompartmentTreeRenderer:
         return count
 
 
-###############################################################################
-# main
-###############################################################################
-def main(args, config=None):
-    """
-    OCI Compartment 정보를 조회하고 출력합니다.
-    
-    Args:
-        argfig: 설정 정보 (선택사항)
-        config: 설정 정보 (선택사항)
-    """
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+def render_compartment_view(tree_data: Dict[str, Any], format_type: str = "tree", verbose: bool = False) -> None:
+    """Render compartment data as tree or list."""
     console = Console()
-    
-    try:
-        # OCI 설정 및 클라이언트 초기화
-        oci_config = oci.config.from_file()
-        identity_client = oci.identity.IdentityClient(oci_config)
-        tenancy_ocid = oci_config["tenancy"]
-        
-        # Compartment 트리 빌드
-        builder = CompartmentTreeBuilder()
-        tree_data = builder.build_compartment_tree(identity_client, tenancy_ocid)
-        
-        if not tree_data:
-            console.print("❌ Compartment 정보를 가져올 수 없습니다.")
-            return
-        
-        # 출력 형식에 따라 렌더링
-        if args.format == "tree":
-            renderer = CompartmentTreeRenderer()
-            renderer.render_tree(tree_data)
-        else:
-            # List 형식으로 출력
-            console.print()
-            _render_list(tree_data, console)
-            
-    except oci.exceptions.ConfigFileNotFound:
-        console.print("❌ OCI 설정 파일을 찾을 수 없습니다. ~/.oci/config 파일을 확인하세요.")
-    except oci.exceptions.InvalidConfig as e:
-        console.print(f"❌ OCI 설정이 올바르지 않습니다: {e}")
-    except Exception as e:
-        console.print(f"❌ Compartment 조회 중 오류 발생: {e}")
+    if not tree_data:
+        console.print("📋 No compartment data available.")
+        return
+    if format_type == "tree":
+        renderer = CompartmentTreeRenderer()
+        renderer.render_tree(tree_data)
+    else:
+        console.print()
+        _render_list(tree_data, console)
+
+
+class OciCompartmentInfoCommand(BaseCommand):
+    """OCI Compartment hierarchy information command."""
+
+    @classmethod
+    def add_arguments(cls, parser):
+        cls.add_common_arguments(parser)
+        parser.add_argument(
+            "-f", "--format",
+            choices=["tree", "list"],
+            default="tree",
+            help="출력 형식 (tree: 계층 구조, list: 평면 목록)"
+        )
+
+    def execute(self, args, config=None) -> CommandResult:
+        console = Console()
+        try:
+            oci_config = oci.config.from_file()
+            identity_client = oci.identity.IdentityClient(oci_config)
+            tenancy_ocid = oci_config["tenancy"]
+
+            builder = CompartmentTreeBuilder()
+            tree_data = builder.build_compartment_tree(identity_client, tenancy_ocid)
+
+            fmt = getattr(args, "format", "tree")
+            return CommandResult(
+                data=tree_data,
+                table_renderer=lambda data, verbose=False: render_compartment_view(data, format_type=fmt, verbose=verbose),
+            )
+        except oci.exceptions.ConfigFileNotFound:
+            console.print("❌ OCI 설정 파일을 찾을 수 없습니다. ~/.oci/config 파일을 확인하세요.")
+            return CommandResult(data={}, success=False, error="OCI config not found")
+        except oci.exceptions.InvalidConfig as e:
+            console.print(f"❌ OCI 설정이 올바르지 않습니다: {e}")
+            return CommandResult(data={}, success=False, error=str(e))
+        except Exception as e:
+            console.print(f"❌ Compartment 조회 중 오류 발생: {e}")
+            return CommandResult(data={}, success=False, error=str(e))
+
+
+def main(args, config=None):
+    """OCI Compartment 정보를 조회하고 출력합니다."""
+    OciCompartmentInfoCommand().run(args, config)
 
 
 def _render_list(tree_data: Dict[str, Any], console: Console, level: int = 0) -> None:
@@ -268,5 +285,5 @@ def _render_list(tree_data: Dict[str, Any], console: Console, level: int = 0) ->
     console.print(f"{indent}  OCID: {ocid}", style="dim")
     
     # 자식 compartment 재귀 출력
-    for child in tree_data['children']:
+    for child in tree_data.get('children', []):
         _render_list(child, console, level + 1)

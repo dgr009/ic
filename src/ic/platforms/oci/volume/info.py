@@ -134,10 +134,7 @@ def print_volume_table(console, rows, title):
         table.add_row(row["compartment_name"], row["region"], row["volume_name"], row["state"], str(row["size_gb"]), row["vpu"], row["attached"])
     console.print(table)
 
-def main(args):
-    console = Console()
-    
-    # Use single progress bar for the entire operation
+def collect_oci_volume_data(args, console):
     with ManualProgress("Collecting OCI Volume Information", total=100) as progress:
         try:
             progress.update("Loading OCI configuration", advance=10)
@@ -145,30 +142,73 @@ def main(args):
             identity_client = oci.identity.IdentityClient(config)
         except Exception as e:
             console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]")
-            return {"error": str(e), "success": False}
+            return {"boot_volumes": [], "block_volumes": []}
 
         progress.update("Discovering regions", advance=10)
-        if args.regions:
+        if getattr(args, "regions", None):
             subscribed = get_all_subscribed_regions(identity_client, config["tenancy"])
             region_list = [r.strip() for r in args.regions.split(',') if r.strip() and r in subscribed]
             if not region_list:
                 console.print("[red]유효한 리전이 없어 종료합니다[/red]")
-                return {"error": "No valid regions found", "success": False}
+                return {"boot_volumes": [], "block_volumes": []}
         else:
             region_list = get_all_subscribed_regions(identity_client, config["tenancy"])
         
         progress.update("Discovering compartments", advance=10)
-        compartments = get_compartments(identity_client, config["tenancy"], args.compartment.lower() if args.compartment else None, console)
+        comp_filter = args.compartment.lower() if getattr(args, "compartment", None) else None
+        compartments = get_compartments(identity_client, config["tenancy"], comp_filter, console)
         
         progress.update(f"Processing {len(compartments)} compartments across {len(region_list)} regions", advance=10)
         
-        # The collect_volumes_parallel_fast already has its own ManualProgress, so we advance the remaining 60%
-        boot_rows, block_rows = collect_volumes_parallel_fast(config, compartments, region_list, args.name.lower() if args.name else None, console)
+        name_filter = args.name.lower() if getattr(args, "name", None) else None
+        boot_rows, block_rows = collect_volumes_parallel_fast(config, compartments, region_list, name_filter, console)
         
         progress.update("Formatting results", advance=60)
     
-    console.print(f"\n[bold green]Collection complete![/bold green] Found {len(boot_rows)} boot volumes and {len(block_rows)} block volumes.")
-    print_volume_table(console, boot_rows, "Boot Volumes")
-    print_volume_table(console, block_rows, "Block Volumes")
-    
-    return {"success": True, "data": {"boot_volumes": len(boot_rows), "block_volumes": len(block_rows)}, "message": f"Found {len(boot_rows)} boot volumes and {len(block_rows)} block volumes"} 
+    return {"boot_volumes": boot_rows, "block_volumes": block_rows}
+
+
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+class OciVolumeInfoCommand(BaseCommand):
+    """OCI Block and Boot Volume information command."""
+
+    @classmethod
+    def add_arguments(cls, parser):
+        cls.add_common_arguments(parser)
+        parser.add_argument("--name", "-n", default=None, help="이름 필터 (부분 일치)")
+        parser.add_argument("--compartment", "-c", default=None, help="컴파트먼트 이름 필터 (부분 일치)")
+        parser.add_argument("--regions", "-r", default=None, help="조회할 리전(,) 예: ap-seoul-1,us-ashburn-1")
+
+    def execute(self, args, config=None) -> CommandResult:
+        console = Console()
+        vol_data = collect_oci_volume_data(args, console)
+        
+        def render_tables(data, verbose=False):
+            boot_rows = data.get("boot_volumes", []) if isinstance(data, dict) else []
+            block_rows = data.get("block_volumes", []) if isinstance(data, dict) else []
+            print_volume_table(console, boot_rows, "Boot Volumes")
+            print_volume_table(console, block_rows, "Block Volumes")
+
+        return CommandResult(
+            data=vol_data,
+            table_renderer=render_tables,
+        )
+
+
+def main(args, config=None):
+    OciVolumeInfoCommand().run(args, config)
+
+
+def add_arguments(parser):
+    OciVolumeInfoCommand.add_arguments(parser)
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description="OCI Volume Info Collector")
+    add_arguments(parser)
+    args = parser.parse_args()
+    main(args)
+ 

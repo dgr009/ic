@@ -172,116 +172,111 @@ def display_dns_table(account_name: str, zone_name: str, records: List[Dict[str,
     console.print("")  # Empty line for spacing
 
 
-def main(args):
-    """
-    Main entry point for DNS info command.
-    
-    Args:
-        args: Parsed command-line arguments
-        
-    Returns:
-        Dictionary with success status and data/error
-    """
-    try:
-        # Load configuration
-        config_manager = ConfigManager()
-        config = CloudFlareConfig.from_config_manager(config_manager)
-        
-        # Validate credentials
-        if not config.email or not config.api_token:
-            console.print("[bold red]❌ CloudFlare credentials not configured[/bold red]")
-            console.print("Please configure email and api_token in ~/.ic/config/secrets.yaml")
-            return {"success": False, "error": "Missing credentials"}
-        
-        # Initialize client
-        client = CloudFlareClient(config)
-        
-        # Determine filters (CLI args override config)
-        account_filter = [args.account] if args.account else config.accounts
-        zone_filter = [args.zone] if args.zone else config.zones
-        
-        log_info(f"Account filter: {account_filter if account_filter else 'None (all accounts)'}")
-        log_info(f"Zone filter: {zone_filter if zone_filter else 'None (all zones)'}")
-        
-        with ManualProgress("Processing CloudFlare DNS information") as progress:
-            # Fetch accounts
-            progress.set_description("Fetching CloudFlare accounts")
-            accounts = client.get_accounts(name_filter=account_filter if account_filter else None)
-            
-            if not accounts:
-                console.print("[bold red]No CloudFlare accounts found.[/bold red]")
-                return {"success": True, "data": {"accounts": 0, "zones": 0}}
-            
-            progress.set_description(f"Processing {len(accounts)} CloudFlare accounts")
-            
-            # Process each account
-            total_zones_processed = 0
-            for acct_idx, acct in enumerate(accounts, 1):
-                account_name = acct.get("name", "")
-                account_id = acct.get("id", "")
-                
-                progress.set_description(f"Processing account {acct_idx}/{len(accounts)}: {account_name}")
-                
-                # Fetch zones for this account
-                zones = client.get_zones(account_id, name_filter=zone_filter if zone_filter else None)
-                
-                # Process each zone
-                for zone_idx, zone in enumerate(zones, 1):
-                    zone_name = zone.get("name", "")
-                    zone_id = zone.get("id", "")
-                    
-                    progress.set_description(
-                        f"Processing zone {zone_idx}/{len(zones)} in {account_name}: {zone_name}"
-                    )
-                    
-                    # Fetch DNS records
-                    records = client.get_dns_records(zone_id)
-                    
-                    # Display results
-                    display_dns_table(account_name, zone_name, records)
-                    total_zones_processed += 1
-            
-            progress.set_description(
-                f"Completed processing {total_zones_processed} zones from {len(accounts)} accounts"
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+class CloudflareDnsInfoCommand(BaseCommand):
+    """CloudFlare DNS information command."""
+
+    @classmethod
+    def add_arguments(cls, parser: argparse.ArgumentParser):
+        cls.add_common_arguments(parser)
+        parser.add_argument(
+            "-a", "--account",
+            help="Filter accounts by name (case-insensitive substring)"
+        )
+        parser.add_argument(
+            "-z", "--zone",
+            help="Filter zones by name (case-insensitive substring)"
+        )
+
+    def execute(self, args, config=None) -> CommandResult:
+        try:
+            config_manager = ConfigManager()
+            cf_config = CloudFlareConfig.from_config_manager(config_manager)
+
+            if not cf_config.email or not cf_config.api_token:
+                console.print("[bold red]❌ CloudFlare credentials not configured[/bold red]")
+                console.print("Please configure email and api_token in ~/.ic/config/secrets.yaml")
+                return CommandResult(data=[], success=False, error="Missing credentials")
+
+            client = CloudFlareClient(cf_config)
+            account_filter = [args.account] if getattr(args, "account", None) else cf_config.accounts
+            zone_filter = [args.zone] if getattr(args, "zone", None) else cf_config.zones
+
+            with ManualProgress("Processing CloudFlare DNS information") as progress:
+                progress.set_description("Fetching CloudFlare accounts")
+                accounts = client.get_accounts(name_filter=account_filter if account_filter else None)
+
+                if not accounts:
+                    console.print("[bold red]No CloudFlare accounts found.[/bold red]")
+                    return CommandResult(data=[], success=True)
+
+                progress.set_description(f"Processing {len(accounts)} CloudFlare accounts")
+                all_zone_data = []
+
+                for acct_idx, acct in enumerate(accounts, 1):
+                    account_name = acct.get("name", "")
+                    account_id = acct.get("id", "")
+
+                    progress.set_description(f"Processing account {acct_idx}/{len(accounts)}: {account_name}")
+                    zones = client.get_zones(account_id, name_filter=zone_filter if zone_filter else None)
+
+                    for zone_idx, zone in enumerate(zones, 1):
+                        zone_name = zone.get("name", "")
+                        zone_id = zone.get("id", "")
+
+                        progress.set_description(
+                            f"Processing zone {zone_idx}/{len(zones)} in {account_name}: {zone_name}"
+                        )
+                        records = client.get_dns_records(zone_id)
+                        all_zone_data.append({
+                            "account": account_name,
+                            "zone": zone_name,
+                            "records": records,
+                        })
+
+            def render_tables(data, verbose=False):
+                zone_list = data.get("details", []) if isinstance(data, dict) else (data if isinstance(data, list) else [])
+                for item in zone_list:
+                    display_dns_table(item["account"], item["zone"], item.get("records", []))
+
+            return CommandResult(
+                data={
+                    "accounts": len(accounts),
+                    "zones": len(all_zone_data),
+                    "details": all_zone_data,
+                },
+                table_renderer=render_tables,
+                success=True,
             )
-        
-        log_info(f"Successfully processed {total_zones_processed} zones from {len(accounts)} accounts")
-        
-        return {
-            "success": True,
-            "data": {
-                "accounts": len(accounts),
-                "zones": total_zones_processed
-            }
-        }
-        
-    except AuthenticationError as e:
-        log_error(f"Authentication failed: {e}")
-        console.print("[bold red]❌ CloudFlare authentication failed[/bold red]")
-        console.print("Please check your credentials in ~/.ic/config/secrets.yaml")
-        return {"success": False, "error": "Authentication failed"}
-        
-    except RateLimitError as e:
-        log_error(f"Rate limit exceeded: {e}")
-        console.print(f"[bold yellow]⚠️  Rate limit exceeded. Retry after {e.retry_after}s[/bold yellow]")
-        return {"success": False, "error": "Rate limit exceeded"}
-        
-    except NetworkError as e:
-        log_error(f"Network error: {e}")
-        console.print("[bold red]❌ Network error connecting to CloudFlare API[/bold red]")
-        return {"success": False, "error": "Network error"}
-        
-    except Exception as e:
-        log_exception(e)
-        console.print(f"[bold red]❌ Unexpected error: {str(e)}[/bold red]")
-        return {"success": False, "error": str(e)}
+        except AuthenticationError as e:
+            console.print("[bold red]❌ CloudFlare authentication failed[/bold red]")
+            return CommandResult(data={}, success=False, error="Authentication failed")
+        except RateLimitError as e:
+            console.print(f"[bold yellow]⚠️  Rate limit exceeded. Retry after {e.retry_after}s[/bold yellow]")
+            return CommandResult(data={}, success=False, error="Rate limit exceeded")
+        except NetworkError as e:
+            console.print("[bold red]❌ Network error connecting to CloudFlare API[/bold red]")
+            return CommandResult(data={}, success=False, error="Network error")
+        except Exception as e:
+            console.print(f"[bold red]❌ Unexpected error: {str(e)}[/bold red]")
+            return CommandResult(data={}, success=False, error=str(e))
+
+
+
+def main(args, config=None):
+    return CloudflareDnsInfoCommand().run(args, config)
+
+
+
+def add_arguments(parser: argparse.ArgumentParser):
+    CloudflareDnsInfoCommand.add_arguments(parser)
 
 
 if __name__ == "__main__":
-    """
-    Standalone execution for local testing.
-    """
     parser = argparse.ArgumentParser(description="CloudFlare DNS Info")
     add_arguments(parser)
     parsed_args = parser.parse_args()
     main(parsed_args)
+

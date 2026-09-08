@@ -393,43 +393,61 @@ def print_vpc_table(all_rows: List[Dict[str, Any]]) -> None:
     console.print(table)
 
 
-def main(args) -> None:
-    if not check_sdk_available():
-        console.print("[red]❌ tencentcloud-sdk-python 이 설치되지 않았습니다.[/red]")
-        sys.exit(1)
+from ic.core.interfaces import BaseCommand, CommandResult
 
-    accounts = get_accounts(getattr(args, "account", None))
-    regions = get_tencent_regions(getattr(args, "regions", None))
-    name_filter = getattr(args, "name", None)
-    total_ops = len(accounts) * len(regions)
-    all_rows: List[Dict[str, Any]] = []
 
-    with ManualProgress("Collecting VPC information across accounts and regions", total=total_ops) as progress:
-        with ThreadPoolExecutor() as executor:
-            futures = {}
-            for account in accounts:
-                for region in regions:
-                    f = executor.submit(fetch_vpc_one_account_region, account, region, name_filter)
-                    futures[f] = (account.get("name", account.get("id")), region)
+class TencentVpcInfoCommand(BaseCommand):
+    """Tencent Cloud VPC information command."""
 
-            for future in as_completed(futures):
-                acct_name, region = futures[future]
-                try:
-                    result = future.result()
-                    all_rows.extend(result)
-                    vpc_count = len(set(row['vpc_name'] for row in result))
-                    progress.update(f"Processed {acct_name}/{region} - Found {vpc_count} VPCs", advance=1)
-                except Exception as e:
-                    log_info_non_console(f"[VPC] Future 실패: {acct_name}/{region}: {e}")
-                    progress.update(f"Failed {acct_name}/{region}", advance=1)
+    @classmethod
+    def add_arguments(cls, parser) -> None:
+        cls.add_common_arguments(parser)
+        parser.add_argument("-a", "--account", help="계정 이름 또는 ID 목록(,) (없으면 전체 계정 조회)")
+        parser.add_argument("-r", "--regions", help="리전 목록(,) 예: ap-seoul,ap-tokyo")
+        parser.add_argument("-n", "--name", help="VPC 이름 필터")
 
-    print_vpc_table(all_rows)
+    def execute(self, args, config=None) -> CommandResult:
+        if not check_sdk_available():
+            console.print("[red]❌ tencentcloud-sdk-python 이 설치되지 않았습니다.[/red]")
+            return CommandResult(data=[], success=False, error="tencentcloud-sdk-python not installed")
+
+        accounts = get_accounts(getattr(args, "account", None))
+        regions = get_tencent_regions(getattr(args, "regions", None))
+        name_filter = getattr(args, "name", None)
+        total_ops = len(accounts) * len(regions)
+        all_rows: List[Dict[str, Any]] = []
+
+        with ManualProgress("Collecting VPC information across accounts and regions", total=total_ops) as progress:
+            with ThreadPoolExecutor() as executor:
+                futures = {}
+                for account in accounts:
+                    for region in regions:
+                        f = executor.submit(fetch_vpc_one_account_region, account, region, name_filter)
+                        futures[f] = (account.get("name", account.get("id")), region)
+
+                for future in as_completed(futures):
+                    acct_name, region = futures[future]
+                    try:
+                        result = future.result()
+                        all_rows.extend(result)
+                        vpc_count = len(set(row['vpc_name'] for row in result))
+                        progress.update(f"Processed {acct_name}/{region} - Found {vpc_count} VPCs", advance=1)
+                    except Exception as e:
+                        log_info_non_console(f"[VPC] Future 실패: {acct_name}/{region}: {e}")
+                        progress.update(f"Failed {acct_name}/{region}", advance=1)
+
+        return CommandResult(
+            data=all_rows,
+            table_renderer=lambda data, verbose=False: print_vpc_table(data),
+        )
+
+
+def main(args, config=None) -> None:
+    TencentVpcInfoCommand().run(args, config)
 
 
 def add_arguments(parser) -> None:
-    parser.add_argument("-a", "--account", help="계정 이름 또는 ID 목록(,) (없으면 전체 계정 조회)")
-    parser.add_argument("-r", "--regions", help="리전 목록(,) 예: ap-seoul,ap-tokyo")
-    parser.add_argument("-n", "--name", help="VPC 이름 필터")
+    TencentVpcInfoCommand.add_arguments(parser)
 
 
 if __name__ == "__main__":
@@ -437,3 +455,4 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Tencent VPC 정보 (상세 계층 및 라우팅 분석)")
     add_arguments(p)
     main(p.parse_args())
+

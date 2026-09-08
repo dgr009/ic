@@ -12,19 +12,54 @@ class CommandResult:
     Standard result returned by all IC commands.
     
     Attributes:
-        data: List of resource dictionaries collected from cloud providers.
-        table_renderer: Platform-specific TUI table rendering function (e.g., print_ec2_table).
-        paste_renderer: Optional spreadsheet paste formatting function (e.g., print_paste_format).
-        metadata: Optional metadata about the operation (account, region, execution time, etc.).
+        data: Resource data (list or dict) collected from cloud providers.
+        table_renderer: Platform-specific TUI table rendering function.
+        paste_renderer: Optional spreadsheet paste formatting function.
+        metadata: Optional metadata about the operation.
+        success: Whether the command execution was successful.
+        error: Optional error message if execution failed.
     """
-    data: List[Dict[str, Any]] = field(default_factory=list)
+    data: Any = field(default_factory=list)
     table_renderer: Optional[Callable[..., Any]] = None
     paste_renderer: Optional[Callable[..., Any]] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
+    success: bool = True
+    error: Optional[str] = None
 
     @property
     def is_empty(self) -> bool:
-        return len(self.data) == 0
+        if isinstance(self.data, (list, dict, set, tuple)):
+            return len(self.data) == 0
+        return self.data is None
+
+    def __getitem__(self, key: str) -> Any:
+        if key == 'success':
+            return self.success
+        if key == 'error':
+            return self.error
+        if key == 'data':
+            return self.data
+        if key in self.metadata:
+            return self.metadata[key]
+        if isinstance(self.data, dict) and key in self.data:
+            return self.data[key]
+        raise KeyError(key)
+
+    def __contains__(self, key: str) -> bool:
+        if key in ('success', 'error', 'data'):
+            return True
+        if key in self.metadata:
+            return True
+        if isinstance(self.data, dict) and key in self.data:
+            return True
+        return False
+
+    def get(self, key: str, default: Any = None) -> Any:
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
 
     def render_table(self, verbose: bool = False) -> None:
         """Call the preserved platform-specific table renderer."""

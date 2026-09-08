@@ -122,7 +122,8 @@ def print_rds_table(all_rows):
     console.print(table)
 
 
-def main(args):
+def collect_rds_data(args):
+    """RDS 인스턴스 및 클러스터 데이터를 수집합니다."""
     accounts = get_env_accounts(args.account)
     regions = args.regions.split(",") if args.regions else DEFINED_REGIONS
     profiles_map = get_profiles()
@@ -138,8 +139,8 @@ def main(args):
         valid_accounts.append((acct, profile_name))
     
     total_operations = len(valid_accounts) * len(regions)
-    
     all_rows = []
+    
     with ManualProgress("Collecting RDS instances and clusters across accounts and regions", total=total_operations) as progress:
         with ThreadPoolExecutor() as executor:
             futures = {}
@@ -151,25 +152,47 @@ def main(args):
                     futures[future] = (acct, reg)
                     future_to_info[future] = (acct, reg)
 
-            completed = 0
             for future in as_completed(futures):
                 acct, reg = future_to_info[future]
                 try:
                     result = future.result()
                     all_rows.extend(result)
-                    completed += 1
                     progress.update(f"Processed {acct}/{reg} - Found {len(result)} RDS resources", advance=1)
                 except Exception as e:
-                    completed += 1
                     log_info_non_console(f"Failed to collect RDS data for {acct}/{reg}: {e}")
                     progress.update(f"Failed {acct}/{reg} - {str(e)[:50]}...", advance=1)
 
-    print_rds_table(all_rows)
+    return all_rows
+
+
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+class AwsRdsInfoCommand(BaseCommand):
+    """AWS RDS instance and cluster information command."""
+
+    @classmethod
+    def add_arguments(cls, parser):
+        cls.add_common_arguments(parser)
+        parser.add_argument('-a', '--account', help='특정 AWS 계정 ID 목록(,) (없으면 .env 사용)')
+        parser.add_argument('-r', '--regions', help='리전 목록(,) (없으면 .env/DEFINED_REGIONS)')
+        parser.add_argument('-n', '--name', help='RDS 인스턴스/클러스터 이름 필터 (부분 일치)')
+
+    def execute(self, args, config=None) -> CommandResult:
+        all_rows = collect_rds_data(args)
+        return CommandResult(
+            data=all_rows,
+            table_renderer=lambda data, verbose=False: print_rds_table(data),
+        )
+
+
+def main(args, config=None):
+    AwsRdsInfoCommand().run(args, config)
+
 
 def add_arguments(parser):
-    parser.add_argument('-a', '--account', help='특정 AWS 계정 ID 목록(,) (없으면 .env 사용)')
-    parser.add_argument('-r', '--regions', help='리전 목록(,) (없으면 .env/DEFINED_REGIONS)')
-    parser.add_argument('-n', '--name', help='RDS 인스턴스/클러스터 이름 필터 (부분 일치)')
+    AwsRdsInfoCommand.add_arguments(parser)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="AWS RDS 정보 (병렬 수집)")

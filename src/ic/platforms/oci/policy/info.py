@@ -165,17 +165,55 @@ def print_policy_table(console, policy_rows, show_details):
     console.print(table)
 
 
-@progress_bar("Initializing OCI IAM policy information collection")
-def main(args):
-    console = Console()
+def collect_oci_policy_data(args, console):
     try:
         config = oci.config.from_file("~/.oci/config", "DEFAULT")
         identity_client = oci.identity.IdentityClient(config)
     except Exception as e:
-        console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]"); sys.exit(1)
+        console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]")
+        return []
 
-    compartment_filter = args.compartment.lower() if args.compartment else None
+    compartment_filter = args.compartment.lower() if getattr(args, "compartment", None) else None
     compartments = get_compartments(identity_client, config["tenancy"], compartment_filter, console)
     
-    policy_rows = collect_policies(identity_client, compartments, args.name.lower() if args.name else None)
-    print_policy_table(console, policy_rows, False) # show_details 인자는 더 이상 사용되지 않음 
+    name_filter = args.name.lower() if getattr(args, "name", None) else None
+    policy_rows = collect_policies(identity_client, compartments, name_filter)
+    return policy_rows
+
+
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+class OciPolicyInfoCommand(BaseCommand):
+    """OCI IAM Policy information command."""
+
+    @classmethod
+    def add_arguments(cls, parser):
+        cls.add_common_arguments(parser)
+        parser.add_argument("--name", "-n", default=None, help="Policy 이름 필터 (부분 일치)")
+        parser.add_argument("--compartment", "-c", default=None, help="컴파트먼트 이름 필터 (부분 일치)")
+
+    def execute(self, args, config=None) -> CommandResult:
+        console = Console()
+        policy_rows = collect_oci_policy_data(args, console)
+        return CommandResult(
+            data=policy_rows,
+            table_renderer=lambda data, verbose=False: print_policy_table(console, data, verbose),
+        )
+
+
+def main(args, config=None):
+    OciPolicyInfoCommand().run(args, config)
+
+
+def add_arguments(parser):
+    OciPolicyInfoCommand.add_arguments(parser)
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description="OCI Policy Info Collector")
+    add_arguments(parser)
+    args = parser.parse_args()
+    main(args)
+ 

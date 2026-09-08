@@ -189,3 +189,63 @@ class CloudFrontRenderer:
         
         self.console.print(table)
         self.console.print(f"\n📊 Total distributions: {len(distributions)}")
+
+
+import argparse
+from ic.core.interfaces import BaseCommand, CommandResult
+from common.utils import get_env_accounts, get_profiles
+
+
+class AwsCloudfrontInfoCommand(BaseCommand):
+    """AWS CloudFront distributions information command."""
+
+    @classmethod
+    def add_arguments(cls, parser):
+        cls.add_common_arguments(parser)
+        parser.add_argument('-a', '--account', help='특정 AWS 계정 ID 목록(,) (없으면 .env 사용)')
+        parser.add_argument('-n', '--name', help='CloudFront 배포 이름/도메인 필터 (부분 일치)')
+
+    def execute(self, args, config=None) -> CommandResult:
+        accounts = get_env_accounts(getattr(args, 'account', None))
+        profiles_map = get_profiles()
+        
+        target_profiles = {}
+        for acct in accounts:
+            prof = profiles_map.get(acct)
+            if prof:
+                target_profiles[acct] = prof
+                
+        collector = CloudFrontCollector()
+        distributions = collector.collect_distributions(target_profiles)
+        
+        # Apply name filter if requested
+        name_filter = getattr(args, 'name', None)
+        if name_filter:
+            name_lower = name_filter.lower()
+            distributions = [
+                d for d in distributions
+                if name_lower in d.get('Name', '').lower()
+                or name_lower in d.get('도메인(Domain)', '').lower()
+                or name_lower in d.get('ID', '').lower()
+            ]
+            
+        renderer = CloudFrontRenderer()
+        return CommandResult(
+            data=distributions,
+            table_renderer=lambda data, verbose=False: renderer.render_distributions(data),
+        )
+
+
+def main(args, config=None):
+    AwsCloudfrontInfoCommand().run(args, config)
+
+
+def add_arguments(parser):
+    AwsCloudfrontInfoCommand.add_arguments(parser)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="AWS CloudFront 정보 조회")
+    add_arguments(parser)
+    args = parser.parse_args()
+    main(args)

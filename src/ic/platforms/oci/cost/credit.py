@@ -111,46 +111,60 @@ def print_credit_table(credit_data, console, initial_credit, currency_cd):
     tbl.add_row("[bold]Summary[/bold]", f"[blue bold]{final_use:,.0f}[/blue bold]", f"[green bold]{final_remain:,.0f}[/green bold]")
     console.print(tbl)
 
-@progress_bar("Analyzing OCI credit usage")
-def main(args):
-    console = Console()
-    
-    with ManualProgress("Initializing OCI credit analysis", total=5) as progress:
-        # Step 1: Load OCI configuration
-        progress.update("Loading OCI configuration")
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+class OciCostCreditCommand(BaseCommand):
+    """OCI Credit usage analysis command."""
+
+    @classmethod
+    def add_arguments(cls, parser):
+        cls.add_common_arguments(parser)
+        parser.add_argument("--cost-start", default=None, help="크레딧 조회 시작일 (YYYY-MM-DD), 기본: 2025-05-22")
+        parser.add_argument("--cost-end", default=None, help="크레딧 조회 종료일 (YYYY-MM-DD), 기본: 오늘")
+        parser.add_argument("--credit-initial", type=float, default=None, help="초기 크레딧 금액")
+
+    def execute(self, args, config=None) -> CommandResult:
+        console = Console()
         try:
-            config = oci.config.from_file("~/.oci/config", "DEFAULT")
-            usage_client = oci.usage_api.UsageapiClient(config)
+            oci_cfg = oci.config.from_file("~/.oci/config", "DEFAULT")
+            usage_client = oci.usage_api.UsageapiClient(oci_cfg)
         except Exception as e:
             console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]")
-            sys.exit(1)
-        progress.advance(1)
+            return CommandResult(data={}, success=False, error=str(e))
 
-        # Step 2: Parse date parameters
-        progress.update("Parsing date and credit parameters")
         now = datetime.datetime.utcnow()
         try:
-            start_date = datetime.datetime.strptime(args.cost_start, "%Y-%m-%d") if args.cost_start else datetime.datetime(2025, 5, 22)
-            end_date = datetime.datetime.strptime(args.cost_end, "%Y-%m-%d") if args.cost_end else datetime.datetime(now.year, now.month, now.day)
+            start_date = datetime.datetime.strptime(args.cost_start, "%Y-%m-%d") if getattr(args, "cost_start", None) else datetime.datetime(2025, 5, 22)
+            end_date = datetime.datetime.strptime(args.cost_end, "%Y-%m-%d") if getattr(args, "cost_end", None) else datetime.datetime(now.year, now.month, now.day)
         except ValueError:
             console.print("[red]날짜 형식이 잘못되었습니다. YYYY-MM-DD 형식으로 입력해주세요.[/red]")
-            sys.exit(1)
-        progress.advance(1)
-        
-        # Step 3: Set initial credit amount
-        progress.update("Setting initial credit parameters")
-        initial_credit = args.credit_initial if args.credit_initial is not None else 208698600.0
-        progress.advance(1)
+            return CommandResult(data={}, success=False, error="Invalid date format")
 
-        # Step 4: Fetch credit usage data (this will show its own progress)
-        progress.update("Fetching credit usage data")
-        cd, currency_cd = get_credit_usage(usage_client, config["tenancy"], start_date, end_date, initial_credit, console)
-        progress.advance(1)
-        
-        # Step 5: Display results
-        progress.update("Generating credit usage report")
-        if cd:
-            print_credit_table(cd, console, initial_credit, currency_cd)
-        else:
-            console.print("(No Credit Data)")
-        progress.advance(1) 
+        initial_credit = getattr(args, "credit_initial", None)
+        if initial_credit is None:
+            initial_credit = 208698600.0
+
+        cd, currency_cd = get_credit_usage(usage_client, oci_cfg["tenancy"], start_date, end_date, initial_credit, console)
+
+        return CommandResult(
+            data={"credit_data": cd, "currency": currency_cd, "initial_credit": initial_credit},
+            table_renderer=lambda data, verbose=False: print_credit_table(cd, console, initial_credit, currency_cd),
+        )
+
+
+def main(args, config=None):
+    OciCostCreditCommand().run(args, config)
+
+
+def add_arguments(parser):
+    OciCostCreditCommand.add_arguments(parser)
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description="OCI Credit Usage Analyzer")
+    add_arguments(parser)
+    args = parser.parse_args()
+    main(args)
+ 

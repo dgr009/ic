@@ -211,7 +211,8 @@ def print_vpc_table(all_rows):
     console.print(table)
 
 
-def main(args):
+def collect_vpc_data(args):
+    """VPC 및 서브넷 정보를 수집합니다."""
     accounts = get_env_accounts(args.account)
     regions = args.regions.split(",") if args.regions else DEFINED_REGIONS
     profiles_map = get_profiles()
@@ -225,8 +226,8 @@ def main(args):
             valid_accounts.append((acct, profile_name))
     
     total_operations = len(valid_accounts) * len(regions)
-
     all_rows = []
+
     with ManualProgress("Collecting VPC information across accounts and regions", total=total_operations) as progress:
         with ThreadPoolExecutor() as executor:
             futures = []
@@ -238,27 +239,48 @@ def main(args):
                     futures.append(future)
                     future_to_info[future] = (acct, reg)
 
-            completed = 0
             for future in as_completed(futures):
                 acct, reg = future_to_info[future]
                 try:
                     result = future.result()
                     all_rows.extend(result)
-                    completed += 1
                     vpc_count = len(set(row['vpc_name'] for row in result))
                     progress.update(f"Processed {acct}/{reg} - Found {vpc_count} VPCs", advance=1)
                 except Exception as e:
-                    completed += 1
                     log_info_non_console(f"Failed to collect VPC data for {acct}/{reg}: {e}")
                     progress.update(f"Failed {acct}/{reg} - {str(e)[:50]}...", advance=1)
 
-    print_vpc_table(all_rows)
+    return all_rows
+
+
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+class AwsVpcInfoCommand(BaseCommand):
+    """AWS VPC and subnet information command."""
+
+    @classmethod
+    def add_arguments(cls, parser):
+        cls.add_common_arguments(parser)
+        parser.add_argument('-a', '--account', help='특정 AWS 계정 ID 목록(,) (없으면 .env 사용)')
+        parser.add_argument('-r', '--regions', help='리전 목록(,) (없으면 .env/DEFINED_REGIONS)')
+        parser.add_argument('-n', '--name', help='VPC 이름 필터 (부분 일치)')
+
+    def execute(self, args, config=None) -> CommandResult:
+        all_rows = collect_vpc_data(args)
+        return CommandResult(
+            data=all_rows,
+            table_renderer=lambda data, verbose=False: print_vpc_table(data),
+        )
+
+
+def main(args, config=None):
+    AwsVpcInfoCommand().run(args, config)
 
 
 def add_arguments(parser):
-    parser.add_argument('-a', '--account', help='특정 AWS 계정 ID 목록(,) (없으면 .env 사용)')
-    parser.add_argument('-r', '--regions', help='리전 목록(,) (없으면 .env/DEFINED_REGIONS)')
-    parser.add_argument('-n', '--name', help='VPC 이름 필터 (부분 일치)')
+    AwsVpcInfoCommand.add_arguments(parser)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="AWS VPC 정보 (병렬 수집)")

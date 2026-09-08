@@ -141,12 +141,12 @@ def format_datetime(dt):
         return dt.strftime('%Y-%m-%d %H:%M:%S UTC')
     return '-'
 
-def main(args):
-    """메인 함수"""
-    if not args.pipeline_name:
+def collect_codepipeline_build_data(args):
+    """CodePipeline 빌드 스테이지 데이터를 수집합니다."""
+    if not getattr(args, 'pipeline_name', None):
         log_error("pipeline_name 인수가 필요합니다.")
-        sys.exit(1)
-    
+        return []
+
     accounts = get_env_accounts(args.account)
     regions = args.regions.split(",") if args.regions else DEFINED_REGIONS
     profiles_map = get_profiles()
@@ -180,36 +180,50 @@ def main(args):
                     futures.append(future)
                     future_to_info[future] = (acct, reg)
             
-            completed = 0
             for future in as_completed(futures):
                 acct, reg = future_to_info[future]
                 try:
                     result = future.result()
                     if result:
                         all_stages.extend(result)
-                    completed += 1
                     stage_count = len(result) if result else 0
                     progress.update(f"Processed {acct}/{reg} - Found {stage_count} build stages", advance=1)
                 except Exception as e:
-                    completed += 1
                     log_info_non_console(f"Failed to collect CodePipeline build data for {acct}/{reg}: {e}")
                     progress.update(f"Failed {acct}/{reg} - {str(e)[:50]}...", advance=1)
     
-    # 출력 형식에 따라 결과 출력
-    if args.output in ['json', 'yaml']:
-        output = format_output(all_stages, args.output)
-        print(output)
-    else:
-        format_build_stages_table(all_stages)
+    return all_stages
+
+
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+class AwsCodePipelineBuildCommand(BaseCommand):
+    """AWS CodePipeline build stages command."""
+
+    @classmethod
+    def add_arguments(cls, parser):
+        cls.add_common_arguments(parser)
+        parser.add_argument('pipeline_name', help='상태를 조회할 CodePipeline의 이름')
+        parser.add_argument('-a', '--account', help='특정 AWS 계정 ID 목록(,) (없으면 .env 사용)')
+        parser.add_argument('-r', '--regions', help='리전 목록(,) (없으면 .env/DEFINED_REGIONS)')
+        parser.add_argument('--debug', action='store_true', help='디버그 모드 활성화')
+
+    def execute(self, args, config=None) -> CommandResult:
+        all_stages = collect_codepipeline_build_data(args)
+        return CommandResult(
+            data=all_stages,
+            table_renderer=lambda data, verbose=False: format_build_stages_table(data),
+        )
+
+
+def main(args, config=None):
+    AwsCodePipelineBuildCommand().run(args, config)
+
 
 def add_arguments(parser):
-    """명령행 인수를 추가합니다."""
-    parser.add_argument('pipeline_name', help='상태를 조회할 CodePipeline의 이름')
-    parser.add_argument('-a', '--account', help='특정 AWS 계정 ID 목록(,) (없으면 .env 사용)')
-    parser.add_argument('-r', '--regions', help='리전 목록(,) (없으면 .env/DEFINED_REGIONS)')
-    parser.add_argument('--output', choices=['table', 'json', 'yaml'], default='table', 
-                       help='출력 형식 (기본값: table)')
-    parser.add_argument('--debug', action='store_true', help='디버그 모드 활성화')
+    AwsCodePipelineBuildCommand.add_arguments(parser)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="CodePipeline 빌드 스테이지 상태 조회")

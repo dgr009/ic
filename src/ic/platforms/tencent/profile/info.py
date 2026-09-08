@@ -202,12 +202,35 @@ def render_profiles(profiles: List[Dict[str, str]], creds_path: Path) -> None:
         console.print(f"\n[yellow]⚠️  설정 미완성 프로필 (secret_id/role_arn 없음): {', '.join(unknown)}[/yellow]")
 
 
-###############################################################################
-# main
-###############################################################################
-def main(args, config=None) -> None:
-    creds_arg = getattr(args, "credentials", None)
-    parser = TencentCredentialsParser(creds_arg)
+from ic.core.interfaces import BaseCommand, CommandResult
 
-    profiles = collect_profile_info(parser)
-    render_profiles(profiles, parser.path)
+
+class TencentProfileInfoCommand(BaseCommand):
+    """Tencent Profile information command."""
+
+    @classmethod
+    def add_arguments(cls, parser) -> None:
+        cls.add_common_arguments(parser)
+        parser.add_argument(
+            "--credentials",
+            help="credentials 파일 경로 (기본: ~/.tencent/credentials)"
+        )
+
+    def execute(self, args, config=None) -> CommandResult:
+        creds_arg = getattr(args, "credentials", None)
+        parser = TencentCredentialsParser(creds_arg)
+
+        profiles = collect_profile_info(parser)
+        return CommandResult(
+            data=profiles,
+            table_renderer=lambda data, verbose=False: render_profiles(data, parser.path),
+        )
+
+
+def main(args, config=None) -> None:
+    TencentProfileInfoCommand().run(args, config)
+
+
+def add_arguments(parser) -> None:
+    TencentProfileInfoCommand.add_arguments(parser)
+

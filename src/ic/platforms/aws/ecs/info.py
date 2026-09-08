@@ -208,8 +208,8 @@ def format_status(status):
     else:
         return status
 
-def main(args):
-    """메인 함수"""
+def collect_ecs_data(args):
+    """Collect ECS cluster data across accounts and regions."""
     accounts = get_env_accounts(args.account)
     regions = args.regions.split(",") if args.regions else DEFINED_REGIONS
     profiles_map = get_profiles()
@@ -243,36 +243,52 @@ def main(args):
                     futures.append(future)
                     future_to_info[future] = (acct, reg)
             
-            completed = 0
             for future in as_completed(futures):
                 acct, reg = future_to_info[future]
                 try:
                     result = future.result()
                     if result:
                         all_cluster_info.extend(result)
-                    completed += 1
                     cluster_count = len(result) if result else 0
                     progress.update(f"Processed {acct}/{reg} - Found {cluster_count} ECS clusters", advance=1)
                 except Exception as e:
-                    completed += 1
                     log_info_non_console(f"Failed to collect ECS data for {acct}/{reg}: {e}")
                     progress.update(f"Failed {acct}/{reg} - {str(e)[:50]}...", advance=1)
     
-    # 출력 형식에 따라 결과 출력
-    if args.output in ['json', 'yaml']:
-        output = format_output(all_cluster_info, args.output)
-        print(output)
-    else:
-        format_table_output(all_cluster_info)
+    return all_cluster_info
+
+
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+class AwsEcsInfoCommand(BaseCommand):
+    """AWS ECS cluster information command."""
+
+    @classmethod
+    def add_arguments(cls, parser):
+        cls.add_common_arguments(parser)
+        parser.add_argument('-a', '--account', help='특정 AWS 계정 ID 목록(,) (없으면 .env 사용)')
+        parser.add_argument('-r', '--regions', help='리전 목록(,) (없으면 .env/DEFINED_REGIONS)')
+        parser.add_argument('-n', '--name', help='클러스터 이름 필터 (부분 일치)')
+        parser.add_argument('--debug', action='store_true', help='디버그 모드 활성화')
+
+    def execute(self, args, config=None) -> CommandResult:
+        all_cluster_info = collect_ecs_data(args)
+        return CommandResult(
+            data=all_cluster_info,
+            table_renderer=lambda data, verbose=False: format_table_output(data),
+        )
+
+
+def main(args, config=None):
+    """메인 함수"""
+    AwsEcsInfoCommand().run(args, config)
+
 
 def add_arguments(parser):
     """명령행 인수를 추가합니다."""
-    parser.add_argument('-a', '--account', help='특정 AWS 계정 ID 목록(,) (없으면 .env 사용)')
-    parser.add_argument('-r', '--regions', help='리전 목록(,) (없으면 .env/DEFINED_REGIONS)')
-    parser.add_argument('-n', '--name', help='클러스터 이름 필터 (부분 일치)')
-    parser.add_argument('--output', choices=['table', 'json', 'yaml'], default='table', 
-                       help='출력 형식 (기본값: table)')
-    parser.add_argument('--debug', action='store_true', help='디버그 모드 활성화')
+    AwsEcsInfoCommand.add_arguments(parser)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ECS 클러스터 정보 조회")

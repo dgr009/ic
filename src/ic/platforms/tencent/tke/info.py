@@ -189,44 +189,62 @@ def print_tke_table(all_rows: List[Dict[str, Any]], verbose: bool) -> None:
     console.print(table)
 
 
-def main(args) -> None:
-    if not check_sdk_available():
-        console.print("[red]❌ tencentcloud-sdk-python 이 설치되지 않았습니다.[/red]")
-        sys.exit(1)
+from ic.core.interfaces import BaseCommand, CommandResult
 
-    accounts    = get_accounts(getattr(args, "account", None))
-    regions     = get_tencent_regions(getattr(args, "regions", None))
-    name_filter = getattr(args, "name", None)
-    verbose     = getattr(args, "verbose", False)
-    total_ops   = len(accounts) * len(regions)
-    all_rows: List[Dict[str, Any]] = []
 
-    with ManualProgress("Collecting TKE clusters across accounts and regions", total=total_ops) as progress:
-        with ThreadPoolExecutor() as executor:
-            futures = {}
-            for account in accounts:
-                for region in regions:
-                    f = executor.submit(fetch_tke_one_account_region, account, region, name_filter)
-                    futures[f] = (account.get("name", account.get("id")), region)
+class TencentTkeInfoCommand(BaseCommand):
+    """Tencent Cloud TKE Kubernetes Engine information command."""
 
-            for future in as_completed(futures):
-                acct_name, region = futures[future]
-                try:
-                    result = future.result()
-                    all_rows.extend(result)
-                    progress.update(f"Processed {acct_name}/{region} - Found {len(result)} clusters", advance=1)
-                except Exception as e:
-                    log_info_non_console(f"[TKE] Future 실패: {acct_name}/{region}: {e}")
-                    progress.update(f"Failed {acct_name}/{region}", advance=1)
+    @classmethod
+    def add_arguments(cls, parser) -> None:
+        cls.add_common_arguments(parser)
+        parser.add_argument("-a", "--account", help="계정 이름 또는 ID 목록(,) (없으면 전체 계정 조회)")
+        parser.add_argument("-r", "--regions", help="리전 목록(,) 예: ap-seoul,ap-tokyo")
+        parser.add_argument("-n", "--name",    help="클러스터 이름 필터")
+        parser.add_argument("-v", "--verbose", action="store_true", help="상세 정보 출력")
 
-    print_tke_table(all_rows, verbose)
+    def execute(self, args, config=None) -> CommandResult:
+        if not check_sdk_available():
+            console.print("[red]❌ tencentcloud-sdk-python 이 설치되지 않았습니다.[/red]")
+            return CommandResult(data=[], success=False, error="tencentcloud-sdk-python not installed")
+
+        accounts    = get_accounts(getattr(args, "account", None))
+        regions     = get_tencent_regions(getattr(args, "regions", None))
+        name_filter = getattr(args, "name", None)
+        verbose     = getattr(args, "verbose", False)
+        total_ops   = len(accounts) * len(regions)
+        all_rows: List[Dict[str, Any]] = []
+
+        with ManualProgress("Collecting TKE clusters across accounts and regions", total=total_ops) as progress:
+            with ThreadPoolExecutor() as executor:
+                futures = {}
+                for account in accounts:
+                    for region in regions:
+                        f = executor.submit(fetch_tke_one_account_region, account, region, name_filter)
+                        futures[f] = (account.get("name", account.get("id")), region)
+
+                for future in as_completed(futures):
+                    acct_name, region = futures[future]
+                    try:
+                        result = future.result()
+                        all_rows.extend(result)
+                        progress.update(f"Processed {acct_name}/{region} - Found {len(result)} clusters", advance=1)
+                    except Exception as e:
+                        log_info_non_console(f"[TKE] Future 실패: {acct_name}/{region}: {e}")
+                        progress.update(f"Failed {acct_name}/{region}", advance=1)
+
+        return CommandResult(
+            data=all_rows,
+            table_renderer=lambda data, v=False: print_tke_table(data, verbose=v or verbose),
+        )
+
+
+def main(args, config=None) -> None:
+    TencentTkeInfoCommand().run(args, config)
 
 
 def add_arguments(parser) -> None:
-    parser.add_argument("-a", "--account", help="계정 이름 또는 ID 목록(,) (없으면 전체 계정 조회)")
-    parser.add_argument("-r", "--regions", help="리전 목록(,) 예: ap-seoul,ap-tokyo")
-    parser.add_argument("-n", "--name",    help="클러스터 이름 필터")
-    parser.add_argument("-v", "--verbose", action="store_true", help="상세 정보 출력")
+    TencentTkeInfoCommand.add_arguments(parser)
 
 
 if __name__ == "__main__":
@@ -234,3 +252,4 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Tencent TKE 클러스터 정보 (병렬 수집)")
     add_arguments(p)
     main(p.parse_args())
+

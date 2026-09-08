@@ -247,58 +247,78 @@ def print_sg_tree(sg_rows: List[Dict[str, Any]]) -> None:
     console.print(tree)
 
 
-def main(args) -> None:
-    if not check_sdk_available():
-        console.print("[red]❌ tencentcloud-sdk-python 이 설치되지 않았습니다.[/red]")
-        sys.exit(1)
+from ic.core.interfaces import BaseCommand, CommandResult
 
-    accounts = get_accounts(getattr(args, "account", None))
-    regions  = get_tencent_regions(getattr(args, "regions", None))
 
-    rule_type = getattr(args, "rule_type", "all")
-    if getattr(args, "ingress", False):
-        rule_type = "ingress"
-    elif getattr(args, "egress", False):
-        rule_type = "egress"
+class TencentSgInfoCommand(BaseCommand):
+    """Tencent Cloud Security Group information command."""
 
-    name_filter = getattr(args, "name", None)
-    output_fmt  = getattr(args, "output", "table")
-    total_ops   = len(accounts) * len(regions)
-    all_rows: List[Dict[str, Any]] = []
+    @classmethod
+    def add_arguments(cls, parser) -> None:
+        parser.add_argument("-a", "--account",   help="계정 이름 또는 ID 목록(,) (없으면 전체 계정 조회)")
+        parser.add_argument("-r", "--regions",   help="리전 목록(,)")
+        parser.add_argument("-n", "--name",      help="SG 이름 필터")
+        parser.add_argument("-o", "--output",    default="table", choices=["table", "json", "yaml", "tree"], help="출력 형식 (table, json, yaml, tree. 기본: table)")
+        parser.add_argument("-t", "--rule-type", default="all",   choices=["all", "ingress", "egress"], help="룰 타입")
+        parser.add_argument("-i", "--ingress",   action="store_true", help="Ingress 룰만")
+        parser.add_argument("-e", "--egress",    action="store_true", help="Egress 룰만")
 
-    with ManualProgress("Collecting Security Group information across accounts and regions", total=total_ops) as progress:
-        with ThreadPoolExecutor() as executor:
-            futures = {}
-            for account in accounts:
-                for region in regions:
-                    f = executor.submit(fetch_sg_one_account_region, account, region, name_filter, rule_type)
-                    futures[f] = (account.get("name", account.get("id")), region)
+    def execute(self, args, config=None) -> CommandResult:
+        if not check_sdk_available():
+            console.print("[red]❌ tencentcloud-sdk-python 이 설치되지 않았습니다.[/red]")
+            return CommandResult(data=[], success=False, error="tencentcloud-sdk-python not installed")
 
-            for future in as_completed(futures):
-                acct_name, region = futures[future]
-                try:
-                    result = future.result()
-                    all_rows.extend(result)
-                    sg_count = len(set(r["sg_name"] for r in result))
-                    progress.update(f"Processed {acct_name}/{region} - Found {sg_count} SGs", advance=1)
-                except Exception as e:
-                    log_info_non_console(f"[SG] Future 실패: {acct_name}/{region}: {e}")
-                    progress.update(f"Failed {acct_name}/{region}", advance=1)
+        accounts = get_accounts(getattr(args, "account", None))
+        regions  = get_tencent_regions(getattr(args, "regions", None))
 
-    if output_fmt == "tree":
-        print_sg_tree(all_rows)
-    else:
-        print_sg_table(all_rows)
+        rule_type = getattr(args, "rule_type", "all")
+        if getattr(args, "ingress", False):
+            rule_type = "ingress"
+        elif getattr(args, "egress", False):
+            rule_type = "egress"
+
+        name_filter = getattr(args, "name", None)
+        output_fmt  = getattr(args, "output", "table")
+        total_ops   = len(accounts) * len(regions)
+        all_rows: List[Dict[str, Any]] = []
+
+        with ManualProgress("Collecting Security Group information across accounts and regions", total=total_ops) as progress:
+            with ThreadPoolExecutor() as executor:
+                futures = {}
+                for account in accounts:
+                    for region in regions:
+                        f = executor.submit(fetch_sg_one_account_region, account, region, name_filter, rule_type)
+                        futures[f] = (account.get("name", account.get("id")), region)
+
+                for future in as_completed(futures):
+                    acct_name, region = futures[future]
+                    try:
+                        result = future.result()
+                        all_rows.extend(result)
+                        sg_count = len(set(r["sg_name"] for r in result))
+                        progress.update(f"Processed {acct_name}/{region} - Found {sg_count} SGs", advance=1)
+                    except Exception as e:
+                        log_info_non_console(f"[SG] Future 실패: {acct_name}/{region}: {e}")
+                        progress.update(f"Failed {acct_name}/{region}", advance=1)
+
+        def render_table(data, verbose=False):
+            if output_fmt == "tree":
+                print_sg_tree(data)
+            else:
+                print_sg_table(data)
+
+        return CommandResult(
+            data=all_rows,
+            table_renderer=render_table,
+        )
+
+
+def main(args, config=None) -> None:
+    TencentSgInfoCommand().run(args, config)
 
 
 def add_arguments(parser) -> None:
-    parser.add_argument("-a", "--account",   help="계정 이름 또는 ID 목록(,) (없으면 전체 계정 조회)")
-    parser.add_argument("-r", "--regions",   help="리전 목록(,)")
-    parser.add_argument("-n", "--name",      help="SG 이름 필터")
-    parser.add_argument("-o", "--output",    default="table", choices=["table", "tree"], help="출력 형식 (기본: table)")
-    parser.add_argument("-t", "--rule-type", default="all",   choices=["all", "ingress", "egress"], help="룰 타입")
-    parser.add_argument("-i", "--ingress",   action="store_true", help="Ingress 룰만")
-    parser.add_argument("-e", "--egress",    action="store_true", help="Egress 룰만")
+    TencentSgInfoCommand.add_arguments(parser)
 
 
 if __name__ == "__main__":
@@ -306,3 +326,4 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Tencent Security Group 정보 (병렬 수집)")
     add_arguments(p)
     main(p.parse_args())
+

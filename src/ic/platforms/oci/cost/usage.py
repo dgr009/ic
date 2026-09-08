@@ -112,35 +112,48 @@ def print_cost_table(cost_rows, console, start_time, end_time, currency_cd):
     console.print(tbl)
 
 
-@progress_bar("Analyzing OCI cost usage")
-def main(args):
-    console = Console()
-    
-    with ManualProgress("Initializing OCI cost analysis", total=4) as progress:
-        # Step 1: Load OCI configuration
-        progress.update("Loading OCI configuration")
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+class OciCostUsageCommand(BaseCommand):
+    """OCI Cost usage analysis command."""
+
+    @classmethod
+    def add_arguments(cls, parser):
+        cls.add_common_arguments(parser)
+        parser.add_argument("--cost-start", default=None, help="비용 조회 시작 (YYYY-MM-DD)")
+        parser.add_argument("--cost-end", default=None, help="비용 조회 종료 (YYYY-MM-DD)")
+
+    def execute(self, args, config=None) -> CommandResult:
+        console = Console()
         try:
-            config = oci.config.from_file("~/.oci/config", "DEFAULT")
-            usage_client = oci.usage_api.UsageapiClient(config)
+            oci_cfg = oci.config.from_file("~/.oci/config", "DEFAULT")
+            usage_client = oci.usage_api.UsageapiClient(oci_cfg)
         except Exception as e:
             console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]")
-            sys.exit(1)
-        progress.advance(1)
+            return CommandResult(data={}, success=False, error=str(e))
 
-        # Step 2: Parse date range
-        progress.update("Parsing date range parameters")
-        start_date, end_date = get_date_range(args.cost_start, args.cost_end)
-        progress.advance(1)
+        start_date, end_date = get_date_range(getattr(args, "cost_start", None), getattr(args, "cost_end", None))
+        cost_data, currency_cd = get_compartment_costs(usage_client, oci_cfg["tenancy"], start_date, end_date, console)
         
-        # Step 3: Fetch cost data (this will show its own progress)
-        progress.update("Fetching cost data from OCI")
-        cost_data, currency_cd = get_compartment_costs(usage_client, config["tenancy"], start_date, end_date, console)
-        progress.advance(1)
-        
-        # Step 4: Display results
-        progress.update("Generating cost report")
-        if cost_data:
-            print_cost_table(cost_data, console, start_date, end_date, currency_cd)
-        else:
-            console.print("(No Cost Data)")
-        progress.advance(1) 
+        return CommandResult(
+            data={"cost_data": cost_data, "currency": currency_cd, "start_date": str(start_date), "end_date": str(end_date)},
+            table_renderer=lambda data, verbose=False: print_cost_table(cost_data, console, start_date, end_date, currency_cd),
+        )
+
+
+def main(args, config=None):
+    OciCostUsageCommand().run(args, config)
+
+
+def add_arguments(parser):
+    OciCostUsageCommand.add_arguments(parser)
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description="OCI Cost Usage Analyzer")
+    add_arguments(parser)
+    args = parser.parse_args()
+    main(args)
+ 

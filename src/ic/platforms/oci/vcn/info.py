@@ -223,13 +223,11 @@ def print_vcn_table(console, vcn_rows):
         
     console.print(table)
 
-def main(args):
-    """
-    OCI VCN 정보 조회 메인 함수
-    """
-    console = Console()
-    
-    # Use single progress bar for the entire operation
+def collect_oci_vcn_data(args, console=None):
+    """OCI VCN 정보를 수집합니다."""
+    if console is None:
+        console = Console()
+
     with ManualProgress("Collecting OCI VCN Information", total=100) as progress:
         try:
             progress.update("Loading OCI configuration", advance=10)
@@ -237,32 +235,56 @@ def main(args):
             identity_client = oci.identity.IdentityClient(config)
         except Exception as e:
             console.print(f"[bold red]OCI 설정 파일 로드 실패: {e}[/bold red]")
-            return {"error": str(e), "success": False}
+            return []
 
         # 컴파트먼트 및 리전 목록 가져오기
         progress.update("Discovering compartments and regions", advance=10)
-        compartments = get_compartments(identity_client, config["tenancy"], args.compartment)
-        if args.regions:
+        compartments = get_compartments(identity_client, config["tenancy"], getattr(args, 'compartment', None))
+        if getattr(args, 'regions', None):
             region_list = args.regions.split(',')
         else:
             region_list = get_all_subscribed_regions(identity_client, config["tenancy"])
 
-        total_jobs = len(compartments) * len(region_list)
         progress.update(f"Processing {len(compartments)} compartments across {len(region_list)} regions", advance=10)
         
         # Collect VCN data with progress tracking
-        vcn_data = collect_vcn_parallel_fast(config, compartments, region_list, args.name, console, progress)
-        
+        name_filter = getattr(args, 'name', None)
+        vcn_data = collect_vcn_parallel_fast(config, compartments, region_list, name_filter, console, progress)
         progress.update("Formatting results", advance=10)
 
-    if vcn_data:
-        console.print(f"\n[bold green]Collection complete![/bold green] Found {len(vcn_data)} VCN entries.")
-        print_vcn_table(console, vcn_data)
-    else:
-        console.print("[yellow]조회된 VCN 정보가 없습니다.[/yellow]")
-    
-    return {"success": True, "data": {"vcns": len(vcn_data)}, "message": f"Found {len(vcn_data)} VCN entries"}
-    
+    return vcn_data
+
+
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+class OciVcnInfoCommand(BaseCommand):
+    """OCI VCN and subnet information command."""
+
+    @classmethod
+    def add_arguments(cls, parser):
+        cls.add_common_arguments(parser)
+        parser.add_argument("-r", "--regions", help="조회할 리전 (없으면 모든 구독 리전)")
+        parser.add_argument("-c", "--compartment", help="조회할 컴파트먼트 이름 (부분 일치)")
+        parser.add_argument("--name", help="필터링할 VCN 이름 (부분 일치)")
+
+    def execute(self, args, config=None) -> CommandResult:
+        console = Console()
+        vcn_data = collect_oci_vcn_data(args, console)
+        return CommandResult(
+            data=vcn_data,
+            table_renderer=lambda data, verbose=False: print_vcn_table(console, data) if data else console.print("[yellow]조회된 VCN 정보가 없습니다.[/yellow]"),
+        )
+
+
+def main(args, config=None):
+    OciVcnInfoCommand().run(args, config)
+
+
+def add_arguments(parser):
+    OciVcnInfoCommand.add_arguments(parser)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='OCI VCN Info')
     add_arguments(parser)

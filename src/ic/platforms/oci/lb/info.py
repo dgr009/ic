@@ -350,11 +350,10 @@ def print_lb_table(console, lb_rows):
         )
     console.print(table)
 
-###############################################################################
-# main
-###############################################################################
-def main(args):
-    console = Console()
+def collect_oci_lb_data(args, console=None):
+    """OCI Load Balancer 정보를 수집합니다."""
+    if console is None:
+        console = Console()
     
     # Use single progress bar for the entire operation
     with ManualProgress("Collecting OCI Load Balancer Information", total=100) as progress:
@@ -364,33 +363,73 @@ def main(args):
             identity_client = oci.identity.IdentityClient(config)
         except Exception as e:
             console.print(f"[red]OCI 설정 파일 로드 실패: {e}[/red]")
-            return {"error": str(e), "success": False}
+            return []
 
         progress.update("Discovering regions", advance=10)
-        if args.regions:
+        if getattr(args, 'regions', None):
             subscribed = get_all_subscribed_regions(identity_client, config["tenancy"])
             region_list = [r.strip() for r in args.regions.split(',') if r.strip() and r in subscribed]
             if not region_list:
                 console.print("[red]유효한 리전이 없어 종료합니다[/red]")
-                return {"error": "No valid regions found", "success": False}
+                return []
         else:
             region_list = get_all_subscribed_regions(identity_client, config["tenancy"])
 
         progress.update("Discovering compartments", advance=10)
-        compartments = get_compartments(identity_client, config["tenancy"], args.compartment.lower() if args.compartment else None, console)
+        comp_filter = args.compartment.lower() if getattr(args, 'compartment', None) else None
+        compartments = get_compartments(identity_client, config["tenancy"], comp_filter, console)
         
-        total_jobs = len(compartments) * len(region_list)
         progress.update(f"Processing {len(compartments)} compartments across {len(region_list)} regions", advance=10)
         
-        lb_rows = collect_lb_parallel_fast(config, compartments, region_list, args.name.lower() if args.name else None, console, progress)
+        name_filter = args.name.lower() if getattr(args, 'name', None) else None
+        lb_rows = collect_lb_parallel_fast(config, compartments, region_list, name_filter, console, progress)
         
         progress.update("Formatting results", advance=10)
     
-    console.print(f"\n[bold green]Collection complete![/bold green] Found {len(lb_rows)} load balancer entries.")
-    
-    if args.output == 'tree':
-        print_lb_tree(console, lb_rows)
-    else:
-        print_lb_table(console, lb_rows)
-    
-    return {"success": True, "data": {"load_balancers": len(lb_rows)}, "message": f"Found {len(lb_rows)} load balancer entries"} 
+    return lb_rows
+
+
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+class OciLbInfoCommand(BaseCommand):
+    """OCI Load Balancer information command."""
+
+    @classmethod
+    def add_arguments(cls, parser):
+        parser.add_argument("--name", "-n", default=None, help="이름 필터 (부분 일치)")
+        parser.add_argument("--compartment", "-c", default=None, help="컴파트먼트 이름 필터 (부분 일치)")
+        parser.add_argument("--regions", "-r", default=None, help="조회할 리전(,) 예: ap-seoul-1,us-ashburn-1")
+        parser.add_argument("-o", "--output", default="table", choices=["table", "json", "yaml", "tree"], help="출력 형식 선택 (table, json, yaml, tree. 기본값: table)")
+
+    def execute(self, args, config=None) -> CommandResult:
+        console = Console()
+        lb_rows = collect_oci_lb_data(args, console)
+        out_fmt = getattr(args, 'output', 'table')
+        
+        def render_table(data, verbose=False):
+            if out_fmt == 'tree':
+                print_lb_tree(console, data)
+            else:
+                print_lb_table(console, data)
+
+        return CommandResult(
+            data=lb_rows,
+            table_renderer=render_table,
+        )
+
+
+def main(args, config=None):
+    OciLbInfoCommand().run(args, config)
+
+
+def add_arguments(parser):
+    OciLbInfoCommand.add_arguments(parser)
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(description="OCI Load Balancer Info")
+    add_arguments(parser)
+    args = parser.parse_args()
+    main(args) 

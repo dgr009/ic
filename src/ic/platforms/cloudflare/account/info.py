@@ -124,98 +124,71 @@ def display_accounts_table(accounts: list) -> None:
     console.print(f"[bold green]✓[/bold green] Retrieved {len(accounts)} account(s)")
 
 
-def main(args, config=None) -> Dict[str, Any]:
-    """
-    Main entry point for CloudFlare account info command.
-    
-    Args:
-        args: Parsed command-line arguments
-        config: Optional configuration (not used, for compatibility)
-        
-    Returns:
-        Result dictionary with success status and data or error message
-    """
-    try:
-        # Load configuration
-        config_manager = ConfigManager()
-        cf_config = CloudFlareConfig.from_config_manager(config_manager)
-        
-        # Validate credentials
-        if not cf_config.email or not cf_config.api_token:
-            console.print("[bold red]❌ CloudFlare credentials not configured[/bold red]")
-            console.print("Please configure email and api_token in ~/.ic/config/secrets.yaml")
-            log_error("CloudFlare credentials not configured")
-            return {"success": False, "error": "Missing credentials"}
-        
-        # Initialize CloudFlare client
-        log_info("Initializing CloudFlare client for account info")
-        client = CloudFlareClient(cf_config)
-        
-        # Determine account filter
-        # CLI argument takes precedence over configuration
-        if args.account:
-            account_filter = [args.account]
-            log_info(f"Using CLI account filter: {account_filter}")
-        elif cf_config.accounts:
-            account_filter = cf_config.accounts
-            log_info(f"Using config account filter: {account_filter}")
-        else:
-            account_filter = None
-            log_info("No account filter specified, retrieving all accounts")
-        
-        # Fetch accounts with progress indicator
-        with ManualProgress("Processing CloudFlare accounts") as progress:
-            progress.set_description("Fetching CloudFlare accounts")
-            accounts = client.get_accounts(name_filter=account_filter)
-            
-            progress.set_description(f"Retrieved {len(accounts)} account(s)")
-        
-        # Display results
-        display_accounts_table(accounts)
-        
-        # Log summary
-        log_info(f"Successfully retrieved {len(accounts)} CloudFlare account(s)")
-        
-        return {
-            "success": True,
-            "data": {
-                "accounts": accounts,
-                "count": len(accounts)
-            }
-        }
-        
-    except AuthenticationError as e:
-        log_error(f"Authentication failed: {e}")
-        console.print("[bold red]❌ CloudFlare authentication failed[/bold red]")
-        console.print("Please check your credentials in ~/.ic/config/secrets.yaml")
-        return {"success": False, "error": "Authentication failed"}
-    
-    except RateLimitError as e:
-        log_error(f"Rate limit exceeded: {e}")
-        console.print(f"[bold yellow]⚠️  Rate limit exceeded. Retry after {e.retry_after}s[/bold yellow]")
-        return {"success": False, "error": "Rate limit exceeded"}
-    
-    except NetworkError as e:
-        log_error(f"Network error: {e}")
-        console.print("[bold red]❌ Network error connecting to CloudFlare API[/bold red]")
-        console.print("Please check your internet connection.")
-        return {"success": False, "error": "Network error"}
-    
-    except CloudFlareAPIError as e:
-        log_error(f"CloudFlare API error: {e}")
-        console.print(f"[bold red]❌ CloudFlare API error: {str(e)}[/bold red]")
-        return {"success": False, "error": str(e)}
-    
-    except Exception as e:
-        log_exception(e)
-        console.print(f"[bold red]❌ Unexpected error: {str(e)}[/bold red]")
-        return {"success": False, "error": str(e)}
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+class CloudflareAccountInfoCommand(BaseCommand):
+    """CloudFlare Account information command."""
+
+    @classmethod
+    def add_arguments(cls, parser: argparse.ArgumentParser) -> None:
+        cls.add_common_arguments(parser)
+        parser.add_argument(
+            "-a", "--account",
+            help="Filter accounts by name (case-insensitive substring match, overrides config)"
+        )
+
+    def execute(self, args, config=None) -> CommandResult:
+        try:
+            config_manager = ConfigManager()
+            cf_config = CloudFlareConfig.from_config_manager(config_manager)
+
+            if not cf_config.email or not cf_config.api_token:
+                console.print("[bold red]❌ CloudFlare credentials not configured[/bold red]")
+                console.print("Please configure email and api_token in ~/.ic/config/secrets.yaml")
+                return CommandResult(data={"accounts": [], "count": 0}, success=False, error="Missing credentials")
+
+            log_info("Initializing CloudFlare client for account info")
+            client = CloudFlareClient(cf_config)
+            account_filter = [args.account] if getattr(args, "account", None) else cf_config.accounts
+
+            with ManualProgress("Processing CloudFlare accounts") as progress:
+                progress.set_description("Fetching CloudFlare accounts")
+                accounts = client.get_accounts(name_filter=account_filter)
+                progress.set_description(f"Retrieved {len(accounts)} account(s)")
+
+            log_info(f"Successfully retrieved {len(accounts)} CloudFlare account(s)")
+
+            return CommandResult(
+                data={"accounts": accounts, "count": len(accounts)},
+                table_renderer=lambda data, verbose=False: display_accounts_table(accounts),
+                success=True,
+            )
+        except AuthenticationError as e:
+            console.print("[bold red]❌ CloudFlare authentication failed[/bold red]")
+            return CommandResult(data={"accounts": [], "count": 0}, success=False, error="Authentication failed")
+        except RateLimitError as e:
+            console.print(f"[bold yellow]⚠️  Rate limit exceeded. Retry after {e.retry_after}s[/bold yellow]")
+            return CommandResult(data={"accounts": [], "count": 0}, success=False, error="Rate limit exceeded")
+        except NetworkError as e:
+            console.print("[bold red]❌ Network error connecting to CloudFlare API[/bold red]")
+            return CommandResult(data={"accounts": [], "count": 0}, success=False, error="Network error")
+        except Exception as e:
+            console.print(f"[bold red]❌ Unexpected error: {str(e)}[/bold red]")
+            return CommandResult(data={"accounts": [], "count": 0}, success=False, error=str(e))
+
+
+
+def main(args, config=None):
+    return CloudflareAccountInfoCommand().run(args, config)
+
+
+
+def add_arguments(parser: argparse.ArgumentParser) -> None:
+    CloudflareAccountInfoCommand.add_arguments(parser)
 
 
 if __name__ == "__main__":
-    """
-    Standalone execution for local testing.
-    """
     parser = argparse.ArgumentParser(description="CloudFlare Account Information")
     add_arguments(parser)
     parsed_args = parser.parse_args()

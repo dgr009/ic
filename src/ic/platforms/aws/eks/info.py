@@ -204,9 +204,8 @@ def format_datetime(dt):
         return dt.strftime('%Y-%m-%d %H:%M:%S UTC')
     return '-'
 
-@progress_bar("Processing EKS cluster discovery across accounts and regions")
-def main(args):
-    """메인 함수"""
+def collect_eks_data(args):
+    """EKS 클러스터 데이터를 수집합니다."""
     accounts = get_env_accounts(args.account)
     regions = args.regions.split(",") if args.regions else DEFINED_REGIONS
     profiles_map = get_profiles()
@@ -233,22 +232,41 @@ def main(args):
             result = future.result()
             if result:
                 all_cluster_info.extend(result)
-    
-    # 출력 형식에 따라 결과 출력
-    if args.output in ['json', 'yaml']:
-        output = format_output(all_cluster_info, args.output)
-        print(output)
-    else:
-        format_table_output(all_cluster_info)
+                
+    return all_cluster_info
+
+
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+class AwsEksInfoCommand(BaseCommand):
+    """AWS EKS cluster information command."""
+
+    @classmethod
+    def add_arguments(cls, parser):
+        cls.add_common_arguments(parser)
+        parser.add_argument('-a', '--account', help='특정 AWS 계정 ID 목록(,) (없으면 .env 사용)')
+        parser.add_argument('-r', '--regions', help='리전 목록(,) (없으면 .env/DEFINED_REGIONS)')
+        parser.add_argument('-n', '--name', help='클러스터 이름 필터 (부분 일치)')
+        parser.add_argument('--debug', action='store_true', help='디버그 모드 활성화')
+
+    def execute(self, args, config=None) -> CommandResult:
+        all_cluster_info = collect_eks_data(args)
+        return CommandResult(
+            data=all_cluster_info,
+            table_renderer=lambda data, verbose=False: format_table_output(data),
+        )
+
+
+def main(args, config=None):
+    """메인 함수"""
+    AwsEksInfoCommand().run(args, config)
+
 
 def add_arguments(parser):
     """명령행 인수를 추가합니다."""
-    parser.add_argument('-a', '--account', help='특정 AWS 계정 ID 목록(,) (없으면 .env 사용)')
-    parser.add_argument('-r', '--regions', help='리전 목록(,) (없으면 .env/DEFINED_REGIONS)')
-    parser.add_argument('-n', '--name', help='클러스터 이름 필터 (부분 일치)')
-    parser.add_argument('--output', choices=['table', 'json', 'yaml'], default='table', 
-                       help='출력 형식 (기본값: table)')
-    parser.add_argument('--debug', action='store_true', help='디버그 모드 활성화')
+    AwsEksInfoCommand.add_arguments(parser)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="EKS 클러스터 정보 조회")

@@ -178,146 +178,99 @@ def display_zones_by_account(zones_by_account: Dict[str, Dict[str, Any]]) -> Non
     console.print(f"[bold green]✓[/bold green] Retrieved {total_zones} zone(s) across {account_count} account(s)")
 
 
-def main(args, config=None) -> Dict[str, Any]:
-    """
-    Main entry point for CloudFlare zone info command.
-    
-    Args:
-        args: Parsed command-line arguments
-        config: Optional configuration (not used, for compatibility)
-        
-    Returns:
-        Result dictionary with success status and data or error message
-    """
-    try:
-        # Load configuration
-        config_manager = ConfigManager()
-        cf_config = CloudFlareConfig.from_config_manager(config_manager)
-        
-        # Validate credentials
-        if not cf_config.email or not cf_config.api_token:
-            console.print("[bold red]❌ CloudFlare credentials not configured[/bold red]")
-            console.print("Please configure email and api_token in ~/.ic/config/secrets.yaml")
-            log_error("CloudFlare credentials not configured")
-            return {"success": False, "error": "Missing credentials"}
-        
-        # Initialize CloudFlare client
-        log_info("Initializing CloudFlare client for zone info")
-        client = CloudFlareClient(cf_config)
-        
-        # Determine account filter
-        # CLI argument takes precedence over configuration
-        if args.account:
-            account_filter = [args.account]
-            log_info(f"Using CLI account filter: {account_filter}")
-        elif cf_config.accounts:
-            account_filter = cf_config.accounts
-            log_info(f"Using config account filter: {account_filter}")
-        else:
-            account_filter = None
-            log_info("No account filter specified, retrieving all accounts")
-        
-        # Determine zone filter
-        # CLI argument takes precedence over configuration
-        if args.zone:
-            zone_filter = [args.zone]
-            log_info(f"Using CLI zone filter: {zone_filter}")
-        elif cf_config.zones:
-            zone_filter = cf_config.zones
-            log_info(f"Using config zone filter: {zone_filter}")
-        else:
-            zone_filter = None
-            log_info("No zone filter specified, retrieving all zones")
-        
-        # Fetch accounts and zones with progress indicator
-        zones_by_account = {}
-        
-        with ManualProgress("Processing CloudFlare zones") as progress:
-            # Stage 1: Fetch accounts
-            progress.set_description("Fetching CloudFlare accounts")
-            accounts = client.get_accounts(name_filter=account_filter)
-            log_info(f"Retrieved {len(accounts)} account(s)")
-            
-            if not accounts:
-                console.print("[bold yellow]No CloudFlare accounts found matching the filters.[/bold yellow]")
-                return {
-                    "success": True,
-                    "data": {
-                        "zones_by_account": {},
-                        "total_zones": 0,
-                        "total_accounts": 0
-                    }
-                }
-            
-            # Stage 2: Process each account
-            total_zones = 0
-            for idx, account in enumerate(accounts, 1):
-                account_id = account.get("id", "")
-                account_name = account.get("name", "Unknown Account")
-                
-                progress.set_description(f"Processing account {idx}/{len(accounts)}: {account_name}")
-                
-                # Fetch zones for this account
-                zones = client.get_zones(account_id, name_filter=zone_filter)
-                
-                if zones:
-                    zones_by_account[account_name] = {
-                        "account_id": account_id,
-                        "zones": zones
-                    }
-                    total_zones += len(zones)
-                    log_info(f"Account '{account_name}': {len(zones)} zone(s)")
-            
-            progress.set_description(f"Completed processing {len(accounts)} account(s)")
-        
-        # Display results
-        display_zones_by_account(zones_by_account)
-        
-        # Log summary
-        log_info(f"Successfully retrieved {total_zones} zone(s) across {len(zones_by_account)} account(s)")
-        
-        return {
-            "success": True,
-            "data": {
-                "zones_by_account": zones_by_account,
-                "total_zones": total_zones,
-                "total_accounts": len(zones_by_account)
-            }
-        }
-        
-    except AuthenticationError as e:
-        log_error(f"Authentication failed: {e}")
-        console.print("[bold red]❌ CloudFlare authentication failed[/bold red]")
-        console.print("Please check your credentials in ~/.ic/config/secrets.yaml")
-        return {"success": False, "error": "Authentication failed"}
-    
-    except RateLimitError as e:
-        log_error(f"Rate limit exceeded: {e}")
-        console.print(f"[bold yellow]⚠️  Rate limit exceeded. Retry after {e.retry_after}s[/bold yellow]")
-        return {"success": False, "error": "Rate limit exceeded"}
-    
-    except NetworkError as e:
-        log_error(f"Network error: {e}")
-        console.print("[bold red]❌ Network error connecting to CloudFlare API[/bold red]")
-        console.print("Please check your internet connection.")
-        return {"success": False, "error": "Network error"}
-    
-    except CloudFlareAPIError as e:
-        log_error(f"CloudFlare API error: {e}")
-        console.print(f"[bold red]❌ CloudFlare API error: {str(e)}[/bold red]")
-        return {"success": False, "error": str(e)}
-    
-    except Exception as e:
-        log_exception(e)
-        console.print(f"[bold red]❌ Unexpected error: {str(e)}[/bold red]")
-        return {"success": False, "error": str(e)}
+from ic.core.interfaces import BaseCommand, CommandResult
+
+
+class CloudflareZoneInfoCommand(BaseCommand):
+    """CloudFlare Zone information command."""
+
+    @classmethod
+    def add_arguments(cls, parser: argparse.ArgumentParser) -> None:
+        cls.add_common_arguments(parser)
+        parser.add_argument(
+            "-a", "--account",
+            help="Filter by account name (case-insensitive substring match, overrides config)"
+        )
+        parser.add_argument(
+            "-z", "--zone",
+            help="Filter by zone name (case-insensitive substring match, overrides config)"
+        )
+
+    def execute(self, args, config=None) -> CommandResult:
+        try:
+            config_manager = ConfigManager()
+            cf_config = CloudFlareConfig.from_config_manager(config_manager)
+
+            if not cf_config.email or not cf_config.api_token:
+                console.print("[bold red]❌ CloudFlare credentials not configured[/bold red]")
+                console.print("Please configure email and api_token in ~/.ic/config/secrets.yaml")
+                return CommandResult(data={}, success=False, error="Missing credentials")
+
+            client = CloudFlareClient(cf_config)
+            account_filter = [args.account] if getattr(args, "account", None) else cf_config.accounts
+            zone_filter = [args.zone] if getattr(args, "zone", None) else cf_config.zones
+
+            zones_by_account = {}
+
+            with ManualProgress("Processing CloudFlare zones") as progress:
+                progress.set_description("Fetching CloudFlare accounts")
+                accounts = client.get_accounts(name_filter=account_filter)
+
+                if not accounts:
+                    console.print("[bold yellow]No CloudFlare accounts found matching the filters.[/bold yellow]")
+                    return CommandResult(data={}, success=True)
+
+                for idx, account in enumerate(accounts, 1):
+                    account_id = account.get("id", "")
+                    account_name = account.get("name", "Unknown Account")
+
+                    progress.set_description(f"Processing account {idx}/{len(accounts)}: {account_name}")
+                    zones = client.get_zones(account_id, name_filter=zone_filter)
+
+                    if zones:
+                        zones_by_account[account_name] = {
+                            "account_id": account_id,
+                            "zones": zones
+                        }
+
+            total_zones = sum(len(acc_info.get("zones", [])) for acc_info in zones_by_account.values())
+            return CommandResult(
+                data={
+                    "zones_by_account": zones_by_account,
+                    "total_zones": total_zones,
+                    "total_accounts": len(zones_by_account),
+                },
+                table_renderer=lambda data, verbose=False: display_zones_by_account(
+                    data.get("zones_by_account", data) if isinstance(data, dict) else data
+                ),
+            )
+
+        except AuthenticationError as e:
+            console.print("[bold red]❌ CloudFlare authentication failed[/bold red]")
+            return CommandResult(data={}, success=False, error="Authentication failed")
+        except RateLimitError as e:
+            console.print(f"[bold yellow]⚠️  Rate limit exceeded. Retry after {e.retry_after}s[/bold yellow]")
+            return CommandResult(data={}, success=False, error="Rate limit exceeded")
+        except NetworkError as e:
+            console.print("[bold red]❌ Network error connecting to CloudFlare API[/bold red]")
+            return CommandResult(data={}, success=False, error="Network error")
+        except Exception as e:
+            console.print(f"[bold red]❌ Unexpected error: {str(e)}[/bold red]")
+            return CommandResult(data={}, success=False, error=str(e))
+
+
+def main(args, config=None):
+    return CloudflareZoneInfoCommand().run(args, config)
+
+
+
+def add_arguments(parser: argparse.ArgumentParser) -> None:
+    CloudflareZoneInfoCommand.add_arguments(parser)
 
 
 if __name__ == "__main__":
-    """
-    Standalone execution for local testing.
-    """
     parser = argparse.ArgumentParser(description="CloudFlare Zone Information")
     add_arguments(parser)
     parsed_args = parser.parse_args()
     main(parsed_args)
+

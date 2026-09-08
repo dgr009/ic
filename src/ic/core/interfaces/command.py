@@ -21,15 +21,22 @@ class BaseCommand(abc.ABC):
     @classmethod
     def add_common_arguments(cls, parser: argparse.ArgumentParser) -> None:
         """Add standard arguments like --output to the parser if not already present."""
-        # Check if -o / --output already exists
-        existing_actions = [opt for action in parser._actions for opt in action.option_strings]
+        actions = getattr(parser, "_actions", None)
+        if isinstance(actions, list):
+            existing_actions = [opt for action in actions if hasattr(action, "option_strings") for opt in action.option_strings]
+        else:
+            existing_actions = []
+
         if "--output" not in existing_actions and "-o" not in existing_actions:
-            parser.add_argument(
-                "-o", "--output",
-                choices=["table", "json", "yaml"],
-                default="table",
-                help="출력 형식 선택 (table, json, yaml). 기본값: table"
-            )
+            try:
+                parser.add_argument(
+                    "-o", "--output",
+                    choices=["table", "json", "yaml"],
+                    default="table",
+                    help="출력 형식 선택 (table, json, yaml). 기본값: table"
+                )
+            except Exception:
+                pass
 
     @classmethod
     def add_arguments(cls, parser: argparse.ArgumentParser) -> None:
@@ -44,7 +51,7 @@ class BaseCommand(abc.ABC):
         """
         raise NotImplementedError
 
-    def run(self, args: argparse.Namespace, config: Optional[Any] = None) -> None:
+    def run(self, args: argparse.Namespace, config: Optional[Any] = None) -> CommandResult:
         """
         Execute the command and print formatted output.
         Automatically suppresses progress bars for machine-readable formats (JSON/YAML).
@@ -64,6 +71,8 @@ class BaseCommand(abc.ABC):
             verbose=verbose,
             paste_mode=paste_mode,
         )
+        return result
+
 
     def __call__(self, args: argparse.Namespace, config: Optional[Any] = None) -> None:
         self.run(args, config)

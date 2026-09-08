@@ -235,49 +235,66 @@ def print_lighthouse_table(all_rows: List[Dict[str, Any]], verbose: bool) -> Non
     console.print(table)
 
 
-def main(args) -> None:
-    if not check_sdk_available():
-        console.print("[red]❌ tencentcloud-sdk-python 이 설치되지 않았습니다.[/red]")
-        console.print("[yellow]   pip install tencentcloud-sdk-python[/yellow]")
-        sys.exit(1)
+from ic.core.interfaces import BaseCommand, CommandResult
 
-    accounts    = get_accounts(getattr(args, "account", None))
-    if not accounts:
-        console.print("[red]❌ Tencent 계정 설정이 없습니다.[/red]")
-        sys.exit(1)
 
-    regions     = get_tencent_regions(getattr(args, "regions", None))
-    name_filter = getattr(args, "name", None)
-    verbose     = getattr(args, "verbose", False)
-    total_ops   = len(accounts) * len(regions)
-    all_rows: List[Dict[str, Any]] = []
+class TencentLighthouseInfoCommand(BaseCommand):
+    """Tencent Cloud Lighthouse Lightweight Application Server information command."""
 
-    with ManualProgress("Collecting Lighthouse instances across accounts and regions", total=total_ops) as progress:
-        with ThreadPoolExecutor() as executor:
-            futures = {}
-            for account in accounts:
-                for region in regions:
-                    f = executor.submit(fetch_lighthouse_one_account_region, account, region, name_filter)
-                    futures[f] = (account.get("name", account.get("id")), region)
+    @classmethod
+    def add_arguments(cls, parser) -> None:
+        cls.add_common_arguments(parser)
+        parser.add_argument("-a", "--account", help="계정 이름 또는 ID 목록(,) (없으면 전체 계정 조회)")
+        parser.add_argument("-r", "--regions", help="리전 목록(,) 예: ap-seoul,ap-tokyo")
+        parser.add_argument("-n", "--name", help="인스턴스 이름 필터 (부분 일치)")
+        parser.add_argument("-v", "--verbose", action="store_true", help="상세 정보 출력 (Bundle ID, AZ, 만료일 등)")
 
-            for future in as_completed(futures):
-                acct_name, region = futures[future]
-                try:
-                    result = future.result()
-                    all_rows.extend(result)
-                    progress.update(f"Processed {acct_name}/{region} - Found {len(result)} instances", advance=1)
-                except Exception as e:
-                    log_info_non_console(f"[Lighthouse] Future 실패: {acct_name}/{region}: {e}")
-                    progress.update(f"Failed {acct_name}/{region}", advance=1)
+    def execute(self, args, config=None) -> CommandResult:
+        if not check_sdk_available():
+            console.print("[red]❌ tencentcloud-sdk-python 이 설치되지 않았습니다.[/red]")
+            return CommandResult(data=[], success=False, error="tencentcloud-sdk-python not installed")
 
-    print_lighthouse_table(all_rows, verbose)
+        accounts    = get_accounts(getattr(args, "account", None))
+        if not accounts:
+            console.print("[red]❌ Tencent 계정 설정이 없습니다.[/red]")
+            return CommandResult(data=[], success=False, error="No Tencent account configured")
+
+        regions     = get_tencent_regions(getattr(args, "regions", None))
+        name_filter = getattr(args, "name", None)
+        verbose     = getattr(args, "verbose", False)
+        total_ops   = len(accounts) * len(regions)
+        all_rows: List[Dict[str, Any]] = []
+
+        with ManualProgress("Collecting Lighthouse instances across accounts and regions", total=total_ops) as progress:
+            with ThreadPoolExecutor() as executor:
+                futures = {}
+                for account in accounts:
+                    for region in regions:
+                        f = executor.submit(fetch_lighthouse_one_account_region, account, region, name_filter)
+                        futures[f] = (account.get("name", account.get("id")), region)
+
+                for future in as_completed(futures):
+                    acct_name, region = futures[future]
+                    try:
+                        result = future.result()
+                        all_rows.extend(result)
+                        progress.update(f"Processed {acct_name}/{region} - Found {len(result)} instances", advance=1)
+                    except Exception as e:
+                        log_info_non_console(f"[Lighthouse] Future 실패: {acct_name}/{region}: {e}")
+                        progress.update(f"Failed {acct_name}/{region}", advance=1)
+
+        return CommandResult(
+            data=all_rows,
+            table_renderer=lambda data, v=False: print_lighthouse_table(data, verbose=v or verbose),
+        )
+
+
+def main(args, config=None) -> None:
+    TencentLighthouseInfoCommand().run(args, config)
 
 
 def add_arguments(parser) -> None:
-    parser.add_argument("-a", "--account", help="계정 이름 또는 ID 목록(,) (없으면 전체 계정 조회)")
-    parser.add_argument("-r", "--regions", help="리전 목록(,) 예: ap-seoul,ap-tokyo")
-    parser.add_argument("-n", "--name", help="인스턴스 이름 필터 (부분 일치)")
-    parser.add_argument("-v", "--verbose", action="store_true", help="상세 정보 출력 (Bundle ID, AZ, 만료일 등)")
+    TencentLighthouseInfoCommand.add_arguments(parser)
 
 
 if __name__ == "__main__":
@@ -285,3 +302,4 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description="Tencent Lighthouse 인스턴스 정보 (병렬 수집)")
     add_arguments(p)
     main(p.parse_args())
+
