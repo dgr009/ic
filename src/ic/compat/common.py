@@ -211,8 +211,8 @@ def get_gcp_client_compat(service_type: str):
     
     # Import GCP utilities if available
     try:
-        from common.gcp_utils import get_gcp_client
-        return get_gcp_client(service_type)
+        from common.gcp_utils import create_gcp_client
+        return create_gcp_client(service_type)
     except ImportError:
         raise ImportError("GCP utilities not available. Please install google-cloud dependencies.")
 
