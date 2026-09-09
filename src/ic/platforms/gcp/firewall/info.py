@@ -4,7 +4,7 @@ import json
 import os
 from typing import Dict, List, Optional, Any
 try:
-    from google.cloud.compute_v1 import FirewallsClient, NetworksClient
+    from google.cloud.compute_v1 import FirewallsClient, NetworksClient, InstancesClient
     from google.cloud.compute_v1.types import ListFirewallsRequest, ListNetworksRequest, GetFirewallRequest
     from google.api_core import exceptions as gcp_exceptions
     GCP_FIREWALL_AVAILABLE = True
@@ -12,6 +12,7 @@ except ImportError:
     GCP_FIREWALL_AVAILABLE = False
     FirewallsClient: Any = None
     NetworksClient: Any = None
+    InstancesClient: Any = None
     ListFirewallsRequest: Any = None
     ListNetworksRequest: Any = None
     GetFirewallRequest: Any = None
@@ -31,13 +32,14 @@ from common.log import log_info, log_error, log_exception, log_info_non_console
 console = Console()
 
 
-def fetch_firewall_rules_direct(project_id: str, network_filter: Optional[str] = None) -> List[Dict]:
+def fetch_firewall_rules_direct(project_id: str, network_filter: Optional[str] = None, verbose: bool = False) -> List[Dict]:
     """
     직접 API를 통해 GCP 방화벽 규칙을 가져옵니다.
     
     Args:
         project_id: GCP 프로젝트 ID
         network_filter: 네트워크 필터 (선택사항)
+        verbose: 상세 모드 여부 (인스턴스 매핑 포함)
     
     Returns:
         방화벽 규칙 정보 리스트
@@ -53,15 +55,25 @@ def fetch_firewall_rules_direct(project_id: str, network_filter: Optional[str] =
         networks_client = NetworksClient(credentials=credentials)
         
         # 프로젝트의 모든 방화벽 규칙 가져오기
+        # 네트워크 캐시 (규칙마다 networks_client.list를 반복 호출하는 것을 방지)
+        networks_cache: Dict[str, Any] = {}
+        try:
+            for net in networks_client.list(request=ListNetworksRequest(project=project_id)):
+                networks_cache[net.name] = net
+        except Exception as e:
+            log_info_non_console(f"네트워크 목록 캐시 실패: {project_id}, Error={e}")
+
+        # 프로젝트의 모든 방화벽 규칙 가져오기
         firewalls_request = ListFirewallsRequest(project=project_id)
         firewalls = firewalls_client.list(request=firewalls_request)
-        
+
         all_firewall_rules = []
         
         for firewall in firewalls:
             try:
                 firewall_data = collect_firewall_rule_details(
-                    firewalls_client, networks_client, project_id, firewall, network_filter
+                    firewalls_client, networks_client, project_id, firewall, network_filter,
+                    networks_cache=networks_cache
                 )
                 if firewall_data:
                     all_firewall_rules.append(firewall_data)
@@ -73,6 +85,48 @@ def fetch_firewall_rules_direct(project_id: str, network_filter: Optional[str] =
                 log_error(f"방화벽 규칙 {firewall.name} 조회 실패: {project_id}, Error={e}")
                 continue
         
+        # verbose 모드인 경우 방화벽 규칙을 적용받는 Compute Engine 인스턴스 매핑
+        if verbose and InstancesClient and all_firewall_rules:
+            try:
+                instances: List[Dict[str, Any]] = []
+                instances_client = InstancesClient(credentials=credentials)
+                pager = instances_client.aggregated_list(project=project_id)
+                for _loc, scoped_list in pager:
+                    instances_seq = getattr(scoped_list, 'instances', None)
+                    if not instances_seq:
+                        continue
+                    for inst in instances_seq:
+                        instances.append({
+                            'name': inst.name,
+                            'status': getattr(inst, 'status', ''),
+                            'tags': set(inst.tags.items) if getattr(inst, 'tags', None) and getattr(inst.tags, 'items', None) else set(),
+                            'networks': set(ni.network.split('/')[-1] for ni in getattr(inst, 'network_interfaces', []) if getattr(ni, 'network', None)),
+                            'sa': set(sa.email for sa in getattr(inst, 'service_accounts', [])) if getattr(inst, 'service_accounts', None) else set()
+                        })
+
+                if instances:
+                    for rule_data in all_firewall_rules:
+                        rule_net = rule_data.get('network', '')
+                        tgt_tags = set(rule_data.get('target_tags', []))
+                        tgt_sa = set(rule_data.get('target_service_accounts', []))
+
+                        if tgt_tags or tgt_sa:
+                            rule_data['target_type'] = 'TAG' if tgt_tags else 'SA'
+                            matched = []
+                            for inst in instances:
+                                if rule_net and rule_net not in inst['networks']:
+                                    continue
+                                if tgt_tags and tgt_tags.intersection(inst['tags']):
+                                    matched.append(inst['name'])
+                                elif tgt_sa and tgt_sa.intersection(inst['sa']):
+                                    matched.append(inst['name'])
+                            rule_data['applied_instances'] = matched
+                        else:
+                            rule_data['target_type'] = 'ALL'
+                            rule_data['applied_instances'] = []
+            except Exception as e:
+                log_info_non_console(f"인스턴스 정보 수집 스킵: {project_id}, Error={e}")
+
         log_info(f"프로젝트 {project_id}에서 {len(all_firewall_rules)}개 방화벽 규칙 발견")
         return all_firewall_rules
         
@@ -84,22 +138,24 @@ def fetch_firewall_rules_direct(project_id: str, network_filter: Optional[str] =
         return []
 
 
-def fetch_firewall_rules(project_id: str, network_filter: Optional[str] = None) -> List[Dict]:
+def fetch_firewall_rules(project_id: str, network_filter: Optional[str] = None, verbose: bool = False) -> List[Dict]:
     """
     GCP 방화벽 규칙을 가져옵니다.
     
     Args:
         project_id: GCP 프로젝트 ID
         network_filter: 네트워크 필터 (선택사항)
+        verbose: 상세 모드 여부 (인스턴스 매핑 포함)
     
     Returns:
         방화벽 규칙 정보 리스트
     """
-    return fetch_firewall_rules_direct(project_id, network_filter)
+    return fetch_firewall_rules_direct(project_id, network_filter, verbose=verbose)
 
 
 def collect_firewall_rule_details(firewalls_client: Any, networks_client: Any,
-                                 project_id: str, firewall, network_filter: Optional[str] = None) -> Optional[Dict]:
+                                 project_id: str, firewall, network_filter: Optional[str] = None,
+                                 networks_cache: Optional[Dict[str, Any]] = None) -> Optional[Dict]:
     """
     방화벽 규칙의 상세 정보를 수집합니다.
     
@@ -153,8 +209,8 @@ def collect_firewall_rule_details(firewalls_client: Any, networks_client: Any,
         if firewall.allowed:
             for rule in firewall.allowed:
                 rule_info = {
-                    'ip_protocol': rule.i_p_protocol,
-                    'ports': list(rule.ports) if rule.ports else []
+                    'ip_protocol': getattr(rule, 'I_p_protocol', None) or getattr(rule, 'ip_protocol', None) or getattr(rule, 'i_p_protocol', '') or '',
+                    'ports': list(rule.ports) if getattr(rule, 'ports', None) else []
                 }
                 allowed_rules.append(rule_info)
         
@@ -162,8 +218,8 @@ def collect_firewall_rule_details(firewalls_client: Any, networks_client: Any,
         if firewall.denied:
             for rule in firewall.denied:
                 rule_info = {
-                    'ip_protocol': rule.i_p_protocol,
-                    'ports': list(rule.ports) if rule.ports else []
+                    'ip_protocol': getattr(rule, 'I_p_protocol', None) or getattr(rule, 'ip_protocol', None) or getattr(rule, 'i_p_protocol', '') or '',
+                    'ports': list(rule.ports) if getattr(rule, 'ports', None) else []
                 }
                 denied_rules.append(rule_info)
         
@@ -181,7 +237,7 @@ def collect_firewall_rule_details(firewalls_client: Any, networks_client: Any,
         
         # 네트워크 연결 정보 수집
         firewall_data['network_associations'] = get_network_associations(
-            networks_client, project_id, network_name
+            networks_client, project_id, network_name, networks_cache=networks_cache
         )
         
         # 규칙 대상 정보 수집
@@ -199,7 +255,8 @@ def collect_firewall_rule_details(firewalls_client: Any, networks_client: Any,
         return None
 
 
-def get_network_associations(networks_client: Any, project_id: str, network_name: str) -> List[Dict]:
+def get_network_associations(networks_client: Any, project_id: str, network_name: str,
+                             networks_cache: Optional[Dict[str, Any]] = None) -> List[Dict]:
     """
     방화벽 규칙과 연결된 네트워크 정보를 가져옵니다.
     
@@ -207,6 +264,7 @@ def get_network_associations(networks_client: Any, project_id: str, network_name
         networks_client: Networks 클라이언트
         project_id: GCP 프로젝트 ID
         network_name: 네트워크 이름
+        networks_cache: 네트워크 객체 캐시 딕셔너리
     
     Returns:
         네트워크 연결 정보 리스트
@@ -214,7 +272,20 @@ def get_network_associations(networks_client: Any, project_id: str, network_name
     associations = []
     
     try:
-        # 네트워크 정보 가져오기
+        if networks_cache is not None:
+            network = networks_cache.get(network_name)
+            if network:
+                association_info = {
+                    'network_name': network.name,
+                    'network_description': network.description or '',
+                    'auto_create_subnetworks': network.auto_create_subnetworks,
+                    'routing_mode': network.routing_config.routing_mode if hasattr(network, 'routing_config') and network.routing_config else 'REGIONAL',
+                    'mtu': network.mtu if hasattr(network, 'mtu') else 1460
+                }
+                associations.append(association_info)
+            return associations
+
+        # 캐시가 없는 경우 직접 요청
         networks_request = ListNetworksRequest(project=project_id)
         networks = networks_client.list(request=networks_request)
         
@@ -315,12 +386,134 @@ def load_mock_data():
         console.print(f"[bold red]에러: Mock 데이터 파일의 형식이 올바르지 않습니다: {mock_file}[/bold red]")
         return []
 
-def format_table_output(firewall_rules: List[Dict]) -> None:
+def _print_verbose_firewall_table(firewall_rules: List[Dict]) -> None:
+    """방화벽 규칙 목록을 소스/타겟 IP 라인별 분리 및 적용 인스턴스를 포함하여 상세 출력합니다."""
+    table = Table(box=box.HORIZONTALS, expand=False, show_header=True, header_style="bold")
+
+    table.add_column("Project", style="bold magenta")
+    table.add_column("Network", style="bold cyan")
+    table.add_column("Rule Name", style="bold white")
+    table.add_column("Dir", justify="center")
+    table.add_column("Action", justify="center")
+    table.add_column("Priority", justify="center", style="dim")
+    table.add_column("Protocols", style="blue")
+    table.add_column("Destination/Source", style="green")
+    table.add_column("Applied Instances", style="cyan")
+    table.add_column("Log", justify="center", style="yellow")
+    table.add_column("Status", justify="center")
+
+    last_project = None
+    last_network = None
+
+    for i, rule in enumerate(firewall_rules):
+        project_changed = rule.get("project_id") != last_project
+        network_changed = rule.get("network") != last_network
+
+        direction = rule.get('direction', 'INGRESS')
+        direction_colored = f"[green]⬇️ {direction}[/green]" if direction == 'INGRESS' else f"[blue]⬆️ {direction}[/blue]"
+
+        action = rule.get('action', 'ALLOW')
+        action_colored = f"[green]✅ {action}[/green]" if action == 'ALLOW' else f"[red]❌ {action}[/red]"
+
+        protocols = []
+        for allowed_rule in rule.get('allowed_rules', []):
+            protocol = allowed_rule.get('ip_protocol', 'all')
+            ports = allowed_rule.get('ports', [])
+            if ports:
+                protocols.append(f"{protocol}:{','.join(ports)}")
+            else:
+                protocols.append(protocol)
+
+        for denied_rule in rule.get('denied_rules', []):
+            protocol = denied_rule.get('ip_protocol', 'all')
+            ports = denied_rule.get('ports', [])
+            if ports:
+                protocols.append(f"!{protocol}:{','.join(ports)}")
+            else:
+                protocols.append(f"!{protocol}")
+
+        protocols_text = ", ".join(protocols) if protocols else "all"
+
+        # 모든 소스/타겟 목록 (라인별 분리 대상)
+        targets = []
+        if rule.get('source_ranges'):
+            targets.extend([f"IP:{r}" for r in rule['source_ranges']])
+        if rule.get('destination_ranges'):
+            targets.extend([f"DST:{r}" for r in rule['destination_ranges']])
+        if rule.get('source_tags'):
+            targets.extend([f"SRC:{t}" for t in rule['source_tags']])
+        if rule.get('target_tags'):
+            targets.extend([f"TGT:{t}" for t in rule['target_tags']])
+        if rule.get('source_service_accounts'):
+            targets.extend([f"SRC_SA:{sa}" for sa in rule['source_service_accounts']])
+        if rule.get('target_service_accounts'):
+            targets.extend([f"TGT_SA:{sa}" for sa in rule['target_service_accounts']])
+        if not targets:
+            targets = ["all"]
+
+        # 적용 인스턴스 목록
+        applied = rule.get('applied_instances', [])
+        target_type = rule.get('target_type', 'ALL')
+        inst_lines = []
+        if target_type == 'ALL':
+            inst_lines.append("[dim]ALL[/dim]")
+        else:
+            if applied:
+                for name in applied:
+                    inst_lines.append(f"[cyan]{name}[/cyan]")
+            else:
+                inst_lines.append("[dim](No VMs with tag)[/dim]")
+
+        # 로깅 및 상태
+        log_enabled = rule.get('log_config', {}).get('enable', False)
+        logging_status = "[green]ON[/green]" if log_enabled else "[dim]OFF[/dim]"
+        disabled = rule.get('disabled', False)
+        status_colored = "[red]DISABLED[/red]" if disabled else "[green]ENABLED[/green]"
+
+        num_lines = max(len(targets), len(inst_lines), 1)
+
+        for line_idx in range(num_lines):
+            tgt_cell = targets[line_idx] if line_idx < len(targets) else ""
+            inst_cell = inst_lines[line_idx] if line_idx < len(inst_lines) else ""
+            is_last_line = (line_idx == num_lines - 1)
+
+            if line_idx == 0:
+                table.add_row(
+                    rule.get("project_id", "") if project_changed else "",
+                    rule.get("network", "") if (project_changed or network_changed) else "",
+                    rule.get("name", "N/A"),
+                    direction_colored,
+                    action_colored,
+                    str(rule.get("priority", "N/A")),
+                    protocols_text,
+                    tgt_cell,
+                    inst_cell,
+                    logging_status,
+                    status_colored,
+                    end_section=is_last_line
+                )
+            else:
+                table.add_row(
+                    "", "", "", "", "", "", "",
+                    tgt_cell,
+                    inst_cell,
+                    "", "",
+                    end_section=is_last_line
+                )
+
+        last_project = rule.get("project_id")
+        last_network = rule.get("network")
+
+    console.print(table)
+
+
+def format_table_output(firewall_rules: List[Dict], verbose: bool = False) -> None:
     """
     GCP 방화벽 규칙 목록을 Rich 테이블 형식으로 출력합니다.
     
     Args:
         firewall_rules: 방화벽 규칙 정보 리스트
+        verbose: 상세 모드 여부 (-v 옵션 시 True, 소스/타겟 및 인스턴스를 라인별 분리 출력)
     """
     if not firewall_rules:
         console.print("[yellow]표시할 GCP 방화벽 규칙 정보가 없습니다.[/yellow]")
@@ -333,6 +526,10 @@ def format_table_output(firewall_rules: List[Dict]) -> None:
         x.get("priority", 1000), 
         x.get("name", "")
     ))
+
+    if verbose:
+        _print_verbose_firewall_table(firewall_rules)
+        return
 
     table = Table(box=box.HORIZONTALS, expand=False, show_header=True, header_style="bold")
     
@@ -645,7 +842,7 @@ class GcpFirewallInfoCommand(BaseCommand):
         parser.add_argument(
             '-v', '--verbose',
             action='store_true',
-            help='상세 정보 출력'
+            help='상세 정보 출력 (소스/타겟 IP 라인별 분리 및 적용 인스턴스 표시)'
         )
         parser.add_argument(
             '--mock',
@@ -654,6 +851,7 @@ class GcpFirewallInfoCommand(BaseCommand):
         )
 
     def execute(self, args, config=None) -> CommandResult:
+        verbose = getattr(args, 'verbose', False)
         if getattr(args, 'mock', False):
             rules = load_mock_data()
             filtered = []
@@ -679,7 +877,7 @@ class GcpFirewallInfoCommand(BaseCommand):
                 filtered.append(r)
             return CommandResult(
                 data=filtered,
-                table_renderer=format_table_output,
+                table_renderer=lambda data, v=False: format_table_output(data, verbose=v or verbose),
                 tree_renderer=format_tree_output,
                 paste_renderer=format_paste_output,
             )
@@ -709,12 +907,13 @@ class GcpFirewallInfoCommand(BaseCommand):
             if not projects:
                 console.print("[yellow]⚠️  GCP 프로젝트가 지정되지 않았습니다.[/yellow]")
                 console.print("💡 [dim]-a/--project <PROJECT_ID> 옵션을 지정하거나 활성 gcloud 프로필을 설정하세요. (전체 조회를 원하시면 --all-projects 옵션을 사용하세요)[/dim]")
-                return CommandResult(data=[], table_renderer=format_table_output, tree_renderer=format_tree_output, paste_renderer=format_paste_output)
+                return CommandResult(data=[], table_renderer=lambda data, v=False: format_table_output(data, verbose=v or verbose), tree_renderer=format_tree_output, paste_renderer=format_paste_output)
 
             all_firewall_rules = resource_collector.parallel_collect(
                 projects, 
                 fetch_firewall_rules,
-                getattr(args, 'network', None)
+                getattr(args, 'network', None),
+                verbose=verbose
             )
 
             filters = {}
@@ -730,7 +929,7 @@ class GcpFirewallInfoCommand(BaseCommand):
             filtered_rules = resource_collector.apply_filters(all_firewall_rules, filters)
             return CommandResult(
                 data=filtered_rules,
-                table_renderer=format_table_output,
+                table_renderer=lambda data, v=False: format_table_output(data, verbose=v or verbose),
                 tree_renderer=format_tree_output,
                 paste_renderer=format_paste_output,
             )

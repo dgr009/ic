@@ -49,6 +49,10 @@
         "timeout_sec": 30,
         "session_affinity": "NONE",
         "backends": 4,
+        "backend_groups": [
+          {"group": "prod-ig-api-a", "balancing_mode": "UTILIZATION"},
+          {"group": "prod-ig-api-b", "balancing_mode": "UTILIZATION"}
+        ],
         "health_checks": [
           "prod-hc-api"
         ]
@@ -60,10 +64,18 @@
         "timeout_sec": 30,
         "session_affinity": "GENERATED_COOKIE",
         "backends": 6,
+        "backend_groups": [
+          {"group": "prod-ig-web-a", "balancing_mode": "UTILIZATION"},
+          {"group": "prod-ig-web-b", "balancing_mode": "UTILIZATION"}
+        ],
         "health_checks": [
           "prod-hc-web"
         ]
       }
+    ],
+    "targets": [
+      {"name": "prod-ig-web-a", "zone": "asia-northeast3-a", "health": "HEALTHY", "pool": "prod-backend-web"},
+      {"name": "prod-ig-web-b", "zone": "asia-northeast3-b", "health": "HEALTHY", "pool": "prod-backend-web"}
     ],
     "health_checks": [
       {
@@ -102,6 +114,52 @@
     "status": "ACTIVE"
   },
   {
+    "project_id": "gcp-project-prod-67890",
+    "project_name": "Production Project",
+    "scope": "asia-northeast3",
+    "name": "prod-network-lb-443",
+    "type": "NETWORK_TCP_UDP",
+    "ip_address": "34.64.200.10",
+    "ip_protocol": "TCP",
+    "port_range": "443-443",
+    "load_balancing_scheme": "EXTERNAL",
+    "network_tier": "PREMIUM",
+    "creation_timestamp": "2023-11-15T09:30:00.000-07:00",
+    "description": "Production External Network TCP Load Balancer",
+    "labels": {
+      "env": "prod",
+      "service": "web-gateway"
+    },
+    "target": {
+      "name": "prod-target-pool-443",
+      "type": "targetPools",
+      "url": "regions/asia-northeast3/targetPools/prod-target-pool-443"
+    },
+    "target_pool": {
+      "name": "prod-target-pool-443",
+      "session_affinity": "NONE"
+    },
+    "targets": [
+      {"name": "prod-vm-was-01", "zone": "asia-northeast3-a", "health": "HEALTHY", "pool": "prod-target-pool-443"},
+      {"name": "prod-vm-was-02", "zone": "asia-northeast3-a", "health": "HEALTHY", "pool": "prod-target-pool-443"}
+    ],
+    "backend_services": [],
+    "url_map": {},
+    "health_checks": [
+      {
+        "name": "prod-hc-was-443",
+        "type": "HTTP",
+        "check_interval_sec": 5,
+        "timeout_sec": 5,
+        "healthy_threshold": 2,
+        "unhealthy_threshold": 2,
+        "port": 80
+      }
+    ],
+    "ssl_certificates": [],
+    "status": "ACTIVE"
+  },
+  {
     "project_id": "gcp-project-dev-12345",
     "project_name": "Dev Project",
     "scope": "asia-northeast3",
@@ -132,10 +190,16 @@
         "timeout_sec": 60,
         "session_affinity": "CLIENT_IP",
         "backends": 2,
+        "backend_groups": [
+          {"group": "dev-ig-rpc", "balancing_mode": "CONNECTION"}
+        ],
         "health_checks": [
           "dev-hc-tcp"
         ]
       }
+    ],
+    "targets": [
+      {"name": "dev-ig-rpc", "zone": "asia-northeast3-a", "health": "HEALTHY", "pool": "dev-backend-svc"}
     ],
     "health_checks": [
       {

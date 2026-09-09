@@ -68,6 +68,13 @@ def log_info(message: str):
     if os.environ.get("IC_VERBOSE") == "true":
         console.print(f"[bold cyan]INFO:[/bold cyan] {message}")
 
+def log_error_file_only(message: str):
+    """ERROR 레벨 로그 출력 + 콘솔 미표시 (파일 전용)"""
+    if NEW_LOGGING_AVAILABLE and ic_logger:
+        ic_logger.log_error_file_only(message)
+    else:
+        logger.error(message)
+
 def log_error(message: str):
     """ERROR 레벨 로그 출력 + 콘솔 표시"""
     if NEW_LOGGING_AVAILABLE and ic_logger:

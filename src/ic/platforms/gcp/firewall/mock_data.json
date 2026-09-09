@@ -13,6 +13,8 @@
     "destination_ranges": [],
     "source_tags": [],
     "target_tags": [],
+    "applied_instances": [],
+    "target_type": "ALL",
     "log_config": {"enable": false},
     "disabled": false
   },
@@ -30,6 +32,8 @@
     "destination_ranges": [],
     "source_tags": [],
     "target_tags": [],
+    "applied_instances": [],
+    "target_type": "ALL",
     "log_config": {"enable": true},
     "disabled": false
   },
@@ -43,10 +47,12 @@
     "priority": 1000,
     "allowed_rules": [{"ip_protocol": "tcp", "ports": ["443", "80"]}],
     "denied_rules": [],
-    "source_ranges": ["0.0.0.0/0"],
+    "source_ranges": ["198.51.100.1/32", "198.51.100.2/32", "198.51.100.3/32"],
     "destination_ranges": [],
     "source_tags": [],
     "target_tags": ["lb-target", "web-tier"],
+    "applied_instances": ["prod-web-01", "prod-web-02"],
+    "target_type": "TAG",
     "log_config": {"enable": true},
     "disabled": false
   }

@@ -13,8 +13,9 @@ from google.cloud.resourcemanager_v3.types import SearchProjectsRequest, GetProj
 from google.api_core import exceptions as gcp_exceptions
 from google.api_core import retry
 from ic.config.manager import ConfigManager
+from common.progress_decorator import ManualProgress
 
-from .log import log_info, log_info_non_console, log_error, log_exception
+from .log import log_info, log_info_non_console, log_error, log_error_file_only, log_exception
 
 # Import configuration validator
 try:
@@ -327,13 +328,13 @@ class GCPProjectManager:
             return project.state.name == "ACTIVE"
             
         except gcp_exceptions.NotFound:
-            log_error(f"프로젝트를 찾을 수 없음: {project_id}")
+            log_info_non_console(f"프로젝트를 찾을 수 없음: {project_id}")
             return False
         except gcp_exceptions.PermissionDenied:
-            log_error(f"프로젝트 접근 권한 없음: {project_id}")
+            log_info_non_console(f"프로젝트 접근 권한 없음: {project_id}")
             return False
         except Exception as e:
-            log_error(f"프로젝트 접근 검증 실패: {project_id}, Error={e}")
+            log_info_non_console(f"프로젝트 접근 검증 실패: {project_id}, Error={e}")
             return False
     
     def get_project_info(self, project_id: str) -> Optional[Dict[str, Any]]:
@@ -360,7 +361,7 @@ class GCPProjectManager:
             }
             
         except Exception as e:
-            log_error(f"프로젝트 정보 조회 실패: {project_id}, Error={e}")
+            log_info_non_console(f"프로젝트 정보 조회 실패: {project_id}, Error={e}")
             return None
 
 
@@ -377,27 +378,34 @@ class GCPResourceCollector:
     def parallel_collect(self, projects: List[str], collect_func: Callable, *args, **kwargs) -> List[Any]:
         """여러 프로젝트에서 병렬로 리소스를 수집합니다."""
         results = []
+        progress_desc = kwargs.pop('progress_desc', None) or f"Collecting GCP resources across {len(projects)} project(s)"
         
-        with ThreadPoolExecutor(max_workers=_get_env_int('GCP_MAX_WORKERS', 10)) as executor:
-            futures = []
-            
-            for project_id in projects:
-                future = executor.submit(
-                    self._safe_collect, collect_func, project_id, *args, **kwargs
-                )
-                futures.append((future, project_id))
-            
-            for future, project_id in futures:
-                try:
-                    result = future.result(timeout=_get_env_int('GCP_REQUEST_TIMEOUT', 30))
-                    if result:
-                        if isinstance(result, list):
-                            results.extend(result)
+        with ManualProgress(progress_desc, total=len(projects)) as progress:
+            with ThreadPoolExecutor(max_workers=_get_env_int('GCP_MAX_WORKERS', 10)) as executor:
+                futures = []
+                
+                for project_id in projects:
+                    future = executor.submit(
+                        self._safe_collect, collect_func, project_id, *args, **kwargs
+                    )
+                    futures.append((future, project_id))
+                
+                for future, project_id in futures:
+                    try:
+                        result = future.result(timeout=_get_env_int('GCP_REQUEST_TIMEOUT', 30))
+                        if result:
+                            if isinstance(result, list):
+                                results.extend(result)
+                            else:
+                                results.append(result)
+                            item_count = len(result) if isinstance(result, list) else 1
+                            progress.update(f"Processed {project_id} ({item_count} items)", advance=1)
                         else:
-                            results.append(result)
-                except Exception as e:
-                    err_msg = str(e) or type(e).__name__
-                    log_error(f"프로젝트 {project_id}에서 리소스 수집 실패: {err_msg}")
+                            progress.update(f"Processed {project_id} (0 items)", advance=1)
+                    except Exception as e:
+                        err_msg = str(e) or type(e).__name__
+                        log_info_non_console(f"프로젝트 {project_id}에서 리소스 수집 실패: {err_msg}")
+                        progress.update(f"Failed {project_id} - {err_msg[:40]}", advance=1)
         
         return results
     
@@ -406,7 +414,7 @@ class GCPResourceCollector:
         try:
             return self.handle_api_errors(lambda: collect_func(project_id, *args, **kwargs))
         except Exception as e:
-            log_error(f"리소스 수집 중 오류 발생: Project={project_id}, Error={e}")
+            log_info_non_console(f"리소스 수집 중 오류 발생: Project={project_id}, Error={e}")
             return None
     
     def handle_api_errors(self, func: Callable) -> Any:
@@ -429,19 +437,19 @@ class GCPResourceCollector:
         try:
             return _retry_func()
         except gcp_exceptions.PermissionDenied as e:
-            log_error(f"권한 거부: {e}")
+            log_info_non_console(f"권한 거부: {e}")
             raise
         except gcp_exceptions.NotFound as e:
-            log_error(f"리소스를 찾을 수 없음: {e}")
+            log_info_non_console(f"리소스를 찾을 수 없음: {e}")
             return None
         except gcp_exceptions.Forbidden as e:
-            log_error(f"API가 비활성화되었거나 접근 금지: {e}")
+            log_info_non_console(f"API가 비활성화되었거나 접근 금지: {e}")
             return None
         except gcp_exceptions.TooManyRequests as e:
-            log_error(f"API 요청 한도 초과: {e}")
+            log_info_non_console(f"API 요청 한도 초과: {e}")
             raise
         except Exception as e:
-            log_error(f"예상치 못한 API 오류: {e}")
+            log_info_non_console(f"예상치 못한 API 오류: {e}")
             raise
     
     def apply_filters(self, resources: List[Dict], filters: Dict[str, Any]) -> List[Dict]:

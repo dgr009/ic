@@ -123,8 +123,10 @@ class ICLogger:
         console_formatter = logging.Formatter('%(message)s')
         console_handler.setFormatter(console_formatter)
         
-        # Add filter to suppress non-ERROR messages on console
+        # Add filter to suppress non-ERROR messages and file-only messages on console
         def error_only_filter(record):
+            if getattr(record, "file_only", False):
+                return False
             return record.levelno >= logging.ERROR
         
         console_handler.addFilter(error_only_filter)
@@ -138,7 +140,9 @@ class ICLogger:
             encoding='utf-8'
         )
         file_handler.setLevel(self.file_level)
-        file_formatter = logging.Formatter(self.log_format)
+        file_formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+        )
         file_handler.setFormatter(file_formatter)
         logger.addHandler(file_handler)
         
@@ -152,30 +156,26 @@ class ICLogger:
         # Use security manager to mask sensitive data
         return self.security_manager.mask_sensitive_in_text(message)
     
-    def log_args(self, args: Union[Dict[str, Any], object]) -> None:
+    def log_args(self, args: Any) -> None:
         """
-        Display command arguments on console and log to file.
+        Log command arguments with sensitive data masking.
+        Only logs to file, never to console.
         
         Args:
-            args: Arguments dictionary or argparse Namespace object
+            args: Command line arguments namespace or dict
         """
-        # Convert args to dictionary if it's an object
+        if not args:
+            return
+            
+        args_dict = {}
         if hasattr(args, '__dict__'):
-            args_dict = {k: v for k, v in vars(args).items() 
-                        if not k.startswith('_') and k != 'func'}
-        else:
-            args_dict = dict(args) if isinstance(args, dict) else {}
-        
-        # Format arguments for display
-        pretty_args = {k: (v if v is not None else "default") 
-                      for k, v in args_dict.items()}
+            args_dict = {k: v for k, v in vars(args).items() if not k.startswith('_') and k != 'func'}
+        elif isinstance(args, dict):
+            args_dict = {k: v for k, v in args.items() if not k.startswith('_')}
+            
+        # Format arguments nicely
+        pretty_args = {k: (v if v is not None else "default") for k, v in args_dict.items()}
         args_str = ", ".join(f"{k}={v}" for k, v in pretty_args.items())
-        
-        # Console output for args (always shown regardless of log level)
-        if self.console and RICH_AVAILABLE:
-            self.console.print(f"[bold cyan]Args:[/bold cyan] {args_str}")
-        else:
-            print(f"Args: {args_str}")
         
         # File logging with masking
         masked_args_str = self._mask_message(f"Args: {args_str}")
@@ -191,6 +191,16 @@ class ICLogger:
         masked_message = self._mask_message(message)
         self.logger.info(masked_message)
     
+    def log_error_file_only(self, message: str) -> None:
+        """
+        Log ERROR message to file only (not console).
+        
+        Args:
+            message: Error message to log to file
+        """
+        masked_message = self._mask_message(message)
+        self.logger.error(masked_message, extra={"file_only": True})
+    
     def log_error(self, message: str) -> None:
         """
         Log ERROR message to both console and file.
@@ -200,12 +210,6 @@ class ICLogger:
         """
         masked_message = self._mask_message(message)
         self.logger.error(masked_message)
-        
-        # Also display on console with Rich formatting if available
-        if self.console and RICH_AVAILABLE:
-            self.console.print(f"[bold red]ERROR:[/bold red] {message}")
-        else:
-            print(f"ERROR: {message}")
     
     def log_critical(self, message: str) -> None:
         """
@@ -216,12 +220,6 @@ class ICLogger:
         """
         masked_message = self._mask_message(message)
         self.logger.critical(masked_message)
-        
-        # Also display on console with Rich formatting if available
-        if self.console and RICH_AVAILABLE:
-            self.console.print(f"[bold red]CRITICAL:[/bold red] {message}")
-        else:
-            print(f"CRITICAL: {message}")
     
     def log_warning(self, message: str) -> None:
         """

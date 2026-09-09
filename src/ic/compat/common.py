@@ -36,6 +36,18 @@ def log_error(message: str, **kwargs) -> None:
     logger.log_error(message)
 
 
+def log_error_file_only(message: str, **kwargs) -> None:
+    """
+    Backward compatibility function for log_error_file_only.
+    
+    Args:
+        message: Error message to log to file
+        **kwargs: Additional keyword arguments (ignored for compatibility)
+    """
+    logger = get_logger()
+    logger.log_error_file_only(message)
+
+
 def log_env_short(env_dict=None, **kwargs) -> None:
     """
     Backward compatibility function for log_env_short.
@@ -208,6 +220,7 @@ def get_gcp_client_compat(service_type: str):
 # Export compatibility functions
 __all__ = [
     'log_error',
+    'log_error_file_only',
     'log_env_short', 
     'log_args_short',
     'gather_env_for_command',

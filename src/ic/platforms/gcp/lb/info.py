@@ -7,7 +7,8 @@ try:
     from google.cloud.compute_v1 import (
         ForwardingRulesClient, BackendServicesClient, UrlMapsClient,
         TargetHttpProxiesClient, TargetHttpsProxiesClient, TargetTcpProxiesClient,
-        TargetSslProxiesClient, HealthChecksClient, SslCertificatesClient
+        TargetSslProxiesClient, HealthChecksClient, SslCertificatesClient,
+        TargetPoolsClient, InstanceReference
     )
     from google.cloud.compute_v1.types import (
         ListTargetHttpProxiesRequest, ListTargetHttpsProxiesRequest,
@@ -28,6 +29,8 @@ except ImportError:
     TargetSslProxiesClient: Any = None
     HealthChecksClient: Any = None
     SslCertificatesClient: Any = None
+    TargetPoolsClient: Any = None
+    InstanceReference: Any = None
     AggregatedListForwardingRulesRequest: Any = None
     ListTargetHttpProxiesRequest: Any = None
     ListTargetHttpsProxiesRequest: Any = None
@@ -40,13 +43,14 @@ from rich.console import Console
 from rich.table import Table
 from rich import box
 from rich.tree import Tree
+from rich.rule import Rule
 
 from ic.core.interfaces import BaseCommand, CommandResult
 
 from common.gcp_utils import (
-        GCPAuthManager, GCPProjectManager, GCPResourceCollector,
+    GCPAuthManager, GCPProjectManager, GCPResourceCollector,
     format_gcp_output, get_gcp_resource_labels
-    )
+)
 from common.log import log_info, log_error, log_exception, log_info_non_console
 
 console = Console()
@@ -67,7 +71,7 @@ def fetch_load_balancers_direct(project_id: str, region_filter: Optional[str] = 
         auth_manager = GCPAuthManager()
         credentials = auth_manager.get_credentials()
         if not credentials:
-            log_error(f"GCP 인증 실패: {project_id}")
+            log_info_non_console(f"GCP 인증 실패: {project_id}")
             return []
         
         all_load_balancers = []
@@ -80,14 +84,14 @@ def fetch_load_balancers_direct(project_id: str, region_filter: Optional[str] = 
         regional_lbs = collect_regional_load_balancers(credentials, project_id, region_filter)
         all_load_balancers.extend(regional_lbs)
         
-        log_info(f"프로젝트 {project_id}에서 {len(all_load_balancers)}개 Load Balancer 발견")
+        log_info_non_console(f"프로젝트 {project_id}에서 {len(all_load_balancers)}개 Load Balancer 발견")
         return all_load_balancers
         
     except gcp_exceptions.PermissionDenied:
-        log_error(f"프로젝트 {project_id}에 대한 Load Balancing 권한이 없습니다")
+        log_info_non_console(f"프로젝트 {project_id}에 대한 Load Balancing 권한이 없습니다")
         return []
     except Exception as e:
-        log_error(f"Load Balancer 조회 실패: {project_id}, Error={e}")
+        log_info_non_console(f"Load Balancer 조회 실패: {project_id}, Error={e}")
         return []
 
 
@@ -139,13 +143,13 @@ def collect_global_load_balancers(credentials, project_id: str) -> List[Dict]:
                     load_balancers.append(lb_data)
                     
             except Exception as e:
-                log_error(f"Global Load Balancer {rule.name} 상세 정보 수집 실패: {e}")
+                log_info_non_console(f"Global Load Balancer {rule.name} 상세 정보 수집 실패: {e}")
                 continue
         
     except gcp_exceptions.Forbidden:
-        log_error(f"Global Load Balancing 접근 권한이 없습니다: {project_id}")
+        log_info_non_console(f"Global Load Balancing 접근 권한이 없습니다: {project_id}")
     except Exception as e:
-        log_error(f"Global Load Balancer 조회 실패: {project_id}, Error={e}")
+        log_info_non_console(f"Global Load Balancer 조회 실패: {project_id}, Error={e}")
     
     return load_balancers
 
@@ -169,6 +173,7 @@ def collect_regional_load_balancers(credentials, project_id: str, region_filter:
         forwarding_client = ForwardingRulesClient(credentials=credentials)
         backend_client = BackendServicesClient(credentials=credentials)
         health_checks_client = HealthChecksClient(credentials=credentials)
+        target_pools_client = TargetPoolsClient(credentials=credentials) if TargetPoolsClient else None
         
         # Aggregated list로 모든 리전의 Forwarding Rules 가져오기
         request = AggregatedListForwardingRulesRequest(project=project_id)
@@ -188,19 +193,19 @@ def collect_regional_load_balancers(credentials, project_id: str, region_filter:
                 try:
                     lb_data = collect_regional_load_balancer_details(
                         rule, project_id, region, credentials,
-                        backend_client, health_checks_client
+                        backend_client, health_checks_client, target_pools_client
                     )
                     if lb_data:
                         load_balancers.append(lb_data)
                         
                 except Exception as e:
-                    log_error(f"Regional Load Balancer {rule.name} 상세 정보 수집 실패: {e}")
+                    log_info_non_console(f"Regional Load Balancer {rule.name} 상세 정보 수집 실패: {e}")
                     continue
         
     except gcp_exceptions.Forbidden:
-        log_error(f"Regional Load Balancing 접근 권한이 없습니다: {project_id}")
+        log_info_non_console(f"Regional Load Balancing 접근 권한이 없습니다: {project_id}")
     except Exception as e:
-        log_error(f"Regional Load Balancer 조회 실패: {project_id}, Error={e}")
+        log_info_non_console(f"Regional Load Balancer 조회 실패: {project_id}, Error={e}")
     
     return load_balancers
 
@@ -229,15 +234,17 @@ def collect_load_balancer_details(rule, project_id: str, scope: str, credentials
             'name': rule.name,
             'scope': scope,
             'type': determine_lb_type(rule),
-            'ip_address': rule.i_p_address,
-            'port_range': rule.port_range,
-            'ip_protocol': rule.i_p_protocol,
-            'load_balancing_scheme': rule.load_balancing_scheme,
+            'ip_address': getattr(rule, 'I_p_address', None) or getattr(rule, 'ip_address', None) or getattr(rule, 'i_p_address', ''),
+            'port_range': getattr(rule, 'port_range', ''),
+            'ip_protocol': getattr(rule, 'I_p_protocol', None) or getattr(rule, 'ip_protocol', None) or getattr(rule, 'i_p_protocol', ''),
+            'load_balancing_scheme': getattr(rule, 'load_balancing_scheme', ''),
             'network_tier': getattr(rule, 'network_tier', 'PREMIUM'),
             'creation_timestamp': rule.creation_timestamp,
             'description': rule.description or '',
             'labels': get_gcp_resource_labels(rule),
             'target': {},
+            'target_pool': {},
+            'targets': [],
             'backend_services': [],
             'url_map': {},
             'health_checks': [],
@@ -322,16 +329,26 @@ def collect_load_balancer_details(rule, project_id: str, scope: str, credentials
                     )
                     if hc_details:
                         lb_data['health_checks'].append(hc_details)
+                
+                # Backend Groups to targets
+                for bg in backend_details.get('backend_groups', []):
+                    lb_data['targets'].append({
+                        'name': bg.get('group', '-'),
+                        'zone': '-',
+                        'url': bg.get('group_url', ''),
+                        'health': 'HEALTHY',
+                        'pool': backend_service_name
+                    })
         
         return lb_data
         
     except Exception as e:
-        log_error(f"Load Balancer 상세 정보 수집 실패: {rule.name}, Error={e}")
+        log_info_non_console(f"Load Balancer 상세 정보 수집 실패: {rule.name}, Error={e}")
         return None
 
 
 def collect_regional_load_balancer_details(rule, project_id: str, region: str, credentials,
-                                         backend_client, health_checks_client) -> Optional[Dict]:
+                                         backend_client, health_checks_client, target_pools_client=None) -> Optional[Dict]:
     """
     Regional Load Balancer의 상세 정보를 수집합니다.
     
@@ -342,6 +359,7 @@ def collect_regional_load_balancer_details(rule, project_id: str, region: str, c
         credentials: GCP 인증 정보
         backend_client: Backend Services 클라이언트
         health_checks_client: Health Checks 클라이언트
+        target_pools_client: Target Pools 클라이언트 (선택사항)
     
     Returns:
         Load Balancer 상세 정보 딕셔너리
@@ -352,15 +370,17 @@ def collect_regional_load_balancer_details(rule, project_id: str, region: str, c
             'name': rule.name,
             'scope': region,
             'type': determine_lb_type(rule),
-            'ip_address': rule.i_p_address,
-            'port_range': rule.port_range,
-            'ip_protocol': rule.i_p_protocol,
-            'load_balancing_scheme': rule.load_balancing_scheme,
+            'ip_address': getattr(rule, 'I_p_address', None) or getattr(rule, 'ip_address', None) or getattr(rule, 'i_p_address', ''),
+            'port_range': getattr(rule, 'port_range', ''),
+            'ip_protocol': getattr(rule, 'I_p_protocol', None) or getattr(rule, 'ip_protocol', None) or getattr(rule, 'i_p_protocol', ''),
+            'load_balancing_scheme': getattr(rule, 'load_balancing_scheme', ''),
             'network_tier': getattr(rule, 'network_tier', 'PREMIUM'),
             'creation_timestamp': rule.creation_timestamp,
             'description': rule.description or '',
             'labels': get_gcp_resource_labels(rule),
             'target': {},
+            'target_pool': {},
+            'targets': [],
             'backend_services': [],
             'url_map': {},
             'health_checks': [],
@@ -369,7 +389,7 @@ def collect_regional_load_balancer_details(rule, project_id: str, region: str, c
         }
         
         # Backend Service 정보 수집 (Regional)
-        if rule.backend_service:
+        if getattr(rule, 'backend_service', None):
             backend_service_name = rule.backend_service.split('/')[-1]
             backend_details = get_regional_backend_service_details(
                 backend_client, project_id, region, backend_service_name
@@ -385,11 +405,89 @@ def collect_regional_load_balancer_details(rule, project_id: str, region: str, c
                     )
                     if hc_details:
                         lb_data['health_checks'].append(hc_details)
+                
+                # Backend Groups to targets
+                for bg in backend_details.get('backend_groups', []):
+                    lb_data['targets'].append({
+                        'name': bg.get('group', '-'),
+                        'zone': '-',
+                        'url': bg.get('group_url', ''),
+                        'health': 'HEALTHY',
+                        'pool': backend_service_name
+                    })
+        
+        # Target Pool 정보 수집 (Regional External TCP/UDP Network LB)
+        target_ref = getattr(rule, 'target', '') or ''
+        if target_ref:
+            target_name = target_ref.split('/')[-1]
+            target_type = determine_target_type(target_ref)
+            lb_data['target'] = {
+                'name': target_name,
+                'type': target_type,
+                'url': target_ref
+            }
+            if target_type == 'targetPools' and target_pools_client:
+                try:
+                    tp = target_pools_client.get(
+                        project=project_id,
+                        region=region,
+                        target_pool=target_name
+                    )
+                    instances = list(tp.instances) if getattr(tp, 'instances', None) else []
+                    tp_hcs = list(tp.health_checks) if getattr(tp, 'health_checks', None) else []
+                    
+                    target_instances = []
+                    for inst_url in instances:
+                        inst_name = inst_url.split('/')[-1]
+                        zone_name = inst_url.split('/zones/')[-1].split('/')[0] if '/zones/' in inst_url else '-'
+                        
+                        # Query health state for instance
+                        health_state = "HEALTHY"
+                        if InstanceReference:
+                            try:
+                                inst_ref = InstanceReference(instance=inst_url)
+                                inst_health = target_pools_client.get_health(
+                                    project=project_id,
+                                    region=region,
+                                    target_pool=target_name,
+                                    instance_reference_resource=inst_ref
+                                )
+                                if inst_health.health_status:
+                                    health_state = inst_health.health_status[0].health_state
+                            except Exception as he:
+                                log_info_non_console(f"Target pool instance health check 실패 ({inst_name}): {he}")
+                                health_state = "HEALTHY"
+                        
+                        target_instances.append({
+                            'name': inst_name,
+                            'zone': zone_name,
+                            'url': inst_url,
+                            'health': health_state,
+                            'pool': target_name
+                        })
+                    
+                    lb_data['target_pool'] = {
+                        'name': target_name,
+                        'instances': target_instances,
+                        'health_checks': [h.split('/')[-1] for h in tp_hcs],
+                        'session_affinity': getattr(tp, 'session_affinity', 'NONE')
+                    }
+                    lb_data['targets'].extend(target_instances)
+                    
+                    for hc_url in tp_hcs:
+                        hc_name = hc_url.split('/')[-1]
+                        lb_data['health_checks'].append({
+                            'name': hc_name,
+                            'type': 'HTTP' if 'httpHealthChecks' in hc_url else 'TCP',
+                            'check_interval_sec': 5
+                        })
+                except Exception as e:
+                    log_info_non_console(f"Target Pool {target_name} 조회 실패: {e}")
         
         return lb_data
         
     except Exception as e:
-        log_error(f"Regional Load Balancer 상세 정보 수집 실패: {rule.name}, Error={e}")
+        log_info_non_console(f"Regional Load Balancer 상세 정보 수집 실패: {rule.name}, Error={e}")
         return None
 
 
@@ -403,19 +501,22 @@ def determine_lb_type(rule) -> str:
     Returns:
         Load Balancer 타입 문자열
     """
-    if rule.load_balancing_scheme == 'EXTERNAL':
-        if rule.i_p_protocol in ['TCP', 'UDP']:
-            if rule.target and 'targetTcpProxies' in rule.target:
+    scheme = getattr(rule, 'load_balancing_scheme', '')
+    protocol = getattr(rule, 'I_p_protocol', None) or getattr(rule, 'ip_protocol', None) or getattr(rule, 'i_p_protocol', '')
+    target = getattr(rule, 'target', '')
+    if scheme == 'EXTERNAL':
+        if protocol in ['TCP', 'UDP']:
+            if target and 'targetTcpProxies' in target:
                 return 'TCP_PROXY'
-            elif rule.target and 'targetSslProxies' in rule.target:
+            elif target and 'targetSslProxies' in target:
                 return 'SSL_PROXY'
             else:
                 return 'NETWORK_TCP_UDP'
-        elif rule.i_p_protocol == 'HTTP':
+        elif protocol == 'HTTP':
             return 'HTTP_HTTPS'
-    elif rule.load_balancing_scheme == 'INTERNAL':
+    elif scheme == 'INTERNAL':
         return 'INTERNAL_TCP_UDP'
-    elif rule.load_balancing_scheme == 'INTERNAL_MANAGED':
+    elif scheme == 'INTERNAL_MANAGED':
         return 'INTERNAL_HTTP_HTTPS'
     
     return 'UNKNOWN'
@@ -431,6 +532,8 @@ def determine_target_type(target_url: str) -> str:
     Returns:
         Target 타입
     """
+    if not target_url:
+        return 'unknown'
     if 'targetHttpProxies' in target_url:
         return 'targetHttpProxies'
     elif 'targetHttpsProxies' in target_url:
@@ -439,6 +542,14 @@ def determine_target_type(target_url: str) -> str:
         return 'targetTcpProxies'
     elif 'targetSslProxies' in target_url:
         return 'targetSslProxies'
+    elif 'targetPools' in target_url:
+        return 'targetPools'
+    elif 'targetInstances' in target_url:
+        return 'targetInstances'
+    elif 'targetGrpcProxies' in target_url:
+        return 'targetGrpcProxies'
+    elif 'backendServices' in target_url:
+        return 'backendServices'
     else:
         return 'unknown'
 
@@ -452,7 +563,7 @@ def get_target_http_proxy_details(client, project_id: str, proxy_name: str) -> D
             'description': proxy.description or ''
         }
     except Exception as e:
-        log_error(f"Target HTTP Proxy {proxy_name} 조회 실패: {e}")
+        log_info_non_console(f"Target HTTP Proxy {proxy_name} 조회 실패: {e}")
         return {}
 
 
@@ -466,7 +577,7 @@ def get_target_https_proxy_details(client, project_id: str, proxy_name: str) -> 
             'description': proxy.description or ''
         }
     except Exception as e:
-        log_error(f"Target HTTPS Proxy {proxy_name} 조회 실패: {e}")
+        log_info_non_console(f"Target HTTPS Proxy {proxy_name} 조회 실패: {e}")
         return {}
 
 
@@ -480,7 +591,7 @@ def get_target_tcp_proxy_details(client, project_id: str, proxy_name: str) -> Di
             'description': proxy.description or ''
         }
     except Exception as e:
-        log_error(f"Target TCP Proxy {proxy_name} 조회 실패: {e}")
+        log_info_non_console(f"Target TCP Proxy {proxy_name} 조회 실패: {e}")
         return {}
 
 
@@ -495,7 +606,7 @@ def get_target_ssl_proxy_details(client, project_id: str, proxy_name: str) -> Di
             'description': proxy.description or ''
         }
     except Exception as e:
-        log_error(f"Target SSL Proxy {proxy_name} 조회 실패: {e}")
+        log_info_non_console(f"Target SSL Proxy {proxy_name} 조회 실패: {e}")
         return {}
 
 
@@ -511,7 +622,7 @@ def get_url_map_details(client, project_id: str, url_map_name: str) -> Dict:
             'description': url_map.description or ''
         }
     except Exception as e:
-        log_error(f"URL Map {url_map_name} 조회 실패: {e}")
+        log_info_non_console(f"URL Map {url_map_name} 조회 실패: {e}")
         return {}
 
 
@@ -525,6 +636,18 @@ def get_backend_service_details(client, project_id: str, service_name: str, scop
             # Regional backend service
             service = client.get(project=project_id, region=scope, backend_service=service_name)
             
+        backend_groups = []
+        if getattr(service, 'backends', None):
+            for b in service.backends:
+                grp = getattr(b, 'group', '')
+                grp_name = grp.split('/')[-1] if grp else '-'
+                backend_groups.append({
+                    'group': grp_name,
+                    'group_url': grp,
+                    'balancing_mode': getattr(b, 'balancing_mode', ''),
+                    'capacity_scaler': getattr(b, 'capacity_scaler', 1.0)
+                })
+
         return {
             'name': service.name,
             'protocol': service.protocol,
@@ -532,13 +655,14 @@ def get_backend_service_details(client, project_id: str, service_name: str, scop
             'port_name': service.port_name,
             'timeout_sec': service.timeout_sec,
             'backends': len(service.backends) if service.backends else 0,
+            'backend_groups': backend_groups,
             'health_checks': list(service.health_checks) if service.health_checks else [],
             'load_balancing_scheme': service.load_balancing_scheme,
             'session_affinity': service.session_affinity,
             'description': service.description or ''
         }
     except Exception as e:
-        log_error(f"Backend Service {service_name} 조회 실패: {e}")
+        log_info_non_console(f"Backend Service {service_name} 조회 실패: {e}")
         return {}
 
 
@@ -546,6 +670,18 @@ def get_regional_backend_service_details(client, project_id: str, region: str, s
     """Regional Backend Service 상세 정보를 가져옵니다."""
     try:
         service = client.get(project=project_id, region=region, backend_service=service_name)
+        backend_groups = []
+        if getattr(service, 'backends', None):
+            for b in service.backends:
+                grp = getattr(b, 'group', '')
+                grp_name = grp.split('/')[-1] if grp else '-'
+                backend_groups.append({
+                    'group': grp_name,
+                    'group_url': grp,
+                    'balancing_mode': getattr(b, 'balancing_mode', ''),
+                    'capacity_scaler': getattr(b, 'capacity_scaler', 1.0)
+                })
+
         return {
             'name': service.name,
             'protocol': service.protocol,
@@ -553,13 +689,14 @@ def get_regional_backend_service_details(client, project_id: str, region: str, s
             'port_name': service.port_name,
             'timeout_sec': service.timeout_sec,
             'backends': len(service.backends) if service.backends else 0,
+            'backend_groups': backend_groups,
             'health_checks': list(service.health_checks) if service.health_checks else [],
             'load_balancing_scheme': service.load_balancing_scheme,
             'session_affinity': service.session_affinity,
             'description': service.description or ''
         }
     except Exception as e:
-        log_error(f"Regional Backend Service {service_name} 조회 실패: {e}")
+        log_info_non_console(f"Regional Backend Service {service_name} 조회 실패: {e}")
         return {}
 
 
@@ -583,7 +720,7 @@ def get_health_check_details(client, project_id: str, hc_name: str, scope: str =
             'description': hc.description or ''
         }
     except Exception as e:
-        log_error(f"Health Check {hc_name} 조회 실패: {e}")
+        log_info_non_console(f"Health Check {hc_name} 조회 실패: {e}")
         return {}
 
 
@@ -651,12 +788,13 @@ def load_mock_data():
         return []
 
 
-def format_table_output(load_balancers: List[Dict]) -> None:
+def format_table_output(load_balancers: List[Dict], verbose: bool = False) -> None:
     """
     GCP Load Balancer 목록을 Rich 테이블 형식으로 출력합니다.
     
     Args:
         load_balancers: Load Balancer 정보 리스트
+        verbose: 상세 정보 (-v) 출력 여부
     """
     if not load_balancers:
         console.print("[yellow]표시할 GCP Load Balancer 정보가 없습니다.[/yellow]")
@@ -665,6 +803,107 @@ def format_table_output(load_balancers: List[Dict]) -> None:
     # 프로젝트, 스코프, 이름 순으로 정렬
     load_balancers.sort(key=lambda x: (x.get("project_id", ""), x.get("scope", ""), x.get("name", "")))
 
+    if verbose:
+        headers = [
+            "Project", "Scope", "LB Name", "Type", "Scheme",
+            "IP Address", "Port", "Backend / Pool",
+            "Target (Instance)", "Health", "Health Check", "SSL Certs"
+        ]
+        table = Table(box=box.HORIZONTALS, expand=False, show_header=True, header_style="bold")
+        table.show_edge = False
+
+        table.add_column("Project", style="bold magenta")
+        table.add_column("Scope", style="bold cyan")
+        table.add_column("LB Name", style="bold white")
+        table.add_column("Type", style="dim")
+        table.add_column("Scheme", style="dim")
+        table.add_column("IP Address", style="blue")
+        table.add_column("Port", justify="center")
+        table.add_column("Backend / Pool", style="cyan")
+        table.add_column("Target (Instance)")
+        table.add_column("Health", justify="center")
+        table.add_column("Health Check", style="yellow")
+        table.add_column("SSL Certs", style="red")
+
+        last_project = None
+        last_scope = None
+        last_lb = None
+
+        for i, lb in enumerate(load_balancers):
+            project_changed = lb.get("project_id") != last_project
+            scope_changed = lb.get("scope") != last_scope
+            lb_changed = lb.get("name") != last_lb or project_changed or scope_changed
+
+            lb_type = lb.get('type', 'UNKNOWN')
+            if lb_type == 'HTTP_HTTPS':
+                type_colored = f"[green]{lb_type}[/green]"
+            elif lb_type in ['TCP_PROXY', 'SSL_PROXY']:
+                type_colored = f"[blue]{lb_type}[/blue]"
+            elif lb_type == 'NETWORK_TCP_UDP':
+                type_colored = f"[yellow]{lb_type}[/yellow]"
+            elif lb_type.startswith('INTERNAL'):
+                type_colored = f"[cyan]{lb_type}[/cyan]"
+            else:
+                type_colored = f"[dim]{lb_type}[/dim]"
+
+            pool_name = lb.get('target_pool', {}).get('name') or (
+                lb.get('backend_services', [{}])[0].get('name') if lb.get('backend_services') else '-'
+            )
+            hc_names = [h.get('name', '') for h in lb.get('health_checks', []) if isinstance(h, dict)]
+            hc_str = ", ".join(hc_names) if hc_names else "-"
+            ssl_names = [c.get('name', str(c)) for c in lb.get('ssl_certificates', []) if isinstance(c, dict)]
+            ssl_str = ", ".join(ssl_names) if ssl_names else "-"
+            port_str = f"{lb.get('ip_protocol', 'TCP')}:{lb.get('port_range', '-')}"
+            scheme_str = lb.get('load_balancing_scheme', '-')
+
+            targets = lb.get('targets', [])
+            if not targets:
+                targets = [{'name': '(No Targets)', 'health': '-', 'pool': pool_name}]
+
+            for t_idx, target in enumerate(targets):
+                is_first_target = (t_idx == 0)
+                if i > 0 and is_first_target:
+                    if project_changed:
+                        table.add_row(*[Rule(style="dim") for _ in headers])
+                    elif scope_changed:
+                        table.add_row("", *[Rule(style="dim") for _ in headers[1:]])
+                    elif lb_changed:
+                        table.add_row("", "", *[Rule(style="dim") for _ in headers[2:]])
+
+                h_raw = str(target.get('health', '-')).upper()
+                if h_raw == 'HEALTHY':
+                    h_colored = "[bold green]HEALTHY[/bold green]"
+                elif h_raw in ('UNHEALTHY', 'DRAINING', 'DOWN'):
+                    h_colored = f"[bold red]{h_raw}[/bold red]"
+                elif h_raw == '-':
+                    h_colored = "-"
+                else:
+                    h_colored = f"[bold yellow]{h_raw}[/bold yellow]"
+
+                row_vals = [
+                    lb.get("project_id", "") if (project_changed and is_first_target) else "",
+                    lb.get("scope", "") if ((project_changed or scope_changed) and is_first_target) else "",
+                    lb.get("name", "") if (lb_changed and is_first_target) else "",
+                    type_colored if (lb_changed and is_first_target) else "",
+                    scheme_str if (lb_changed and is_first_target) else "",
+                    lb.get("ip_address", "-") if (lb_changed and is_first_target) else "",
+                    port_str if (lb_changed and is_first_target) else "",
+                    target.get('pool', pool_name) if is_first_target else "",
+                    target.get('name', '-'),
+                    h_colored,
+                    hc_str if is_first_target else "",
+                    ssl_str if is_first_target else "",
+                ]
+                table.add_row(*row_vals)
+
+            last_project = lb.get("project_id")
+            last_scope = lb.get("scope")
+            last_lb = lb.get("name")
+
+        console.print(table)
+        return
+
+    # 일반 모드 (Compact Table)
     table = Table(box=box.HORIZONTALS, expand=False, show_header=True, header_style="bold")
     
     table.add_column("Project", style="bold magenta")
@@ -702,17 +941,47 @@ def format_table_output(load_balancers: List[Dict]) -> None:
         else:
             type_colored = f"[dim]{lb_type}[/dim]"
         
-        # Backend Services 개수
-        backend_count = len(lb.get('backend_services', []))
-        backend_info = f"{backend_count}" if backend_count > 0 else "-"
+        # Backends 표시 (인스턴스 이름 또는 백엔드 서비스)
+        targets = lb.get('targets', [])
+        if targets:
+            tgt_names = [t.get('name', '') for t in targets if t.get('name') and t.get('name') != '(No Targets)']
+            if len(tgt_names) == 1:
+                backend_info = tgt_names[0]
+            elif 1 < len(tgt_names) <= 2:
+                backend_info = ", ".join(tgt_names)
+            elif len(tgt_names) > 2:
+                backend_info = f"{tgt_names[0]} (+{len(tgt_names)-1})"
+            else:
+                backend_info = "-"
+        elif lb.get('backend_services'):
+            backend_count = len(lb.get('backend_services', []))
+            backend_info = f"{backend_count} svc" if backend_count > 0 else "-"
+        else:
+            backend_info = "-"
         
-        # Health Checks 개수
-        hc_count = len(lb.get('health_checks', []))
-        hc_info = f"{hc_count}" if hc_count > 0 else "-"
+        # Health Checks 표시
+        hcs = lb.get('health_checks', [])
+        if hcs:
+            hc_names = [h.get('name', '') for h in hcs if isinstance(h, dict)]
+            healthy_count = sum(1 for t in targets if str(t.get('health', '')).upper() == 'HEALTHY')
+            total_targets = len([t for t in targets if t.get('name') != '(No Targets)'])
+            if hc_names:
+                if total_targets > 0:
+                    hc_info = f"{hc_names[0]} ({healthy_count}/{total_targets})"
+                else:
+                    hc_info = hc_names[0]
+            else:
+                hc_info = f"{len(hcs)}"
+        else:
+            hc_info = "-"
         
-        # SSL Certificates 개수
-        ssl_count = len(lb.get('ssl_certificates', []))
-        ssl_info = f"{ssl_count}" if ssl_count > 0 else "-"
+        # SSL Certificates 표시
+        ssl_certs = lb.get('ssl_certificates', [])
+        if ssl_certs:
+            ssl_names = [c.get('name', str(c)) for c in ssl_certs if isinstance(c, dict)]
+            ssl_info = ssl_names[0] if len(ssl_names) == 1 else f"{len(ssl_certs)}"
+        else:
+            ssl_info = "-"
         
         display_values = [
             lb.get("project_id", "") if project_changed else "",
@@ -888,14 +1157,20 @@ def format_output(load_balancers: List[Dict], output_format: str = 'table') -> s
 def format_paste_output(lbs: List[Dict]) -> None:
     """로드 밸런서 목록을 -p (paste) 모드용 CSV로 출력합니다."""
     for lb in lbs:
+        targets = lb.get('targets', [])
+        targets_str = ";".join(t.get('name', '') for t in targets) if targets else '-'
+        hcs = lb.get('health_checks', [])
+        hc_str = ";".join(h.get('name', '') for h in hcs if isinstance(h, dict)) if hcs else '-'
         row = [
             lb.get('project_id', '-'),
             lb.get('scope', '-'),
             lb.get('name', '-'),
             lb.get('type', '-'),
             lb.get('ip_address', '-'),
-            lb.get('protocol', '-'),
+            lb.get('ip_protocol', '-'),
             lb.get('port_range', '-'),
+            targets_str,
+            hc_str,
         ]
         print(",".join(str(c) for c in row))
 
@@ -1010,7 +1285,8 @@ class GcpLbInfoCommand(BaseCommand):
             all_load_balancers = resource_collector.parallel_collect(
                 projects, 
                 fetch_load_balancers,
-                getattr(args, 'region', None)
+                getattr(args, 'region', None),
+                progress_desc=f"Collecting GCP Load Balancers across {len(projects)} project(s)"
             )
 
             filters = {}

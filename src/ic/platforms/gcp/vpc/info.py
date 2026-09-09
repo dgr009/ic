@@ -147,8 +147,9 @@ def collect_network_details(networks_client: Any, subnets_client: Any,
         }
         
         # IPv4 범위 정보 (legacy 네트워크의 경우)
-        if hasattr(network, 'i_pv4_range') and network.i_pv4_range:
-            network_data['ipv4_range'] = network.i_pv4_range
+        ipv4_range = getattr(network, 'I_pv4_range', None) or getattr(network, 'ipv4_range', None) or getattr(network, 'i_pv4_range', None)
+        if ipv4_range:
+            network_data['ipv4_range'] = ipv4_range
         
         # 서브넷 정보 수집
         network_data['subnets'] = get_subnet_details(
@@ -306,8 +307,8 @@ def get_firewall_rules(firewalls_client: Any, project_id: str, network_name: str
                 if firewall.allowed:
                     for rule in firewall.allowed:
                         rule_info = {
-                            'ip_protocol': rule.i_p_protocol,
-                            'ports': list(rule.ports) if rule.ports else []
+                            'ip_protocol': getattr(rule, 'I_p_protocol', None) or getattr(rule, 'ip_protocol', None) or getattr(rule, 'i_p_protocol', '') or '',
+                            'ports': list(rule.ports) if getattr(rule, 'ports', None) else []
                         }
                         firewall_info['allowed_rules'].append(rule_info)
                 
@@ -315,8 +316,8 @@ def get_firewall_rules(firewalls_client: Any, project_id: str, network_name: str
                 if firewall.denied:
                     for rule in firewall.denied:
                         rule_info = {
-                            'ip_protocol': rule.i_p_protocol,
-                            'ports': list(rule.ports) if rule.ports else []
+                            'ip_protocol': getattr(rule, 'I_p_protocol', None) or getattr(rule, 'ip_protocol', None) or getattr(rule, 'i_p_protocol', '') or '',
+                            'ports': list(rule.ports) if getattr(rule, 'ports', None) else []
                         }
                         firewall_info['denied_rules'].append(rule_info)
                 
