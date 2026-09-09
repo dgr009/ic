@@ -47,7 +47,7 @@ ic config show
 - **VPC / NAT / TKE**: `ic tencent vpc info` / `ic tencent nat info` / `ic tencent tke info`
 - **자격 증명 확인**: `ic tencent profile info`
 
-### 3. 🟩 GCP Services (v1.5.0)
+### 3. 🟩 GCP Services (v1.5.1)
 - **Compute Engine (요약 & 15개 컬럼 상세 & desc)**:
   - `ic gcp compute info`: 기본 요약 목록
   - `ic gcp compute info -v`: 상세 15열 뷰 (vCPU, Mem, Disks, Net/Subnet, Tags 등)

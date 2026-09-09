@@ -1,6 +1,6 @@
 # GCP Platform Documentation
 
-This directory contains documentation for the GCP (Google Cloud Platform) integration in IC CLI (v1.5.0).
+This directory contains documentation for the GCP (Google Cloud Platform) integration in IC CLI (v1.5.1).
 
 ---
 
@@ -12,7 +12,7 @@ This directory contains documentation for the GCP (Google Cloud Platform) integr
 
 ---
 
-## Services Supported (v1.5.0)
+## Services Supported (v1.5.1)
 
 | Service | Commands | Key Features |
 |---|---|---|
