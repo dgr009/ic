@@ -5,10 +5,16 @@ import re
 import json
 from botocore.exceptions import BotoCoreError, ClientError
 try:
-    # pyrefly: ignore [missing-import]
-    from prettytable import PrettyTable
+    from prettytable import PrettyTable  # type: ignore
 except ImportError:
-    from rich.table import Table as PrettyTable  # Fallback
+    class PrettyTable:  # type: ignore
+        def __init__(self, *args, **kwargs):
+            self.field_names = []
+            self.rows = []
+        def add_row(self, row):
+            self.rows.append(row)
+        def __str__(self):
+            return ""
 from .log import log_info, log_error, log_exception  # 로그 모듈 통합
 
 # 새로운 설정 시스템 import
@@ -160,7 +166,7 @@ def load_json(file_path):
             data = json.load(f)
         log_info(f"Loaded JSON from {file_path}")
         return data
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         log_error(f"JSON file not found: {file_path}")
         return None
     except json.JSONDecodeError as e:

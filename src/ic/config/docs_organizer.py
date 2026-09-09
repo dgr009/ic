@@ -8,7 +8,8 @@ import os
 import re
 import shutil
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Dict, Any, List, Optional
+from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
@@ -545,17 +546,18 @@ If you have bookmarks or references to old documentation locations, use this map
         
         return content
     
-    def _format_size(self, size_bytes: int) -> str:
+    def _format_size(self, size_bytes: float) -> str:
         """Format file size in human-readable format."""
         if size_bytes == 0:
             return "0 B"
         
+        size = float(size_bytes)
         for unit in ['B', 'KB', 'MB']:
-            if size_bytes < 1024:
-                return f"{size_bytes:.1f} {unit}"
-            size_bytes /= 1024
+            if size < 1024:
+                return f"{size:.1f} {unit}"
+            size /= 1024
         
-        return f"{size_bytes:.1f} GB"
+        return f"{size:.1f} GB"
     
     def validate_reorganization(self) -> Dict[str, List[str]]:
         """

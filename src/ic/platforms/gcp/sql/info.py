@@ -5,43 +5,41 @@ import os
 from typing import Dict, List, Optional, Any
 # Using google-cloud-sql-python-connector for Cloud SQL connections
 try:
-    from google.cloud.sql.connector import Connector
+    from google.cloud.sql.connector import Connector  # type: ignore
     CONNECTOR_AVAILABLE = True
 except ImportError:
     CONNECTOR_AVAILABLE = False
+    Connector: Any = None
 try:
-    from google.cloud.sql_v1 import SqlInstancesServiceClient, SqlDatabasesServiceClient
-    from google.cloud.sql_v1.types import (
+    from google.cloud.sql_v1 import SqlInstancesServiceClient, SqlDatabasesServiceClient  # type: ignore
+    from google.cloud.sql_v1.types import (  # type: ignore
         SqlInstancesListRequest, SqlInstancesGetRequest,
         SqlDatabasesListRequest, SqlDatabasesGetRequest
     )
     SQL_ADMIN_AVAILABLE = True
 except ImportError:
     SQL_ADMIN_AVAILABLE = False
-    # Fallback classes for when the library is not available
-    class SqlInstancesServiceClient:
-        pass
-    class SqlDatabasesServiceClient:
-        pass
-    class SqlInstancesListRequest:
-        pass
-    class SqlDatabasesListRequest:
-        pass
+    SqlInstancesServiceClient: Any = None
+    SqlDatabasesServiceClient: Any = None
+    SqlInstancesListRequest: Any = None
+    SqlInstancesGetRequest: Any = None
+    SqlDatabasesListRequest: Any = None
+    SqlDatabasesGetRequest: Any = None
 try:
     from google.api_core import exceptions as gcp_exceptions
 except ImportError:
-    gcp_exceptions = None
+    gcp_exceptions: Any = None
 from rich.console import Console
 from rich.table import Table
 from rich import box
-from rich.rule import Rule
 from rich.tree import Tree
 
 from common.gcp_utils import (
-        GCPAuthManager, GCPProjectManager, GCPResourceCollector,
-    create_gcp_client, format_gcp_output, get_gcp_resource_labels
-    )
-from common.log import log_info, log_error, log_exception
+    GCPAuthManager, GCPProjectManager, GCPResourceCollector,
+    format_gcp_output
+)
+from common.log import log_info, log_error, log_exception, log_info_non_console
+from ic.core.interfaces import BaseCommand, CommandResult
 
 console = Console()
 
@@ -111,8 +109,8 @@ def fetch_sql_instances(project_id: str) -> List[Dict]:
     return fetch_sql_instances_direct(project_id)
 
 
-def collect_instance_details(sql_client: SqlInstancesServiceClient, 
-                           databases_client: SqlDatabasesServiceClient,
+def collect_instance_details(sql_client: Any, 
+                           databases_client: Any,
                            project_id: str, instance) -> Optional[Dict]:
     """
     SQL 인스턴스의 상세 정보를 수집합니다.
@@ -153,10 +151,15 @@ def collect_instance_details(sql_client: SqlInstancesServiceClient,
             'database_flags': {}
         }
         
+        settings_data: Dict[str, Any] = {}
+        backup_config_data: Dict[str, Any] = {}
+        ip_addresses_list: List[Dict[str, Any]] = []
+        databases_list: List[Dict[str, Any]] = []
+
         # 설정 정보
         if instance.settings:
             settings = instance.settings
-            instance_data['settings'] = {
+            settings_data = {
                 'tier': settings.tier,
                 'pricing_plan': settings.pricing_plan.name if hasattr(settings.pricing_plan, 'name') else str(settings.pricing_plan),
                 'replication_type': settings.replication_type.name if hasattr(settings.replication_type, 'name') else str(settings.replication_type),
@@ -172,7 +175,7 @@ def collect_instance_details(sql_client: SqlInstancesServiceClient,
             
             # 위치 선호도
             if settings.location_preference:
-                instance_data['settings']['location_preference'] = {
+                settings_data['location_preference'] = {
                     'zone': settings.location_preference.zone,
                     'follow_gae_application': settings.location_preference.follow_gae_application
                 }
@@ -180,7 +183,7 @@ def collect_instance_details(sql_client: SqlInstancesServiceClient,
             # 백업 설정
             if settings.backup_configuration:
                 backup_config = settings.backup_configuration
-                instance_data['backup_configuration'] = {
+                backup_config_data = {
                     'enabled': backup_config.enabled,
                     'start_time': backup_config.start_time,
                     'binary_log_enabled': backup_config.binary_log_enabled,
@@ -191,7 +194,7 @@ def collect_instance_details(sql_client: SqlInstancesServiceClient,
                 }
                 
                 if backup_config.backup_retention_settings:
-                    instance_data['backup_configuration']['backup_retention_settings'] = {
+                    backup_config_data['backup_retention_settings'] = {
                         'retention_unit': backup_config.backup_retention_settings.retention_unit.name if hasattr(backup_config.backup_retention_settings.retention_unit, 'name') else str(backup_config.backup_retention_settings.retention_unit),
                         'retained_backups': backup_config.backup_retention_settings.retained_backups
                     }
@@ -211,6 +214,9 @@ def collect_instance_details(sql_client: SqlInstancesServiceClient,
                     flag.name: flag.value for flag in settings.database_flags
                 }
         
+        instance_data['settings'] = settings_data
+        instance_data['backup_configuration'] = backup_config_data
+
         # IP 주소 정보
         if instance.ip_addresses:
             for ip_addr in instance.ip_addresses:
@@ -219,8 +225,10 @@ def collect_instance_details(sql_client: SqlInstancesServiceClient,
                     'ip_address': ip_addr.ip_address,
                     'time_to_retire': ip_addr.time_to_retire
                 }
-                instance_data['ip_addresses'].append(ip_info)
+                ip_addresses_list.append(ip_info)
         
+        instance_data['ip_addresses'] = ip_addresses_list
+
         # 서버 CA 인증서
         if instance.server_ca_cert:
             instance_data['server_ca_cert'] = {
@@ -249,21 +257,23 @@ def collect_instance_details(sql_client: SqlInstancesServiceClient,
                     'instance': database.instance,
                     'self_link': database.self_link
                 }
-                instance_data['databases'].append(db_info)
+                databases_list.append(db_info)
                 
         except Exception as e:
             log_error(f"데이터베이스 목록 수집 실패: {instance.name}, Error={e}")
         
+        instance_data['databases'] = databases_list
+
         # 편의를 위한 추가 필드
         instance_data['primary_ip'] = (
-            instance_data['ip_addresses'][0]['ip_address'] 
-            if instance_data['ip_addresses'] else 'N/A'
+            ip_addresses_list[0]['ip_address'] 
+            if ip_addresses_list else 'N/A'
         )
         instance_data['high_availability'] = (
-            instance_data['settings'].get('availability_type') == 'REGIONAL'
+            settings_data.get('availability_type') == 'REGIONAL'
         )
         instance_data['backup_enabled'] = (
-            instance_data['backup_configuration'].get('enabled', False)
+            backup_config_data.get('enabled', False)
         )
         
         return instance_data
@@ -501,9 +511,6 @@ def format_paste_output(instances: List[Dict]) -> None:
         print(",".join(str(c) for c in row))
 
 
-from ic.core.interfaces import BaseCommand, CommandResult
-
-
 class GcpSqlInfoCommand(BaseCommand):
     """GCP Cloud SQL 인스턴스 정보 조회 커맨드"""
 
@@ -511,8 +518,9 @@ class GcpSqlInfoCommand(BaseCommand):
     def add_arguments(cls, parser) -> None:
         cls.add_common_arguments(parser)
         parser.add_argument(
-            '-p', '--project', 
-            help='GCP 프로젝트 ID로 필터링 (예: my-project-123)'
+            '-a', '--account', '--project',
+            dest='project',
+            help='GCP 프로젝트 ID 또는 계정 (콤마 구분으로 복수 지정 가능, 예: my-project-123)'
         )
         parser.add_argument(
             '--all-projects',
@@ -520,8 +528,26 @@ class GcpSqlInfoCommand(BaseCommand):
             help='접근 가능한 모든 GCP 프로젝트 조회 (대규모 환경 주의)'
         )
         parser.add_argument(
-            '-i', '--instance', 
-            help='SQL 인스턴스 이름으로 필터링 (부분 일치)'
+            '-n', '--name', '-i', '--instance',
+            dest='instance',
+            help='SQL 인스턴스 이름으로 필터링 (콤마 구분 가능, 부분 일치)'
+        )
+        parser.add_argument(
+            '-r', '--region', '--regions',
+            dest='region',
+            help='지역으로 필터링 (콤마 구분 가능, 예: us-central1)'
+        )
+        parser.add_argument(
+            '-p', '--paste',
+            nargs='?',
+            const=True,
+            default=False,
+            help='스프레드시트 복사용 콤마(,) 구분 텍스트 출력'
+        )
+        parser.add_argument(
+            '-v', '--verbose',
+            action='store_true',
+            help='상세 정보 출력'
         )
         parser.add_argument(
             '--mock',
@@ -535,10 +561,21 @@ class GcpSqlInfoCommand(BaseCommand):
             filtered = []
             inst_filter = getattr(args, 'instance', None)
             proj_filter = getattr(args, 'project', None)
+            reg_filter = getattr(args, 'region', None)
+
+            inst_patterns = [p.strip().lower() for p in inst_filter.split(',')] if inst_filter else []
+            proj_patterns = [p.strip().lower() for p in proj_filter.split(',')] if proj_filter else []
+
             for inst in instances:
-                if inst_filter and inst_filter.lower() not in str(inst.get('name', '')).lower():
+                inst_name = str(inst.get('name', '')).lower()
+                inst_proj = str(inst.get('project_id', '')).lower()
+                inst_reg = str(inst.get('region', '')).lower()
+
+                if inst_patterns and not any(p in inst_name for p in inst_patterns):
                     continue
-                if proj_filter and proj_filter.lower() not in str(inst.get('project_id', '')).lower():
+                if proj_patterns and not any(p in inst_proj for p in proj_patterns):
+                    continue
+                if reg_filter and reg_filter.lower() not in inst_reg:
                     continue
                 filtered.append(inst)
             return CommandResult(
@@ -554,7 +591,7 @@ class GcpSqlInfoCommand(BaseCommand):
             return CommandResult(data=[], error="google-cloud-sql-admin is not installed", success=False)
 
         try:
-            log_info("GCP Cloud SQL 인스턴스 조회 시작")
+            log_info_non_console("GCP Cloud SQL 인스턴스 조회 시작")
             auth_manager = GCPAuthManager()
             if not auth_manager.validate_credentials():
                 console.print("[bold red]GCP 인증에 실패했습니다. 인증 정보를 확인해주세요.[/bold red]")
@@ -565,13 +602,13 @@ class GcpSqlInfoCommand(BaseCommand):
             resource_collector = GCPResourceCollector(auth_manager)
 
             if getattr(args, 'project', None):
-                projects = [args.project]
+                projects = [p.strip() for p in args.project.split(',') if p.strip()]
             else:
                 projects = project_manager.get_projects(all_projects=getattr(args, 'all_projects', False))
 
             if not projects:
                 console.print("[yellow]⚠️  GCP 프로젝트가 지정되지 않았습니다.[/yellow]")
-                console.print("💡 [dim]--project <PROJECT_ID> 옵션을 지정하거나 활성 gcloud 프로필을 설정하세요. (전체 조회를 원하시면 --all-projects 옵션을 사용하세요)[/dim]")
+                console.print("💡 [dim]-a/--project <PROJECT_ID> 옵션을 지정하거나 활성 gcloud 프로필을 설정하세요. (전체 조회를 원하시면 --all-projects 옵션을 사용하세요)[/dim]")
                 return CommandResult(data=[], table_renderer=format_table_output, tree_renderer=format_tree_output, paste_renderer=format_paste_output)
 
             all_instances = resource_collector.parallel_collect(
@@ -579,15 +616,18 @@ class GcpSqlInfoCommand(BaseCommand):
                 fetch_sql_instances
             )
 
-            filters = {}
+            # Region & Name filtering
+            if getattr(args, 'region', None):
+                all_instances = [i for i in all_instances if getattr(args, 'region').lower() in str(i.get('region', '')).lower()]
             if getattr(args, 'instance', None):
-                filters['name'] = args.instance
-            if getattr(args, 'project', None):
-                filters['project'] = args.project
+                inst_patterns = [p.strip().lower() for p in args.instance.split(',') if p.strip()]
+                all_instances = [
+                    i for i in all_instances
+                    if any(p in str(i.get('name', '')).lower() for p in inst_patterns)
+                ]
 
-            filtered_instances = resource_collector.apply_filters(all_instances, filters)
             return CommandResult(
-                data=filtered_instances,
+                data=all_instances,
                 table_renderer=format_table_output,
                 tree_renderer=format_tree_output,
                 paste_renderer=format_paste_output,

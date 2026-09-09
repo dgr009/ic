@@ -3,7 +3,7 @@ import argparse
 import json
 import os
 from typing import Dict, List, Optional, Any
-from datetime import datetime, timedelta
+from datetime import datetime
 try:
     from google.cloud import billing_v1
     from google.cloud.billing_v1 import CloudBillingClient, CloudCatalogClient
@@ -16,25 +16,26 @@ try:
     GCP_BILLING_AVAILABLE = True
 except ImportError:
     GCP_BILLING_AVAILABLE = False
-    billing_v1 = None
-    CloudBillingClient = None
-    CloudCatalogClient = None
-    ListBillingAccountsRequest = None
-    GetBillingAccountRequest = None
-    ListProjectBillingInfoRequest = None
-    GetProjectBillingInfoRequest = None
-    ListServicesRequest = None
-    ListSkusRequest = None
-    gcp_exceptions = None
+    billing_v1: Any = None
+    CloudBillingClient: Any = None
+    CloudCatalogClient: Any = None
+    ListBillingAccountsRequest: Any = None
+    GetBillingAccountRequest: Any = None
+    ListProjectBillingInfoRequest: Any = None
+    GetProjectBillingInfoRequest: Any = None
+    ListServicesRequest: Any = None
+    ListSkusRequest: Any = None
+    gcp_exceptions: Any = None
 from rich.console import Console
 from rich.table import Table
 from rich import box
-from rich.rule import Rule
 from rich.tree import Tree
+
+from ic.core.interfaces import BaseCommand, CommandResult
 
 from common.gcp_utils import (
         GCPAuthManager, GCPProjectManager, GCPResourceCollector,
-    create_gcp_client, format_gcp_output, get_gcp_resource_labels
+    format_gcp_output
     )
 from common.log import log_info, log_error, log_exception
 
@@ -112,13 +113,13 @@ def fetch_billing_info_direct(project_id: str) -> List[Dict]:
                      f"프로젝트 ID가 올바른지 확인하세요.")
             return []
         except gcp_exceptions.ServiceUnavailable:
-            log_error(f"Cloud Billing API가 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도하세요.")
+            log_error("Cloud Billing API가 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도하세요.")
             return []
         except gcp_exceptions.TooManyRequests:
-            log_error(f"API 요청 한도를 초과했습니다. 잠시 후 다시 시도하세요.")
+            log_error("API 요청 한도를 초과했습니다. 잠시 후 다시 시도하세요.")
             return []
         except gcp_exceptions.Unauthenticated:
-            log_error(f"GCP 인증이 필요합니다. 인증 정보를 확인하세요.")
+            log_error("GCP 인증이 필요합니다. 인증 정보를 확인하세요.")
             return []
         except Exception as e:
             log_error(f"Billing 정보 조회 실패: {project_id}, Error={e}")
@@ -132,7 +133,7 @@ def fetch_billing_info_direct(project_id: str) -> List[Dict]:
                  f"billing.accounts.get, billing.resourceAssociations.list 권한이 필요합니다.")
         return []
     except gcp_exceptions.Unauthenticated:
-        log_error(f"GCP 인증이 필요합니다. 서비스 계정 키 또는 ADC를 설정하세요.")
+        log_error("GCP 인증이 필요합니다. 서비스 계정 키 또는 ADC를 설정하세요.")
         return []
     except Exception as e:
         log_error(f"Billing 정보 조회 실패: {project_id}, Error={e}")
@@ -152,8 +153,8 @@ def fetch_billing_info(project_id: str) -> List[Dict]:
     return fetch_billing_info_direct(project_id)
 
 
-def collect_billing_details(billing_client: CloudBillingClient, 
-                          catalog_client: CloudCatalogClient,
+def collect_billing_details(billing_client: Any, 
+                          catalog_client: Any,
                           project_id: str, billing_account, project_billing_info) -> Optional[Dict]:
     """
     빌링 계정의 상세 정보를 수집합니다.
@@ -232,7 +233,7 @@ def collect_billing_details(billing_client: CloudBillingClient,
         return None
 
 
-def get_cost_details(billing_client: CloudBillingClient, billing_account_id: str, 
+def get_cost_details(billing_client: Any, billing_account_id: str, 
                     date_range: Dict) -> Dict:
     """
     빌링 계정의 비용 상세 정보를 가져옵니다.
@@ -265,7 +266,7 @@ def get_cost_details(billing_client: CloudBillingClient, billing_account_id: str
         return {}
 
 
-def get_budget_alerts(billing_client: CloudBillingClient, billing_account_id: str) -> List[Dict]:
+def get_budget_alerts(billing_client: Any, billing_account_id: str) -> List[Dict]:
     """
     빌링 계정의 예산 알림을 가져옵니다.
     
@@ -288,7 +289,7 @@ def get_budget_alerts(billing_client: CloudBillingClient, billing_account_id: st
         return []
 
 
-def get_spending_by_service(billing_client: CloudBillingClient, 
+def get_spending_by_service(billing_client: Any, 
                           billing_account_id: str, project_id: str) -> Dict:
     """
     서비스별 지출 정보를 가져옵니다.
@@ -640,9 +641,6 @@ def format_paste_output(billing_info: List[Dict]) -> None:
             str(b.get('current_month_cost', 0.0)),
         ]
         print(",".join(str(c) for c in row))
-
-
-from ic.core.interfaces import BaseCommand, CommandResult
 
 
 class GcpBillingInfoCommand(BaseCommand):

@@ -5,29 +5,30 @@ import os
 from typing import Dict, List, Optional, Any
 
 try:
-    from google.cloud import dns
-    from google.api_core import exceptions as gcp_exceptions
+    from google.cloud import dns  # type: ignore
+    from google.api_core import exceptions as gcp_exceptions  # type: ignore
     GCP_DNS_AVAILABLE = True
 except ImportError:
     GCP_DNS_AVAILABLE = False
-    dns = None
-    gcp_exceptions = None
+    dns: Any = None
+    gcp_exceptions: Any = None
 
 from rich.console import Console
 from rich.table import Table
 from rich import box
 from rich.tree import Tree
 
+from ic.core.interfaces import BaseCommand, CommandResult
+
 from common.gcp_utils import (
-    GCPAuthManager, GCPProjectManager, GCPResourceCollector,
-    format_gcp_output
+    GCPAuthManager, GCPProjectManager, GCPResourceCollector
 )
-from common.log import log_info, log_error, log_exception
+from common.log import log_info, log_error, log_exception, log_info_non_console
 
 console = Console()
 
 
-def fetch_dns_zones_direct(project_id: str, zone_filter: str = None) -> List[Dict]:
+def fetch_dns_zones_direct(project_id: str, zone_filter: Optional[str] = None) -> List[Dict]:
     """
     직접 Google Cloud DNS API를 통해 관리형 DNS 영역 및 레코드 정보를 가져옵니다.
     
@@ -90,7 +91,7 @@ def fetch_dns_zones_direct(project_id: str, zone_filter: str = None) -> List[Dic
         return []
 
 
-def fetch_dns_zones(project_id: str, zone_filter: str = None) -> List[Dict]:
+def fetch_dns_zones(project_id: str, zone_filter: Optional[str] = None) -> List[Dict]:
     """Cloud DNS 영역 목록을 가져옵니다."""
     return fetch_dns_zones_direct(project_id, zone_filter)
 
@@ -215,9 +216,6 @@ def format_paste_output(zones: List[Dict]) -> None:
         print(",".join(str(c) for c in row))
 
 
-from ic.core.interfaces import BaseCommand, CommandResult
-
-
 class GcpDnsInfoCommand(BaseCommand):
     """GCP Cloud DNS 영역 및 레코드 정보 조회 커맨드"""
 
@@ -225,8 +223,9 @@ class GcpDnsInfoCommand(BaseCommand):
     def add_arguments(cls, parser) -> None:
         cls.add_common_arguments(parser)
         parser.add_argument(
-            '-p', '--project',
-            help='GCP 프로젝트 ID로 필터링 (예: my-project-123)'
+            '-a', '--account', '--project',
+            dest='project',
+            help='GCP 프로젝트 ID 또는 계정 (콤마 구분으로 복수 지정 가능, 예: my-project-123)'
         )
         parser.add_argument(
             '--all-projects',
@@ -234,8 +233,9 @@ class GcpDnsInfoCommand(BaseCommand):
             help='접근 가능한 모든 GCP 프로젝트 조회 (대규모 환경 주의)'
         )
         parser.add_argument(
-            '-z', '--zone',
-            help='관리형 DNS 영역 이름으로 필터링 (부분 일치)'
+            '-n', '--name', '-z', '--zone',
+            dest='zone',
+            help='관리형 DNS 영역 이름으로 필터링 (콤마 구분 가능, 부분 일치)'
         )
         parser.add_argument(
             '-d', '--dns-name',
@@ -244,6 +244,18 @@ class GcpDnsInfoCommand(BaseCommand):
         parser.add_argument(
             '-t', '--type',
             help='DNS 레코드 타입으로 필터링 (예: A, CNAME, TXT)'
+        )
+        parser.add_argument(
+            '-p', '--paste',
+            nargs='?',
+            const=True,
+            default=False,
+            help='스프레드시트 복사용 콤마(,) 구분 텍스트 출력'
+        )
+        parser.add_argument(
+            '-v', '--verbose',
+            action='store_true',
+            help='상세 정보 출력'
         )
         parser.add_argument(
             '--mock',
@@ -260,29 +272,24 @@ class GcpDnsInfoCommand(BaseCommand):
             dns_name_filter = getattr(args, 'dns_name', None)
             type_filter = getattr(args, 'type', None)
 
+            proj_patterns = [p.strip().lower() for p in proj_filter.split(',')] if proj_filter else []
+            zone_patterns = [p.strip().lower() for p in zone_filter.split(',')] if zone_filter else []
+
             for z in zones:
-                if proj_filter and proj_filter.lower() not in str(z.get('project_id', '')).lower():
+                z_proj = str(z.get('project_id', '')).lower()
+                z_name = str(z.get('name', '')).lower()
+
+                if proj_patterns and not any(p in z_proj for p in proj_patterns):
                     continue
-                if zone_filter and zone_filter.lower() not in str(z.get('name', '')).lower():
+                if zone_patterns and not any(p in z_name for p in zone_patterns):
                     continue
                 if dns_name_filter and dns_name_filter.lower() not in str(z.get('dns_name', '')).lower():
                     continue
-
-                # 레코드 타입 필터가 지정된 경우
                 if type_filter:
-                    matched_records = [
-                        r for r in z.get('records', [])
-                        if r.get('type', '').upper() == type_filter.upper()
-                    ]
-                    if not matched_records:
+                    records = z.get('records', [])
+                    if not any(r.get('type') == type_filter.upper() for r in records):
                         continue
-                    z_copy = dict(z)
-                    z_copy['records'] = matched_records
-                    z_copy['record_count'] = len(matched_records)
-                    filtered.append(z_copy)
-                else:
-                    filtered.append(z)
-
+                filtered.append(z)
             return CommandResult(
                 data=filtered,
                 table_renderer=format_table_output,
@@ -297,7 +304,7 @@ class GcpDnsInfoCommand(BaseCommand):
             return CommandResult(data=[], error="google-cloud-dns is not installed", success=False)
 
         try:
-            log_info("GCP Cloud DNS 영역 조회 시작")
+            log_info_non_console("GCP Cloud DNS 영역 조회 시작")
             auth_manager = GCPAuthManager()
             if not auth_manager.validate_credentials():
                 console.print("[bold red]GCP 인증에 실패했습니다. 인증 정보를 확인해주세요.[/bold red]")
@@ -308,7 +315,7 @@ class GcpDnsInfoCommand(BaseCommand):
             resource_collector = GCPResourceCollector(auth_manager)
 
             if getattr(args, 'project', None):
-                projects = [args.project]
+                projects = [p.strip() for p in args.project.split(',') if p.strip()]
             else:
                 projects = project_manager.get_projects(all_projects=getattr(args, 'all_projects', False))
 

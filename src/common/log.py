@@ -11,13 +11,14 @@ try:
     from ic.core.logging import get_logger
     NEW_LOGGING_AVAILABLE = True
 except ImportError:
+    get_logger = None  # type: ignore
     NEW_LOGGING_AVAILABLE = False
 
 console = Console()
 install(show_locals=True)
 
 # Initialize logger based on availability
-if NEW_LOGGING_AVAILABLE:
+if NEW_LOGGING_AVAILABLE and get_logger is not None:
     # Use new ICLogger system
     ic_logger = get_logger()
     logger = ic_logger.get_logger()
@@ -59,16 +60,13 @@ def log_info_non_console(message: str):
         logger.info(message)
 
 def log_info(message: str):
-    """INFO 레벨 로그 출력 + 콘솔 표시"""
+    """INFO 레벨 로그 출력 (기본은 파일 전용, IC_VERBOSE=true일 때만 콘솔 표시)"""
     if NEW_LOGGING_AVAILABLE and ic_logger:
-        # New system: INFO goes to file only, but we can show on console for backward compatibility
         ic_logger.log_info_file_only(message)
-        console.print(f"[bold cyan]INFO:[/bold cyan] {message}")
     else:
         logger.info(message)
-        # 콘솔에만 심플하게 표시
-        if logger.level <= logging.INFO:
-            console.print(f"[bold cyan]INFO:[/bold cyan] {message}")
+    if os.environ.get("IC_VERBOSE") == "true":
+        console.print(f"[bold cyan]INFO:[/bold cyan] {message}")
 
 def log_error(message: str):
     """ERROR 레벨 로그 출력 + 콘솔 표시"""
@@ -178,7 +176,6 @@ def cleanup_old_logs():
                 return
             
             import glob
-            from pathlib import Path
             
             # Find all IC log files
             log_files = glob.glob(os.path.join(log_dir, "ic_*.log*"))

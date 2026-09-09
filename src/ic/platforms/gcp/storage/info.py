@@ -10,20 +10,20 @@ try:
     GCP_STORAGE_AVAILABLE = True
 except ImportError:
     GCP_STORAGE_AVAILABLE = False
-    storage = None
-    StorageClient = None
-    gcp_exceptions = None
+    storage: Any = None
+    StorageClient: Any = None
+    gcp_exceptions: Any = None
 from rich.console import Console
 from rich.table import Table
 from rich import box
-from rich.rule import Rule
 from rich.tree import Tree
 
+from ic.core.interfaces import BaseCommand, CommandResult
 from common.gcp_utils import (
-        GCPAuthManager, GCPProjectManager, GCPResourceCollector,
-    create_gcp_client, format_gcp_output, get_gcp_resource_labels
-    )
-from common.log import log_info, log_error, log_exception
+    GCPAuthManager, GCPProjectManager, GCPResourceCollector,
+    format_gcp_output
+)
+from common.log import log_info, log_error, log_exception, log_info_non_console
 
 console = Console()
 
@@ -89,7 +89,7 @@ def fetch_storage_buckets(project_id: str) -> List[Dict]:
     return fetch_storage_buckets_direct(project_id)
 
 
-def collect_bucket_details(storage_client: StorageClient, bucket) -> Optional[Dict]:
+def collect_bucket_details(storage_client: Any, bucket) -> Optional[Dict]:
     """
     버킷의 상세 정보를 수집합니다.
     
@@ -102,7 +102,7 @@ def collect_bucket_details(storage_client: StorageClient, bucket) -> Optional[Di
     """
     try:
         # 기본 버킷 정보
-        bucket_data = {
+        bucket_data: Dict[str, Any] = {
             'project_id': bucket.project_number,
             'name': bucket.name,
             'location': bucket.location,
@@ -192,8 +192,8 @@ def collect_bucket_details(storage_client: StorageClient, bucket) -> Optional[Di
             bucket_data['total_size'] = sum(blob.size for blob in blobs if blob.size)
         except Exception as e:
             log_error(f"버킷 {bucket.name} 객체 정보 수집 실패: {e}")
-            bucket_data['object_count'] = 'N/A'
-            bucket_data['total_size'] = 'N/A'
+            bucket_data['object_count'] = "N/A"
+            bucket_data['total_size'] = "N/A"
         
         return bucket_data
         
@@ -202,7 +202,7 @@ def collect_bucket_details(storage_client: StorageClient, bucket) -> Optional[Di
         return None
 
 
-def get_bucket_iam_policy(storage_client: StorageClient, bucket_name: str) -> Dict:
+def get_bucket_iam_policy(storage_client: Any, bucket_name: str) -> Dict:
     """
     버킷의 IAM 정책을 가져옵니다.
     
@@ -413,7 +413,7 @@ def format_tree_output(buckets: List[Dict]) -> None:
                     bucket_node.add(f"🏷️  Labels: {labels_text}")
                 
                 if bucket.get('encryption_config', {}).get('default_kms_key_name'):
-                    bucket_node.add(f"🔐 KMS Encrypted")
+                    bucket_node.add("🔐 KMS Encrypted")
                 
                 if bucket.get('retention_policy', {}).get('retention_period'):
                     retention_days = int(bucket['retention_policy']['retention_period']) // 86400
@@ -462,9 +462,6 @@ def format_paste_output(buckets: List[Dict]) -> None:
         print(",".join(str(c) for c in row))
 
 
-from ic.core.interfaces import BaseCommand, CommandResult
-
-
 class GcpStorageInfoCommand(BaseCommand):
     """GCP Cloud Storage 버킷 정보 조회 커맨드"""
 
@@ -472,8 +469,9 @@ class GcpStorageInfoCommand(BaseCommand):
     def add_arguments(cls, parser) -> None:
         cls.add_common_arguments(parser)
         parser.add_argument(
-            '-p', '--project', 
-            help='GCP 프로젝트 ID로 필터링 (예: my-project-123)'
+            '-a', '--account', '--project',
+            dest='project',
+            help='GCP 프로젝트 ID 또는 계정 (콤마 구분으로 복수 지정 가능, 예: my-project-123)'
         )
         parser.add_argument(
             '--all-projects',
@@ -481,8 +479,21 @@ class GcpStorageInfoCommand(BaseCommand):
             help='접근 가능한 모든 GCP 프로젝트 조회 (대규모 환경 주의)'
         )
         parser.add_argument(
-            '-b', '--bucket', 
-            help='버킷 이름으로 필터링 (부분 일치)'
+            '-n', '--name', '-b', '--bucket',
+            dest='bucket',
+            help='버킷 이름으로 필터링 (콤마 구분 가능, 부분 일치)'
+        )
+        parser.add_argument(
+            '-p', '--paste',
+            nargs='?',
+            const=True,
+            default=False,
+            help='스프레드시트 복사용 콤마(,) 구분 텍스트 출력'
+        )
+        parser.add_argument(
+            '-v', '--verbose',
+            action='store_true',
+            help='상세 정보 출력'
         )
         parser.add_argument(
             '--mock',
@@ -496,10 +507,16 @@ class GcpStorageInfoCommand(BaseCommand):
             filtered = []
             bucket_filter = getattr(args, 'bucket', None)
             proj_filter = getattr(args, 'project', None)
+
+            b_patterns = [p.strip().lower() for p in bucket_filter.split(',')] if bucket_filter else []
+            proj_patterns = [p.strip().lower() for p in proj_filter.split(',')] if proj_filter else []
+
             for b in buckets:
-                if bucket_filter and bucket_filter.lower() not in str(b.get('name', '')).lower():
+                b_name = str(b.get('name', '')).lower()
+                b_proj = str(b.get('project_id', '')).lower()
+                if b_patterns and not any(p in b_name for p in b_patterns):
                     continue
-                if proj_filter and proj_filter.lower() not in str(b.get('project_id', '')).lower():
+                if proj_patterns and not any(p in b_proj for p in proj_patterns):
                     continue
                 filtered.append(b)
             return CommandResult(
@@ -516,7 +533,7 @@ class GcpStorageInfoCommand(BaseCommand):
             return CommandResult(data=[], error="google-cloud-storage is not installed", success=False)
 
         try:
-            log_info("GCP Cloud Storage 버킷 조회 시작")
+            log_info_non_console("GCP Cloud Storage 버킷 조회 시작")
             auth_manager = GCPAuthManager()
             if not auth_manager.validate_credentials():
                 console.print("[bold red]GCP 인증에 실패했습니다. 인증 정보를 확인해주세요.[/bold red]")
@@ -527,13 +544,13 @@ class GcpStorageInfoCommand(BaseCommand):
             resource_collector = GCPResourceCollector(auth_manager)
 
             if getattr(args, 'project', None):
-                projects = [args.project]
+                projects = [p.strip() for p in args.project.split(',') if p.strip()]
             else:
                 projects = project_manager.get_projects(all_projects=getattr(args, 'all_projects', False))
 
             if not projects:
                 console.print("[yellow]⚠️  GCP 프로젝트가 지정되지 않았습니다.[/yellow]")
-                console.print("💡 [dim]--project <PROJECT_ID> 옵션을 지정하거나 활성 gcloud 프로필을 설정하세요. (전체 조회를 원하시면 --all-projects 옵션을 사용하세요)[/dim]")
+                console.print("💡 [dim]-a/--project <PROJECT_ID> 옵션을 지정하거나 활성 gcloud 프로필을 설정하세요. (전체 조회를 원하시면 --all-projects 옵션을 사용하세요)[/dim]")
                 return CommandResult(data=[], table_renderer=format_table_output, tree_renderer=format_tree_output, paste_renderer=format_paste_output)
 
             all_buckets = resource_collector.parallel_collect(

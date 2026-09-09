@@ -43,22 +43,6 @@ except ImportError:
     from common.progress_decorator import ManualProgress
 
 
-def add_arguments(parser: argparse.ArgumentParser):
-    """
-    Add CLI arguments for DNS info command.
-    
-    Args:
-        parser: ArgumentParser instance to add arguments to
-    """
-    parser.add_argument(
-        "-a", "--account",
-        help="Filter accounts by name (case-insensitive substring)"
-    )
-    parser.add_argument(
-        "-z", "--zone",
-        help="Filter zones by name (case-insensitive substring)"
-    )
-
 
 def type_color(record_type: str) -> str:
     """

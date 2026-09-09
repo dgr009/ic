@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ic-code"
-version = "1.4.0"
+version = "1.5.0"
 authors = [
     {name = "sykim", email = "cruiser594@gmail.com"},
 ]
@@ -184,4 +184,4 @@ markers = [
 pythonVersion = "3.13"
 venvPath = "."
 venv = ".venv"
-extraPaths = ["."]
+extraPaths = ["src", "."]

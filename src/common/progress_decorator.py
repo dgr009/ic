@@ -22,7 +22,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Union, Iterator
+from typing import Any, Callable, List, Optional, Generator
 from contextlib import contextmanager
 
 try:
@@ -34,14 +34,20 @@ try:
         BarColumn, 
         TaskProgressColumn,
         TimeElapsedColumn,
-        MofNCompleteColumn
+        MofNCompleteColumn,
+        TaskID
     )
-    from rich.live import Live
-    from rich.panel import Panel
-    from rich.text import Text
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False
+    TaskID = int  # type: ignore
+
+
+class _DummyProgress:
+    def update(self, *args, **kwargs): pass
+    def add_task(self, *args, **kwargs) -> Any: return 0
+    def __enter__(self): return self
+    def __exit__(self, *args): pass
 
 
 @dataclass
@@ -169,7 +175,7 @@ class ProgressBarDecorator:
                 result = func(*args, **kwargs)
                 progress.update(task_id, description=f"[green]✓ {description} completed[/green]")
                 return result
-            except Exception as e:
+            except Exception:
                 progress.update(task_id, description=f"[red]✗ {description} failed[/red]")
                 raise
     
@@ -198,7 +204,7 @@ class ProgressBarDecorator:
                 progress.update(task_id, description=f"[green]✓ {description} completed[/green]")
                 return result
                 
-            except Exception as e:
+            except Exception:
                 progress.update(task_id, description=f"[red]✗ {description} failed[/red]")
                 raise
     
@@ -252,7 +258,7 @@ class ProgressBarDecorator:
                 
                 return final_results
                 
-            except Exception as e:
+            except Exception:
                 progress.update(task_id, description=f"[red]✗ {description} failed[/red]")
                 raise
     
@@ -304,10 +310,10 @@ class ProgressBarDecorator:
         return result
     
     @contextmanager
-    def _create_progress_context(self, description: str, total: Optional[int] = None, show_progress: bool = True):
+    def _create_progress_context(self, description: str, total: Optional[int] = None, show_progress: bool = True) -> Generator[tuple[Any, Any], None, None]:
         """Create a Rich progress context with appropriate columns."""
         if not RICH_AVAILABLE:
-            yield None, None
+            yield _DummyProgress(), 0
             return
         
         columns = []
@@ -441,7 +447,7 @@ class ManualProgress:
     
     def __enter__(self):
         if RICH_AVAILABLE and not self.disabled:
-            columns = [
+            columns: list[Any] = [
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
             ]
@@ -462,7 +468,7 @@ class ManualProgress:
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.progress:
+        if self.progress and self.task_id is not None:
             if exc_type is None:
                 self.progress.update(self.task_id, description=f"[green]✓ {self.description} completed[/green]")
             else:

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 import os
 import json
-import time
 from typing import Dict, List, Optional, Any, Callable
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 
 from google.auth import default
@@ -15,7 +14,7 @@ from google.api_core import exceptions as gcp_exceptions
 from google.api_core import retry
 from ic.config.manager import ConfigManager
 
-from .log import log_info, log_error, log_exception
+from .log import log_info, log_info_non_console, log_error, log_exception
 
 # Import configuration validator
 try:
@@ -27,7 +26,7 @@ except ImportError:
 # Import monitoring utilities
 try:
     from .gcp_monitoring import (
-        monitor_gcp_operation, update_gcp_service_health, 
+        monitor_gcp_operation,
         log_gcp_structured_event
     )
     MONITORING_AVAILABLE = True
@@ -94,9 +93,9 @@ class GCPAuthManager:
                     log_error(f"  - {error}")
             
             if warnings:
-                log_info("GCP configuration warnings:")
+                log_info_non_console("GCP configuration warnings:")
                 for warning in warnings:
-                    log_info(f"  - {warning}")
+                    log_info_non_console(f"  - {warning}")
             
             if not is_valid:
                 log_error("GCP configuration validation failed. Please check your environment variables.")
@@ -113,7 +112,7 @@ class GCPAuthManager:
             # Method 1: Service Account Key (JSON string)
             gcp_service_account_key = _get_env_var('GCP_SERVICE_ACCOUNT_KEY')
             if gcp_service_account_key:
-                log_info("Service Account Key (JSON) 인증 사용")
+                log_info_non_console("Service Account Key (JSON) 인증 사용")
                 service_account_info = json.loads(gcp_service_account_key)
                 self._credentials = service_account.Credentials.from_service_account_info(
                     service_account_info
@@ -124,7 +123,7 @@ class GCPAuthManager:
             # Method 2: Service Account Key Path
             gcp_service_account_key_path = _get_env_var('GCP_SERVICE_ACCOUNT_KEY_PATH')
             if gcp_service_account_key_path and os.path.exists(gcp_service_account_key_path):
-                log_info("Service Account Key Path 인증 사용")
+                log_info_non_console("Service Account Key Path 인증 사용")
                 self._credentials = service_account.Credentials.from_service_account_file(
                     gcp_service_account_key_path
                 )
@@ -134,7 +133,7 @@ class GCPAuthManager:
                 return self._credentials
             
             # Method 3: Application Default Credentials
-            log_info("Application Default Credentials 인증 사용")
+            log_info_non_console("Application Default Credentials 인증 사용")
             self._credentials, self._project_id = default()
             return self._credentials
             
@@ -284,7 +283,7 @@ class GCPProjectManager:
                     labels=dict(project.labels) if project.labels else {}
                 ))
             
-            log_info(f"직접 API를 통해 발견된 GCP 프로젝트: {len(projects)}개")
+            log_info_non_console(f"직접 API를 통해 발견된 GCP 프로젝트: {len(projects)}개")
             self._projects_cache = projects
             return projects
             
@@ -397,7 +396,8 @@ class GCPResourceCollector:
                         else:
                             results.append(result)
                 except Exception as e:
-                    log_error(f"프로젝트 {project_id}에서 리소스 수집 실패: {e}")
+                    err_msg = str(e) or type(e).__name__
+                    log_error(f"프로젝트 {project_id}에서 리소스 수집 실패: {err_msg}")
         
         return results
     
@@ -468,14 +468,14 @@ class GCPResourceCollector:
             
             # 지역 필터
             if 'region' in filters and filters['region']:
-                resource_region = resource.get('region', resource.get('location', ''))
-                if filters['region'] not in resource_region:
+                resource_region = (resource.get('region') or resource.get('location') or '')
+                if isinstance(resource_region, str) and filters['region'] not in resource_region:
                     match = False
             
             # 존 필터
             if 'zone' in filters and filters['zone']:
-                resource_zone = resource.get('zone', '')
-                if filters['zone'] not in resource_zone:
+                resource_zone = (resource.get('zone') or '')
+                if isinstance(resource_zone, str) and filters['zone'] not in resource_zone:
                     match = False
             
             # 라벨 필터
@@ -509,7 +509,7 @@ def get_gcp_zones() -> List[str]:
     return _get_env_list('GCP_ZONES', 'us-central1-a,us-central1-b,europe-west1-a')
 
 
-def create_gcp_client(client_class, credentials: Credentials = None, **kwargs):
+def create_gcp_client(client_class, credentials: Optional[Credentials] = None, **kwargs):
     """GCP 클라이언트를 생성합니다."""
     try:
         if not credentials:
@@ -517,7 +517,7 @@ def create_gcp_client(client_class, credentials: Credentials = None, **kwargs):
             credentials = auth_manager.get_credentials()
         
         if not credentials:
-            log_error(f"GCP 클라이언트 생성 실패: 인증 정보 없음")
+            log_error("GCP 클라이언트 생성 실패: 인증 정보 없음")
             return None
         
         return client_class(credentials=credentials, **kwargs)
@@ -547,7 +547,7 @@ def get_gcp_resource_labels(resource) -> Dict[str, str]:
 
 
 def check_gcp_label_compliance(labels: Dict[str, str], required_labels: List[str], 
-                              optional_labels: List[str] = None) -> Dict[str, Any]:
+                              optional_labels: Optional[List[str]] = None) -> Dict[str, Any]:
     """GCP 리소스 라벨 규정 준수를 확인합니다."""
     result = {
         'compliant': True,
@@ -598,7 +598,7 @@ def load_json(file_path):
             data = json.load(f)
         log_info(f"Loaded JSON from {file_path}")
         return data
-    except FileNotFoundError as e:
+    except FileNotFoundError:
         log_error(f"JSON file not found: {file_path}")
         return None
     except json.JSONDecodeError as e:

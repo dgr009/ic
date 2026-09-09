@@ -13,33 +13,34 @@ try:
     GCP_VPC_AVAILABLE = True
 except ImportError:
     GCP_VPC_AVAILABLE = False
-    NetworksClient = None
-    SubnetworksClient = None
-    FirewallsClient = None
-    RegionsClient = None
-    ListNetworksRequest = None
-    ListSubnetworksRequest = None
-    ListFirewallsRequest = None
-    ListRegionsRequest = None
-    GetNetworkRequest = None
-    GetSubnetworkRequest = None
-    gcp_exceptions = None
+    NetworksClient: Any = None
+    SubnetworksClient: Any = None
+    FirewallsClient: Any = None
+    RegionsClient: Any = None
+    ListNetworksRequest: Any = None
+    ListSubnetworksRequest: Any = None
+    ListFirewallsRequest: Any = None
+    ListRegionsRequest: Any = None
+    GetNetworkRequest: Any = None
+    GetSubnetworkRequest: Any = None
+    gcp_exceptions: Any = None
 from rich.console import Console
 from rich.table import Table
 from rich import box
-from rich.rule import Rule
 from rich.tree import Tree
+
+from ic.core.interfaces import BaseCommand, CommandResult
 
 from common.gcp_utils import (
         GCPAuthManager, GCPProjectManager, GCPResourceCollector,
-    create_gcp_client, format_gcp_output, get_gcp_resource_labels
+    format_gcp_output, get_gcp_resource_labels
     )
 from common.log import log_info, log_error, log_exception
 
 console = Console()
 
 
-def fetch_vpc_networks_direct(project_id: str, region_filter: str = None) -> List[Dict]:
+def fetch_vpc_networks_direct(project_id: str, region_filter: Optional[str] = None) -> List[Dict]:
     """
     직접 API를 통해 GCP VPC 네트워크를 가져옵니다.
     
@@ -95,7 +96,7 @@ def fetch_vpc_networks_direct(project_id: str, region_filter: str = None) -> Lis
         return []
 
 
-def fetch_vpc_networks(project_id: str, region_filter: str = None) -> List[Dict]:
+def fetch_vpc_networks(project_id: str, region_filter: Optional[str] = None) -> List[Dict]:
     """
     GCP VPC 네트워크를 가져옵니다.
     
@@ -109,9 +110,9 @@ def fetch_vpc_networks(project_id: str, region_filter: str = None) -> List[Dict]
     return fetch_vpc_networks_direct(project_id, region_filter)
 
 
-def collect_network_details(networks_client: NetworksClient, subnets_client: SubnetworksClient,
-                          firewalls_client: FirewallsClient, regions_client: RegionsClient,
-                          project_id: str, network, region_filter: str = None) -> Optional[Dict]:
+def collect_network_details(networks_client: Any, subnets_client: Any,
+                          firewalls_client: Any, regions_client: Any,
+                          project_id: str, network, region_filter: Optional[str] = None) -> Optional[Dict]:
     """
     네트워크의 상세 정보를 수집합니다.
     
@@ -183,8 +184,8 @@ def collect_network_details(networks_client: NetworksClient, subnets_client: Sub
         return None
 
 
-def get_subnet_details(subnets_client: SubnetworksClient, regions_client: RegionsClient,
-                      project_id: str, network_name: str, region_filter: str = None) -> List[Dict]:
+def get_subnet_details(subnets_client: Any, regions_client: Any,
+                      project_id: str, network_name: str, region_filter: Optional[str] = None) -> List[Dict]:
     """
     네트워크의 서브넷 정보를 가져옵니다.
     
@@ -260,7 +261,7 @@ def get_subnet_details(subnets_client: SubnetworksClient, regions_client: Region
     return subnets
 
 
-def get_firewall_rules(firewalls_client: FirewallsClient, project_id: str, network_name: str) -> List[Dict]:
+def get_firewall_rules(firewalls_client: Any, project_id: str, network_name: str) -> List[Dict]:
     """
     네트워크의 방화벽 규칙을 가져옵니다.
     
@@ -573,9 +574,6 @@ def print_network_table(networks):
     format_table_output(networks)
 
 
-from ic.core.interfaces import BaseCommand, CommandResult
-
-
 class GcpVpcInfoCommand(BaseCommand):
     """GCP VPC 네트워크 정보 조회 커맨드"""
 
@@ -583,8 +581,9 @@ class GcpVpcInfoCommand(BaseCommand):
     def add_arguments(cls, parser) -> None:
         cls.add_common_arguments(parser)
         parser.add_argument(
-            '-p', '--project', 
-            help='GCP 프로젝트 ID로 필터링 (예: my-project-123)'
+            '-a', '--account', '--project',
+            dest='project',
+            help='GCP 프로젝트 ID 또는 계정 (콤마 구분으로 복수 지정 가능, 예: my-project-123)'
         )
         parser.add_argument(
             '--all-projects',
@@ -593,11 +592,25 @@ class GcpVpcInfoCommand(BaseCommand):
         )
         parser.add_argument(
             '-n', '--name', 
-            help='네트워크 이름으로 필터링 (부분 일치)'
+            dest='name',
+            help='네트워크 이름으로 필터링 (콤마 구분 가능, 부분 일치)'
         )
         parser.add_argument(
-            '-r', '--region', 
-            help='지역으로 필터링 (예: us-central1)'
+            '-r', '--region', '--regions',
+            dest='region',
+            help='지역으로 필터링 (콤마 구분 가능, 예: us-central1)'
+        )
+        parser.add_argument(
+            '-p', '--paste',
+            nargs='?',
+            const=True,
+            default=False,
+            help='스프레드시트 복사용 콤마(,) 구분 텍스트 출력'
+        )
+        parser.add_argument(
+            '-v', '--verbose',
+            action='store_true',
+            help='상세 정보 출력'
         )
         parser.add_argument(
             '--mock',
@@ -612,10 +625,16 @@ class GcpVpcInfoCommand(BaseCommand):
             name_filter = getattr(args, 'name', None)
             proj_filter = getattr(args, 'project', None)
             region_filter = getattr(args, 'region', None)
+
+            name_patterns = [p.strip().lower() for p in name_filter.split(',')] if name_filter else []
+            proj_patterns = [p.strip().lower() for p in proj_filter.split(',')] if proj_filter else []
+
             for net in networks:
-                if name_filter and name_filter.lower() not in str(net.get('name', '')).lower():
+                net_name = str(net.get('name', '')).lower()
+                net_proj = str(net.get('project_id', '')).lower()
+                if name_patterns and not any(p in net_name for p in name_patterns):
                     continue
-                if proj_filter and proj_filter.lower() not in str(net.get('project_id', '')).lower():
+                if proj_patterns and not any(p in net_proj for p in proj_patterns):
                     continue
                 if region_filter and region_filter.lower() not in str(net.get('region', '')).lower():
                     continue
@@ -645,13 +664,13 @@ class GcpVpcInfoCommand(BaseCommand):
             resource_collector = GCPResourceCollector(auth_manager)
 
             if getattr(args, 'project', None):
-                projects = [args.project]
+                projects = [p.strip() for p in args.project.split(',') if p.strip()]
             else:
                 projects = project_manager.get_projects(all_projects=getattr(args, 'all_projects', False))
 
             if not projects:
                 console.print("[yellow]⚠️  GCP 프로젝트가 지정되지 않았습니다.[/yellow]")
-                console.print("💡 [dim]--project <PROJECT_ID> 옵션을 지정하거나 활성 gcloud 프로필을 설정하세요. (전체 조회를 원하시면 --all-projects 옵션을 사용하세요)[/dim]")
+                console.print("💡 [dim]-a/--project <PROJECT_ID> 옵션을 지정하거나 활성 gcloud 프로필을 설정하세요. (전체 조회를 원하시면 --all-projects 옵션을 사용하세요)[/dim]")
                 return CommandResult(data=[], table_renderer=format_table_output, tree_renderer=format_tree_output, paste_renderer=format_paste_output)
 
             all_networks = resource_collector.parallel_collect(

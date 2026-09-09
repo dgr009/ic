@@ -10,26 +10,26 @@ try:
     GCP_FUNCTIONS_AVAILABLE = True
 except ImportError:
     GCP_FUNCTIONS_AVAILABLE = False
-    CloudFunctionsServiceClient = None
-    ListFunctionsRequest = None
-    GetFunctionRequest = None
-    gcp_exceptions = None
+    CloudFunctionsServiceClient: Any = None
+    ListFunctionsRequest: Any = None
+    GetFunctionRequest: Any = None
+    gcp_exceptions: Any = None
 from rich.console import Console
 from rich.table import Table
 from rich import box
-from rich.rule import Rule
 from rich.tree import Tree
 
 from common.gcp_utils import (
-        GCPAuthManager, GCPProjectManager, GCPResourceCollector,
-    create_gcp_client, format_gcp_output, get_gcp_resource_labels
-    )
-from common.log import log_info, log_error, log_exception
+    GCPAuthManager, GCPProjectManager, GCPResourceCollector,
+    format_gcp_output
+)
+from common.log import log_info, log_error, log_exception, log_info_non_console
+from ic.core.interfaces import BaseCommand, CommandResult
 
 console = Console()
 
 
-def fetch_functions_direct(project_id: str, region_filter: str = None) -> List[Dict]:
+def fetch_functions_direct(project_id: str, region_filter: Optional[str] = None) -> List[Dict]:
     """
     직접 API를 통해 GCP Cloud Functions를 가져옵니다.
     
@@ -101,7 +101,7 @@ def fetch_functions_direct(project_id: str, region_filter: str = None) -> List[D
         return []
 
 
-def fetch_functions(project_id: str, region_filter: str = None) -> List[Dict]:
+def fetch_functions(project_id: str, region_filter: Optional[str] = None) -> List[Dict]:
     """
     GCP Cloud Functions를 가져옵니다.
     
@@ -115,7 +115,7 @@ def fetch_functions(project_id: str, region_filter: str = None) -> List[Dict]:
     return fetch_functions_direct(project_id, region_filter)
 
 
-def collect_function_details(functions_client: CloudFunctionsServiceClient,
+def collect_function_details(functions_client: Any,
                            project_id: str, region: str, function) -> Optional[Dict]:
     """
     함수의 상세 정보를 수집합니다.
@@ -130,10 +130,15 @@ def collect_function_details(functions_client: CloudFunctionsServiceClient,
         함수 상세 정보 딕셔너리
     """
     try:
+        env_vars = dict(function.environment_variables) if function.environment_variables else {}
+        build_env_vars = dict(function.build_environment_variables) if function.build_environment_variables else {}
+        labels = dict(function.labels) if function.labels else {}
+        function_name = function.name.split('/')[-1]
+
         # 기본 함수 정보
-        function_data = {
+        function_data: Dict[str, Any] = {
             'project_id': project_id,
-            'name': function.name.split('/')[-1],  # projects/PROJECT/locations/REGION/functions/NAME -> NAME
+            'name': function_name,
             'full_name': function.name,
             'region': region,
             'description': function.description or '',
@@ -153,9 +158,9 @@ def collect_function_details(functions_client: CloudFunctionsServiceClient,
             'source_archive_url': function.source_archive_url,
             'source_repository': {},
             'source_upload_url': function.source_upload_url,
-            'environment_variables': dict(function.environment_variables) if function.environment_variables else {},
-            'build_environment_variables': dict(function.build_environment_variables) if function.build_environment_variables else {},
-            'labels': dict(function.labels) if function.labels else {},
+            'environment_variables': env_vars,
+            'build_environment_variables': build_env_vars,
+            'labels': labels,
             'event_trigger': {},
             'https_trigger': {},
             'service_account_email': function.service_account_email,
@@ -199,7 +204,7 @@ def collect_function_details(functions_client: CloudFunctionsServiceClient,
         function_data['trigger_type'] = 'HTTP' if function.https_trigger else 'Event' if function.event_trigger else 'Unknown'
         function_data['memory_mb'] = function_data['available_memory_mb']
         function_data['timeout_seconds'] = function_data['timeout']
-        function_data['env_var_count'] = len(function_data['environment_variables'])
+        function_data['env_var_count'] = len(env_vars)
         
         return function_data
         
@@ -459,9 +464,6 @@ def format_paste_output(functions: List[Dict]) -> None:
         print(",".join(str(c) for c in row))
 
 
-from ic.core.interfaces import BaseCommand, CommandResult
-
-
 class GcpFunctionsInfoCommand(BaseCommand):
     """GCP Cloud Functions 정보 조회 커맨드"""
 
@@ -469,8 +471,9 @@ class GcpFunctionsInfoCommand(BaseCommand):
     def add_arguments(cls, parser) -> None:
         cls.add_common_arguments(parser)
         parser.add_argument(
-            '-p', '--project', 
-            help='GCP 프로젝트 ID로 필터링 (예: my-project-123)'
+            '-a', '--account', '--project',
+            dest='project',
+            help='GCP 프로젝트 ID 또는 계정 (콤마 구분으로 복수 지정 가능, 예: my-project-123)'
         )
         parser.add_argument(
             '--all-projects',
@@ -478,12 +481,26 @@ class GcpFunctionsInfoCommand(BaseCommand):
             help='접근 가능한 모든 GCP 프로젝트 조회 (대규모 환경 주의)'
         )
         parser.add_argument(
-            '-f', '--function', 
-            help='함수 이름으로 필터링 (부분 일치)'
+            '-n', '--name', '-f', '--function',
+            dest='function',
+            help='함수 이름으로 필터링 (콤마 구분 가능, 부분 일치)'
         )
         parser.add_argument(
-            '-r', '--region', 
-            help='지역으로 필터링 (예: us-central1)'
+            '-r', '--region', '--regions',
+            dest='region',
+            help='지역으로 필터링 (콤마 구분 가능, 예: us-central1)'
+        )
+        parser.add_argument(
+            '-p', '--paste',
+            nargs='?',
+            const=True,
+            default=False,
+            help='스프레드시트 복사용 콤마(,) 구분 텍스트 출력'
+        )
+        parser.add_argument(
+            '-v', '--verbose',
+            action='store_true',
+            help='상세 정보 출력'
         )
         parser.add_argument(
             '--mock',
@@ -498,12 +515,20 @@ class GcpFunctionsInfoCommand(BaseCommand):
             fn_filter = getattr(args, 'function', None)
             proj_filter = getattr(args, 'project', None)
             reg_filter = getattr(args, 'region', None)
+
+            fn_patterns = [p.strip().lower() for p in fn_filter.split(',')] if fn_filter else []
+            proj_patterns = [p.strip().lower() for p in proj_filter.split(',')] if proj_filter else []
+
             for fn in functions:
-                if fn_filter and fn_filter.lower() not in str(fn.get('name', '')).lower():
+                fn_name = str(fn.get('name', '')).lower()
+                fn_proj = str(fn.get('project_id', '')).lower()
+                fn_reg = str(fn.get('region', '')).lower()
+
+                if fn_patterns and not any(p in fn_name for p in fn_patterns):
                     continue
-                if proj_filter and proj_filter.lower() not in str(fn.get('project_id', '')).lower():
+                if proj_patterns and not any(p in fn_proj for p in proj_patterns):
                     continue
-                if reg_filter and reg_filter.lower() not in str(fn.get('region', '')).lower():
+                if reg_filter and reg_filter.lower() not in fn_reg:
                     continue
                 filtered.append(fn)
             return CommandResult(
@@ -520,7 +545,7 @@ class GcpFunctionsInfoCommand(BaseCommand):
             return CommandResult(data=[], error="google-cloud-functions is not installed", success=False)
 
         try:
-            log_info("GCP Cloud Functions 조회 시작")
+            log_info_non_console("GCP Cloud Functions 조회 시작")
             auth_manager = GCPAuthManager()
             if not auth_manager.validate_credentials():
                 console.print("[bold red]GCP 인증에 실패했습니다. 인증 정보를 확인해주세요.[/bold red]")
@@ -531,13 +556,13 @@ class GcpFunctionsInfoCommand(BaseCommand):
             resource_collector = GCPResourceCollector(auth_manager)
 
             if getattr(args, 'project', None):
-                projects = [args.project]
+                projects = [p.strip() for p in args.project.split(',') if p.strip()]
             else:
                 projects = project_manager.get_projects(all_projects=getattr(args, 'all_projects', False))
 
             if not projects:
                 console.print("[yellow]⚠️  GCP 프로젝트가 지정되지 않았습니다.[/yellow]")
-                console.print("💡 [dim]--project <PROJECT_ID> 옵션을 지정하거나 활성 gcloud 프로필을 설정하세요. (전체 조회를 원하시면 --all-projects 옵션을 사용하세요)[/dim]")
+                console.print("💡 [dim]-a/--project <PROJECT_ID> 옵션을 지정하거나 활성 gcloud 프로필을 설정하세요. (전체 조회를 원하시면 --all-projects 옵션을 사용하세요)[/dim]")
                 return CommandResult(data=[], table_renderer=format_table_output, tree_renderer=format_tree_output, paste_renderer=format_paste_output)
 
             all_functions = resource_collector.parallel_collect(

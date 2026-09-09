@@ -8,11 +8,6 @@ from rich import box
 import datetime
 from common.progress_decorator import progress_bar, ManualProgress
 
-def add_arguments(parser):
-    parser.add_argument("--cost-start", default=None, help="크레딧 조회 시작일 (YYYY-MM-DD), 기본: 2025-05-22")
-    parser.add_argument("--cost-end", default=None, help="크레딧 조회 종료일 (YYYY-MM-DD), 기본: 오늘")
-    parser.add_argument("--credit-initial", type=float, default=None, help="초기 크레딧 금액")
-
 @progress_bar("Fetching credit usage data from OCI")
 def get_credit_usage(usage_client, tenancy_ocid, start_date, end_date, initial_credit, console):
     from oci.usage_api.models import RequestSummarizedUsagesDetails

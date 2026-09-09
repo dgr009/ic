@@ -4,11 +4,10 @@ Provides dot-notation key extraction, case-insensitive path lookup,
 available key discovery, and unified formatting for table/json/yaml.
 """
 
-from typing import Any, Dict, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, List, Optional, Set, Union
 from rich.console import Console
 from rich.table import Table
 from rich import box
-import yaml  # type: ignore
 import json
 
 
@@ -61,6 +60,15 @@ def extract_nested_value(obj: Any, path: str) -> Any:
 
     # Handle list traversal
     elif isinstance(obj, (list, tuple)):
+        if current_key.isdigit():
+            idx = int(current_key)
+            if 0 <= idx < len(obj):
+                target_item = obj[idx]
+                if remaining_path is not None:
+                    return extract_nested_value(target_item, remaining_path)
+                return target_item
+            return None
+
         results = []
         for item in obj:
             res = extract_nested_value(item, path)

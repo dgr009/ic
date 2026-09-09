@@ -1,0 +1,138 @@
+[
+  {
+    "project_id": "sample-core-live",
+    "name": "B-P-sample-core-live",
+    "project_number": "100000000001",
+    "state": "ACTIVE",
+    "parent": "folders/1001",
+    "folder_path": "Organization / Platform / Core / Live",
+    "create_time": "2022-03-15T08:30:00Z",
+    "is_active": true,
+    "labels": {
+      "environment": "live",
+      "team": "core"
+    }
+  },
+  {
+    "project_id": "sample-core-rnd",
+    "name": "B-P-sample-core-rnd",
+    "project_number": "100000000002",
+    "state": "ACTIVE",
+    "parent": "folders/1002",
+    "folder_path": "Organization / Platform / Core / Dev",
+    "create_time": "2022-05-10T11:00:00Z",
+    "is_active": false,
+    "labels": {
+      "environment": "dev",
+      "team": "core"
+    }
+  },
+  {
+    "project_id": "service-ai-live",
+    "name": "B-P-service-ai-live",
+    "project_number": "100000000003",
+    "state": "ACTIVE",
+    "parent": "folders/2001",
+    "folder_path": "Organization / Platform / AI / Live",
+    "create_time": "2023-01-12T09:15:00Z",
+    "is_active": false,
+    "labels": {
+      "environment": "live",
+      "team": "ai"
+    }
+  },
+  {
+    "project_id": "service-billing-live",
+    "name": "B-P-service-billing-live",
+    "project_number": "100000000004",
+    "state": "ACTIVE",
+    "parent": "folders/2001",
+    "folder_path": "Organization / Platform / Billing / Live",
+    "create_time": "2023-01-20T10:00:00Z",
+    "is_active": false,
+    "labels": {
+      "environment": "live",
+      "team": "billing"
+    }
+  },
+  {
+    "project_id": "service-analytics-live",
+    "name": "B-P-service-analytics-live",
+    "project_number": "100000000005",
+    "state": "ACTIVE",
+    "parent": "folders/2001",
+    "folder_path": "Organization / Platform / Analytics / Live",
+    "create_time": "2022-08-10T14:00:00Z",
+    "is_active": false,
+    "labels": {
+      "environment": "live",
+      "team": "analytics"
+    }
+  },
+  {
+    "project_id": "service-ai-test",
+    "name": "B-P-service-ai-test",
+    "project_number": "100000000006",
+    "state": "ACTIVE",
+    "parent": "folders/2002",
+    "folder_path": "Organization / Platform / AI / Test",
+    "create_time": "2023-02-20T14:30:00Z",
+    "is_active": false,
+    "labels": {
+      "environment": "test",
+      "team": "ai"
+    }
+  },
+  {
+    "project_id": "service-core-test",
+    "name": "B-P-service-core-test",
+    "project_number": "100000000007",
+    "state": "ACTIVE",
+    "parent": "folders/2002",
+    "folder_path": "Organization / Platform / Core / Test",
+    "create_time": "2023-02-25T11:00:00Z",
+    "is_active": false,
+    "labels": {
+      "environment": "test",
+      "team": "core"
+    }
+  },
+  {
+    "project_id": "service-analytics-sandbox",
+    "name": "B-P-service-analytics-sandbox",
+    "project_number": "100000000008",
+    "state": "ACTIVE",
+    "parent": "folders/2003",
+    "folder_path": "Organization / Platform / Analytics / Sandbox",
+    "create_time": "2023-04-05T16:00:00Z",
+    "is_active": false,
+    "labels": {
+      "environment": "sandbox",
+      "team": "analytics"
+    }
+  },
+  {
+    "project_id": "security-audit-live",
+    "name": "B-H-security-audit",
+    "project_number": "100000000009",
+    "state": "ACTIVE",
+    "parent": "folders/3001",
+    "folder_path": "Organization / Security / Audit",
+    "create_time": "2021-11-18T10:00:00Z",
+    "is_active": false,
+    "labels": {
+      "team": "security"
+    }
+  },
+  {
+    "project_id": "temp-archived-project",
+    "name": "B-P-temp-archived",
+    "project_number": "100000000010",
+    "state": "DELETE_REQUESTED",
+    "parent": "folders/2003",
+    "folder_path": "Organization / Platform / Sandbox / Archived",
+    "create_time": "2020-01-10T10:00:00Z",
+    "is_active": false,
+    "labels": {}
+  }
+]

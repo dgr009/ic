@@ -14,14 +14,7 @@ import warnings
 try:
     from .info import main, add_arguments
 except ImportError:
-    try:
-        from info import main, add_arguments
-    except ImportError:
-        # Fallback for development
-        import sys
-        import os
-        sys.path.insert(0, os.path.dirname(__file__))
-        from info import main, add_arguments
+    from ic.platforms.cloudflare.dns.info import main, add_arguments
 
 try:
     from src.common.log import console

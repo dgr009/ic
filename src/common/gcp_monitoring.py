@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 
-import time
 import json
 import threading
 import logging
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 from collections import defaultdict, deque
 from contextlib import contextmanager
 
@@ -190,6 +189,9 @@ class APICallContext:
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
+        if self.start_time is None or self.api_call is None:
+            return
+
         end_time = datetime.now()
         duration_ms = (end_time - self.start_time).total_seconds() * 1000
         

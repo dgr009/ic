@@ -1,6 +1,7 @@
 import os
 import json
 import re
+from typing import List, Dict, Any
 import requests
 from rich.console import Console
 from rich.table import Table
@@ -70,7 +71,7 @@ def send_slack_blocks_table_with_color(title, headers, rows, max_attachments=30)
         return
 
     # 2) rows가 임계값 이하라면, 기존 로직대로 상세히 전송
-    attachments = [
+    attachments: List[Dict[str, Any]] = [
         {
             "color": "#000000",
             "blocks": [
@@ -135,7 +136,7 @@ def send_slack_blocks_table(title, headers, rows):
         log_error("Slack Webhook URL이 설정되지 않았습니다.")
         return
 
-    blocks = [
+    blocks: List[Dict[str, Any]] = [
         {
             "type": "header",
             "text": {"type": "plain_text", "text": f"📊 {title}", "emoji": True},
@@ -170,9 +171,14 @@ def send_slack_blocks_table(title, headers, rows):
 
     payload = {"blocks": blocks}
 
+    webhook_url = os.getenv("SLACK_WEBHOOK_URL")
+    if not webhook_url:
+        log_error("Slack Webhook URL이 설정되지 않았습니다.")
+        return
+
     try:
         response = requests.post(
-            os.getenv("SLACK_WEBHOOK_URL"),
+            webhook_url,
             json=payload,
             headers={"Content-Type": "application/json"},
             timeout=30
@@ -187,13 +193,14 @@ def send_slack_blocks_table(title, headers, rows):
 
 def send_slack_message(message):
     """Slack으로 간단한 텍스트 메시지를 전송합니다."""
-    if not os.getenv("SLACK_WEBHOOK_URL"):
+    webhook_url = os.getenv("SLACK_WEBHOOK_URL")
+    if not webhook_url:
         log_error("Slack Webhook URL이 설정되지 않았습니다.")
         return
 
     payload = {"text": message}
     try:
-        response = requests.post(os.getenv("SLACK_WEBHOOK_URL"), data=json.dumps(payload), headers={'Content-Type': 'application/json'}, timeout=30)
+        response = requests.post(webhook_url, data=json.dumps(payload), headers={'Content-Type': 'application/json'}, timeout=30)
         if response.status_code != 200:
             log_error(f"Slack 메시지 전송 실패: {response.status_code}, {response.text}")
         else:
@@ -203,7 +210,8 @@ def send_slack_message(message):
 
 def send_slack_table(title, headers, data):
     """테이블 형태의 데이터를 Slack으로 전송합니다."""
-    if not os.getenv("SLACK_WEBHOOK_URL"):
+    webhook_url = os.getenv("SLACK_WEBHOOK_URL")
+    if not webhook_url:
         log_error("Slack Webhook URL이 설정되지 않았습니다.")
         return
 
@@ -216,7 +224,9 @@ def send_slack_table(title, headers, data):
         table.add_row(*[str(item) for item in row])
 
     # 테이블을 문자열로 변환
-    table_string = console.export_text(table)
+    with console.capture() as capture:
+        console.print(table)
+    table_string = capture.get()
 
     # Slack 메시지 준비
     payload = {
@@ -224,7 +234,7 @@ def send_slack_table(title, headers, data):
     }
 
     try:
-        response = requests.post(os.getenv("SLACK_WEBHOOK_URL"), data=json.dumps(payload), headers={'Content-Type': 'application/json'}, timeout=30)
+        response = requests.post(webhook_url, data=json.dumps(payload), headers={'Content-Type': 'application/json'}, timeout=30)
         if response.status_code != 200:
             log_error(f"Slack 테이블 전송 실패: {response.status_code}, {response.text}")
         else:

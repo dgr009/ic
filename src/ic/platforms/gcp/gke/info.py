@@ -10,26 +10,26 @@ try:
     GCP_GKE_AVAILABLE = True
 except ImportError:
     GCP_GKE_AVAILABLE = False
-    ClusterManagerClient = None
-    ListClustersRequest = None
-    GetClusterRequest = None
-    gcp_exceptions = None
+    ClusterManagerClient: Any = None
+    ListClustersRequest: Any = None
+    GetClusterRequest: Any = None
+    gcp_exceptions: Any = None
 from rich.console import Console
 from rich.table import Table
 from rich import box
-from rich.rule import Rule
 from rich.tree import Tree
 
+from ic.core.interfaces import BaseCommand, CommandResult
 from common.gcp_utils import (
-        GCPAuthManager, GCPProjectManager, GCPResourceCollector,
-    create_gcp_client, format_gcp_output, get_gcp_resource_labels
-    )
+    GCPAuthManager, GCPProjectManager, GCPResourceCollector,
+    format_gcp_output, get_gcp_resource_labels
+)
 from common.log import log_info, log_error, log_exception
 
 console = Console()
 
 
-def fetch_gke_clusters_direct(project_id: str, location_filter: str = None) -> List[Dict]:
+def fetch_gke_clusters_direct(project_id: str, location_filter: Optional[str] = None) -> List[Dict]:
     """
     직접 API를 통해 GCP GKE 클러스터를 가져옵니다.
     
@@ -88,7 +88,7 @@ def fetch_gke_clusters_direct(project_id: str, location_filter: str = None) -> L
         return []
 
 
-def fetch_gke_clusters(project_id: str, location_filter: str = None) -> List[Dict]:
+def fetch_gke_clusters(project_id: str, location_filter: Optional[str] = None) -> List[Dict]:
     """
     GCP GKE 클러스터를 가져옵니다.
     
@@ -102,7 +102,7 @@ def fetch_gke_clusters(project_id: str, location_filter: str = None) -> List[Dic
     return fetch_gke_clusters_direct(project_id, location_filter)
 
 
-def collect_cluster_details(cluster_client: ClusterManagerClient, 
+def collect_cluster_details(cluster_client: Any, 
                           project_id: str, cluster) -> Optional[Dict]:
     """
     클러스터의 상세 정보를 수집합니다.
@@ -232,8 +232,9 @@ def collect_cluster_details(cluster_client: ClusterManagerClient,
             cluster_data['ip_alias_enabled'] = bool(cluster.ip_allocation_policy)
         
         # 통계 정보 추가
-        cluster_data['node_pools_count'] = len(cluster_data['node_pools'])
-        cluster_data['total_nodes'] = sum(pool.get('node_count', 0) for pool in cluster_data['node_pools'])
+        node_pools_list: List[Dict[str, Any]] = cluster_data['node_pools'] if isinstance(cluster_data.get('node_pools'), list) else []
+        cluster_data['node_pools_count'] = len(node_pools_list)
+        cluster_data['total_nodes'] = sum(pool.get('node_count', 0) for pool in node_pools_list if isinstance(pool, dict))
         
         return cluster_data
         
@@ -674,9 +675,6 @@ def print_cluster_table(clusters):
     format_table_output(clusters)
 
 
-from ic.core.interfaces import BaseCommand, CommandResult
-
-
 class GcpGkeInfoCommand(BaseCommand):
     """GCP GKE 클러스터 정보 조회 커맨드"""
 
@@ -684,8 +682,9 @@ class GcpGkeInfoCommand(BaseCommand):
     def add_arguments(cls, parser) -> None:
         cls.add_common_arguments(parser)
         parser.add_argument(
-            '-p', '--project', 
-            help='GCP 프로젝트 ID로 필터링 (예: my-project-123)'
+            '-a', '--account', '--project',
+            dest='project',
+            help='GCP 프로젝트 ID 또는 계정 (콤마 구분으로 복수 지정 가능, 예: my-project-123)'
         )
         parser.add_argument(
             '--all-projects',
@@ -693,12 +692,26 @@ class GcpGkeInfoCommand(BaseCommand):
             help='접근 가능한 모든 GCP 프로젝트 조회 (대규모 환경 주의)'
         )
         parser.add_argument(
-            '-c', '--cluster', 
-            help='클러스터 이름으로 필터링 (부분 일치)'
+            '-n', '--name', '-c', '--cluster',
+            dest='cluster',
+            help='클러스터 이름으로 필터링 (콤마 구분 가능, 부분 일치)'
         )
         parser.add_argument(
-            '-l', '--location', 
+            '-r', '--region', '--regions', '-l', '--location',
+            dest='location',
             help='위치로 필터링 (존 또는 지역, 예: us-central1-a 또는 us-central1)'
+        )
+        parser.add_argument(
+            '-p', '--paste',
+            nargs='?',
+            const=True,
+            default=False,
+            help='스프레드시트 복사용 콤마(,) 구분 텍스트 출력'
+        )
+        parser.add_argument(
+            '-v', '--verbose',
+            action='store_true',
+            help='상세 정보 출력'
         )
         parser.add_argument(
             '--mock',
@@ -713,12 +726,20 @@ class GcpGkeInfoCommand(BaseCommand):
             cluster_filter = getattr(args, 'cluster', None)
             proj_filter = getattr(args, 'project', None)
             loc_filter = getattr(args, 'location', None)
+
+            cl_patterns = [p.strip().lower() for p in cluster_filter.split(',')] if cluster_filter else []
+            proj_patterns = [p.strip().lower() for p in proj_filter.split(',')] if proj_filter else []
+
             for cl in clusters:
-                if cluster_filter and cluster_filter.lower() not in str(cl.get('name', '')).lower():
+                cl_name = str(cl.get('name', '')).lower()
+                cl_proj = str(cl.get('project_id', '')).lower()
+                cl_loc = str(cl.get('location', cl.get('zone', ''))).lower()
+
+                if cl_patterns and not any(p in cl_name for p in cl_patterns):
                     continue
-                if proj_filter and proj_filter.lower() not in str(cl.get('project_id', '')).lower():
+                if proj_patterns and not any(p in cl_proj for p in proj_patterns):
                     continue
-                if loc_filter and loc_filter.lower() not in str(cl.get('location', '')).lower() and loc_filter.lower() not in str(cl.get('zone', '')).lower():
+                if loc_filter and loc_filter.lower() not in cl_loc:
                     continue
                 filtered.append(cl)
             return CommandResult(
@@ -746,13 +767,13 @@ class GcpGkeInfoCommand(BaseCommand):
             resource_collector = GCPResourceCollector(auth_manager)
 
             if getattr(args, 'project', None):
-                projects = [args.project]
+                projects = [p.strip() for p in args.project.split(',') if p.strip()]
             else:
                 projects = project_manager.get_projects(all_projects=getattr(args, 'all_projects', False))
 
             if not projects:
                 console.print("[yellow]⚠️  GCP 프로젝트가 지정되지 않았습니다.[/yellow]")
-                console.print("💡 [dim]--project <PROJECT_ID> 옵션을 지정하거나 활성 gcloud 프로필을 설정하세요. (전체 조회를 원하시면 --all-projects 옵션을 사용하세요)[/dim]")
+                console.print("💡 [dim]-a/--project <PROJECT_ID> 옵션을 지정하거나 활성 gcloud 프로필을 설정하세요. (전체 조회를 원하시면 --all-projects 옵션을 사용하세요)[/dim]")
                 return CommandResult(data=[], table_renderer=format_table_output, tree_renderer=format_tree_output, paste_renderer=format_paste_output)
 
             all_clusters = resource_collector.parallel_collect(

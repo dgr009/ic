@@ -10,26 +10,26 @@ try:
     GCP_RUN_AVAILABLE = True
 except ImportError:
     GCP_RUN_AVAILABLE = False
-    ServicesClient = None
-    ListServicesRequest = None
-    GetServiceRequest = None
-    gcp_exceptions = None
+    ServicesClient: Any = None
+    ListServicesRequest: Any = None
+    GetServiceRequest: Any = None
+    gcp_exceptions: Any = None
 from rich.console import Console
 from rich.table import Table
 from rich import box
-from rich.rule import Rule
 from rich.tree import Tree
 
+from ic.core.interfaces import BaseCommand, CommandResult
 from common.gcp_utils import (
-        GCPAuthManager, GCPProjectManager, GCPResourceCollector,
-    create_gcp_client, format_gcp_output, get_gcp_resource_labels
-    )
-from common.log import log_info, log_error, log_exception
+    GCPAuthManager, GCPProjectManager, GCPResourceCollector,
+    format_gcp_output
+)
+from common.log import log_error, log_exception, log_info_non_console
 
 console = Console()
 
 
-def fetch_run_services_direct(project_id: str, region_filter: str = None) -> List[Dict]:
+def fetch_run_services_direct(project_id: str, region_filter: Optional[str] = None) -> List[Dict]:
     """
     직접 API를 통해 GCP Cloud Run 서비스를 가져옵니다.
     
@@ -48,49 +48,27 @@ def fetch_run_services_direct(project_id: str, region_filter: str = None) -> Lis
             return []
         
         run_client = ServicesClient(credentials=credentials)
-        
         all_services = []
         
-        # 일반적인 Cloud Run 지원 지역 목록
-        regions = [
-            'us-central1', 'us-east1', 'us-east4', 'us-west1', 'us-west2', 'us-west3', 'us-west4',
-            'europe-west1', 'europe-west2', 'europe-west3', 'europe-west4', 'europe-west6',
-            'europe-central2', 'europe-north1',
-            'asia-east1', 'asia-east2', 'asia-northeast1', 'asia-northeast2', 'asia-northeast3',
-            'asia-south1', 'asia-southeast1', 'asia-southeast2',
-            'australia-southeast1',
-            'northamerica-northeast1', 'southamerica-east1'
-        ]
+        target_location = region_filter if region_filter else '-'
+        try:
+            parent = f"projects/{project_id}/locations/{target_location}"
+            request = ListServicesRequest(parent=parent)
+            response = run_client.list_services(request=request)
+            
+            for service in response:
+                # service.name format: projects/{proj}/locations/{loc}/services/{svc}
+                parts = service.name.split('/')
+                svc_region = parts[3] if len(parts) > 3 else target_location
+                service_data = collect_service_details(
+                    run_client, project_id, svc_region, service
+                )
+                if service_data:
+                    all_services.append(service_data)
+        except Exception as e:
+            log_error(f"Cloud Run 서비스 조회 실패: {project_id}, Error={e}")
         
-        if region_filter:
-            regions = [region_filter]
-        
-        for region in regions:
-            try:
-                # 해당 지역의 서비스 가져오기
-                parent = f"projects/{project_id}/locations/{region}"
-                request = ListServicesRequest(parent=parent)
-                
-                response = run_client.list_services(request=request)
-                
-                for service in response:
-                    service_data = collect_service_details(
-                        run_client, project_id, region, service
-                    )
-                    if service_data:
-                        all_services.append(service_data)
-                        
-            except gcp_exceptions.Forbidden:
-                # 지역에 대한 접근 권한이 없는 경우 무시
-                continue
-            except gcp_exceptions.NotFound:
-                # 지역에 서비스가 없는 경우 무시
-                continue
-            except Exception as e:
-                log_error(f"지역 {region}에서 Cloud Run 서비스 조회 실패: {project_id}, Error={e}")
-                continue
-        
-        log_info(f"프로젝트 {project_id}에서 {len(all_services)}개 Cloud Run 서비스 발견")
+        log_info_non_console(f"프로젝트 {project_id}에서 {len(all_services)}개 Cloud Run 서비스 발견")
         return all_services
         
     except gcp_exceptions.PermissionDenied:
@@ -101,7 +79,7 @@ def fetch_run_services_direct(project_id: str, region_filter: str = None) -> Lis
         return []
 
 
-def fetch_run_services(project_id: str, region_filter: str = None) -> List[Dict]:
+def fetch_run_services(project_id: str, region_filter: Optional[str] = None) -> List[Dict]:
     """
     GCP Cloud Run 서비스를 가져옵니다.
     
@@ -115,7 +93,7 @@ def fetch_run_services(project_id: str, region_filter: str = None) -> List[Dict]
     return fetch_run_services_direct(project_id, region_filter)
 
 
-def collect_service_details(run_client: ServicesClient,
+def collect_service_details(run_client: Any,
                           project_id: str, region: str, service) -> Optional[Dict]:
     """
     Cloud Run 서비스의 상세 정보를 수집합니다.
@@ -173,113 +151,94 @@ def collect_service_details(run_client: ServicesClient,
             }
         
         # 템플릿 정보
+        template_data: Dict[str, Any] = {}
+        containers_list: List[Dict[str, Any]] = []
+        volumes_list: List[Dict[str, Any]] = []
+        scaling_data: Dict[str, Any] = {}
+        vpc_access_data: Dict[str, Any] = {}
+
         if service.template:
             template = service.template
-            service_data['template'] = {
-                'revision': template.revision,
-                'labels': dict(template.labels) if template.labels else {},
-                'annotations': dict(template.annotations) if template.annotations else {},
-                'scaling': {},
-                'vpc_access': {},
-                'timeout': template.timeout.seconds if template.timeout else 0,
-                'service_account': template.service_account,
-                'containers': [],
-                'volumes': [],
-                'execution_environment': template.execution_environment.name if hasattr(template.execution_environment, 'name') else str(template.execution_environment),
-                'encryption_key': template.encryption_key,
-                'max_request_timeout': template.max_request_timeout.seconds if template.max_request_timeout else 0,
-                'session_affinity': template.session_affinity
-            }
-            
-            # 스케일링 설정
             if template.scaling:
-                service_data['template']['scaling'] = {
+                scaling_data = {
                     'min_instance_count': template.scaling.min_instance_count,
                     'max_instance_count': template.scaling.max_instance_count
                 }
             
-            # VPC 액세스 설정
             if template.vpc_access:
-                service_data['template']['vpc_access'] = {
-                    'connector': template.vpc_access.connector,
-                    'egress': template.vpc_access.egress.name if hasattr(template.vpc_access.egress, 'name') else str(template.vpc_access.egress),
-                    'network_interfaces': []
-                }
-                
+                vpc_network_interfaces: List[Dict[str, Any]] = []
                 if template.vpc_access.network_interfaces:
                     for ni in template.vpc_access.network_interfaces:
-                        ni_info = {
+                        vpc_network_interfaces.append({
                             'network': ni.network,
                             'subnetwork': ni.subnetwork,
                             'tags': list(ni.tags) if ni.tags else []
-                        }
-                        service_data['template']['vpc_access']['network_interfaces'].append(ni_info)
+                        })
+                vpc_access_data = {
+                    'connector': template.vpc_access.connector,
+                    'egress': template.vpc_access.egress.name if hasattr(template.vpc_access.egress, 'name') else str(template.vpc_access.egress),
+                    'network_interfaces': vpc_network_interfaces
+                }
             
-            # 컨테이너 정보
             if template.containers:
                 for container in template.containers:
-                    container_info = {
-                        'name': container.name,
-                        'image': container.image,
-                        'command': list(container.command) if container.command else [],
-                        'args': list(container.args) if container.args else [],
-                        'env': [],
-                        'resources': {},
-                        'ports': [],
-                        'volume_mounts': [],
-                        'working_dir': container.working_dir,
-                        'liveness_probe': {},
-                        'startup_probe': {},
-                        'depends_on': list(container.depends_on) if container.depends_on else []
-                    }
-                    
-                    # 환경 변수
+                    c_env: List[Dict[str, Any]] = []
                     if container.env:
                         for env_var in container.env:
-                            env_info = {
+                            env_entry: Dict[str, Any] = {
                                 'name': env_var.name,
                                 'value': env_var.value,
                                 'value_source': {}
                             }
                             if env_var.value_source:
-                                env_info['value_source'] = {
+                                env_entry['value_source'] = {
                                     'secret_key_ref': env_var.value_source.secret_key_ref,
                                     'config_map_key_ref': env_var.value_source.config_map_key_ref
                                 }
-                            container_info['env'].append(env_info)
+                            c_env.append(env_entry)
                     
-                    # 리소스 설정
+                    c_resources: Dict[str, Any] = {}
                     if container.resources:
-                        service_data['template']['containers'][0]['resources'] = {
+                        c_resources = {
                             'limits': dict(container.resources.limits) if container.resources.limits else {},
                             'cpu_idle': container.resources.cpu_idle,
                             'startup_cpu_boost': container.resources.startup_cpu_boost
                         }
                     
-                    # 포트 설정
+                    c_ports: List[Dict[str, Any]] = []
                     if container.ports:
                         for port in container.ports:
-                            port_info = {
+                            c_ports.append({
                                 'name': port.name,
                                 'container_port': port.container_port
-                            }
-                            container_info['ports'].append(port_info)
+                            })
                     
-                    # 볼륨 마운트
+                    c_mounts: List[Dict[str, Any]] = []
                     if container.volume_mounts:
                         for vm in container.volume_mounts:
-                            vm_info = {
+                            c_mounts.append({
                                 'name': vm.name,
                                 'mount_path': vm.mount_path
-                            }
-                            container_info['volume_mounts'].append(vm_info)
+                            })
                     
-                    service_data['template']['containers'].append(container_info)
+                    containers_list.append({
+                        'name': container.name,
+                        'image': container.image,
+                        'command': list(container.command) if container.command else [],
+                        'args': list(container.args) if container.args else [],
+                        'env': c_env,
+                        'resources': c_resources,
+                        'ports': c_ports,
+                        'volume_mounts': c_mounts,
+                        'working_dir': container.working_dir,
+                        'liveness_probe': {},
+                        'startup_probe': {},
+                        'depends_on': list(container.depends_on) if container.depends_on else []
+                    })
             
-            # 볼륨 정보
             if template.volumes:
                 for volume in template.volumes:
-                    volume_info = {
+                    vol_info: Dict[str, Any] = {
                         'name': volume.name,
                         'secret': {},
                         'cloud_sql_instance': {},
@@ -287,39 +246,52 @@ def collect_service_details(run_client: ServicesClient,
                         'nfs': {},
                         'gcs': {}
                     }
-                    
                     if volume.secret:
-                        volume_info['secret'] = {
-                            'secret': volume.secret.secret,
-                            'items': [],
-                            'default_mode': volume.secret.default_mode
-                        }
+                        items_list: List[Dict[str, Any]] = []
                         if volume.secret.items:
                             for item in volume.secret.items:
-                                item_info = {
+                                items_list.append({
                                     'path': item.path,
                                     'version': item.version,
                                     'mode': item.mode
-                                }
-                                volume_info['secret']['items'].append(item_info)
-                    
+                                })
+                        vol_info['secret'] = {
+                            'secret': volume.secret.secret,
+                            'items': items_list,
+                            'default_mode': volume.secret.default_mode
+                        }
                     if volume.cloud_sql_instance:
-                        volume_info['cloud_sql_instance'] = {
+                        vol_info['cloud_sql_instance'] = {
                             'instances': list(volume.cloud_sql_instance.instances) if volume.cloud_sql_instance.instances else []
                         }
-                    
-                    service_data['template']['volumes'].append(volume_info)
+                    volumes_list.append(vol_info)
+            
+            template_data = {
+                'revision': template.revision,
+                'labels': dict(template.labels) if template.labels else {},
+                'annotations': dict(template.annotations) if template.annotations else {},
+                'scaling': scaling_data,
+                'vpc_access': vpc_access_data,
+                'timeout': template.timeout.seconds if template.timeout else 0,
+                'service_account': template.service_account,
+                'containers': containers_list,
+                'volumes': volumes_list,
+                'execution_environment': template.execution_environment.name if hasattr(template.execution_environment, 'name') else str(template.execution_environment),
+                'encryption_key': template.encryption_key,
+                'max_request_timeout': template.max_request_timeout.seconds if template.max_request_timeout else 0,
+                'session_affinity': template.session_affinity
+            }
         
         # 트래픽 설정
+        traffic_list: List[Dict[str, Any]] = []
         if service.traffic:
             for traffic in service.traffic:
-                traffic_info = {
+                traffic_list.append({
                     'type': traffic.type_.name if hasattr(traffic.type_, 'name') else str(traffic.type_),
                     'revision': traffic.revision,
                     'percent': traffic.percent,
                     'tag': traffic.tag
-                }
-                service_data['traffic'].append(traffic_info)
+                })
         
         # 터미널 조건
         if service.terminal_condition:
@@ -336,44 +308,43 @@ def collect_service_details(run_client: ServicesClient,
             }
         
         # 조건들
+        conditions_list: List[Dict[str, Any]] = []
         if service.conditions:
             for condition in service.conditions:
-                condition_info = {
+                conditions_list.append({
                     'type': condition.type_,
                     'state': condition.state.name if hasattr(condition.state, 'name') else str(condition.state),
                     'message': condition.message,
                     'last_transition_time': condition.last_transition_time,
                     'severity': condition.severity.name if hasattr(condition.severity, 'name') else str(condition.severity),
                     'reason': condition.reason.name if hasattr(condition.reason, 'name') else str(condition.reason)
-                }
-                service_data['conditions'].append(condition_info)
+                })
         
+        service_data['template'] = template_data
+        service_data['traffic'] = traffic_list
+        service_data['conditions'] = conditions_list
+
         # 편의를 위한 추가 필드
         service_data['ready'] = any(
-            condition.get('type') == 'Ready' and condition.get('state') == 'CONDITION_SUCCEEDED'
-            for condition in service_data['conditions']
+            c.get('type') == 'Ready' and c.get('state') == 'CONDITION_SUCCEEDED'
+            for c in conditions_list
         )
         
-        # 컨테이너 이미지 (첫 번째 컨테이너)
-        if service_data['template'].get('containers'):
-            service_data['image'] = service_data['template']['containers'][0].get('image', 'N/A')
-        else:
-            service_data['image'] = 'N/A'
-        
-        # CPU/메모리 리소스 (첫 번째 컨테이너)
-        if (service_data['template'].get('containers') and 
-            service_data['template']['containers'][0].get('resources', {}).get('limits')):
-            limits = service_data['template']['containers'][0]['resources']['limits']
+        # 컨테이너 이미지 및 리소스 (첫 번째 컨테이너)
+        if containers_list:
+            first_c = containers_list[0]
+            service_data['image'] = first_c.get('image', 'N/A')
+            limits = first_c.get('resources', {}).get('limits', {})
             service_data['cpu'] = limits.get('cpu', 'N/A')
             service_data['memory'] = limits.get('memory', 'N/A')
         else:
+            service_data['image'] = 'N/A'
             service_data['cpu'] = 'N/A'
             service_data['memory'] = 'N/A'
         
         # 스케일링 정보
-        scaling = service_data['template'].get('scaling', {})
-        service_data['min_instances'] = scaling.get('min_instance_count', 0)
-        service_data['max_instances'] = scaling.get('max_instance_count', 100)
+        service_data['min_instances'] = scaling_data.get('min_instance_count', 0)
+        service_data['max_instances'] = scaling_data.get('max_instance_count', 100)
         
         return service_data
         
@@ -613,9 +584,6 @@ def format_paste_output(services: List[Dict]) -> None:
         print(",".join(str(c) for c in row))
 
 
-from ic.core.interfaces import BaseCommand, CommandResult
-
-
 class GcpRunInfoCommand(BaseCommand):
     """GCP Cloud Run 서비스 정보 조회 커맨드"""
 
@@ -623,8 +591,9 @@ class GcpRunInfoCommand(BaseCommand):
     def add_arguments(cls, parser) -> None:
         cls.add_common_arguments(parser)
         parser.add_argument(
-            '-p', '--project', 
-            help='GCP 프로젝트 ID로 필터링 (예: my-project-123)'
+            '-a', '--account', '--project',
+            dest='project',
+            help='GCP 프로젝트 ID 또는 계정 (콤마 구분으로 복수 지정 가능, 예: my-project-123)'
         )
         parser.add_argument(
             '--all-projects',
@@ -634,11 +603,24 @@ class GcpRunInfoCommand(BaseCommand):
         parser.add_argument(
             '-n', '--name', '--service-name',
             dest='name',
-            help='서비스 이름으로 필터링 (부분 일치)'
+            help='서비스 이름으로 필터링 (콤마 구분 가능, 부분 일치)'
         )
         parser.add_argument(
-            '-r', '--region', 
-            help='지역으로 필터링 (예: us-central1)'
+            '-r', '--region', '--regions',
+            dest='region',
+            help='지역으로 필터링 (콤마 구분 가능, 예: us-central1)'
+        )
+        parser.add_argument(
+            '-p', '--paste',
+            nargs='?',
+            const=True,
+            default=False,
+            help='스프레드시트 복사용 콤마(,) 구분 텍스트 출력'
+        )
+        parser.add_argument(
+            '-v', '--verbose',
+            action='store_true',
+            help='상세 정보 출력'
         )
         parser.add_argument(
             '--mock',
@@ -653,12 +635,20 @@ class GcpRunInfoCommand(BaseCommand):
             name_filter = getattr(args, 'name', None)
             proj_filter = getattr(args, 'project', None)
             reg_filter = getattr(args, 'region', None)
+
+            name_patterns = [p.strip().lower() for p in name_filter.split(',')] if name_filter else []
+            proj_patterns = [p.strip().lower() for p in proj_filter.split(',')] if proj_filter else []
+
             for s in services:
-                if name_filter and name_filter.lower() not in str(s.get('name', '')).lower():
+                s_name = str(s.get('name', '')).lower()
+                s_proj = str(s.get('project_id', '')).lower()
+                s_reg = str(s.get('region', '')).lower()
+
+                if name_patterns and not any(p in s_name for p in name_patterns):
                     continue
-                if proj_filter and proj_filter.lower() not in str(s.get('project_id', '')).lower():
+                if proj_patterns and not any(p in s_proj for p in proj_patterns):
                     continue
-                if reg_filter and reg_filter.lower() not in str(s.get('region', '')).lower():
+                if reg_filter and reg_filter.lower() not in s_reg:
                     continue
                 filtered.append(s)
             return CommandResult(
@@ -675,7 +665,7 @@ class GcpRunInfoCommand(BaseCommand):
             return CommandResult(data=[], error="google-cloud-run is not installed", success=False)
 
         try:
-            log_info("GCP Cloud Run 서비스 조회 시작")
+            log_info_non_console("GCP Cloud Run 서비스 조회 시작")
             auth_manager = GCPAuthManager()
             if not auth_manager.validate_credentials():
                 console.print("[bold red]GCP 인증에 실패했습니다. 인증 정보를 확인해주세요.[/bold red]")
@@ -686,13 +676,13 @@ class GcpRunInfoCommand(BaseCommand):
             resource_collector = GCPResourceCollector(auth_manager)
 
             if getattr(args, 'project', None):
-                projects = [args.project]
+                projects = [p.strip() for p in args.project.split(',') if p.strip()]
             else:
                 projects = project_manager.get_projects(all_projects=getattr(args, 'all_projects', False))
 
             if not projects:
                 console.print("[yellow]⚠️  GCP 프로젝트가 지정되지 않았습니다.[/yellow]")
-                console.print("💡 [dim]--project <PROJECT_ID> 옵션을 지정하거나 활성 gcloud 프로필을 설정하세요. (전체 조회를 원하시면 --all-projects 옵션을 사용하세요)[/dim]")
+                console.print("💡 [dim]-a/--project <PROJECT_ID> 옵션을 지정하거나 활성 gcloud 프로필을 설정하세요. (전체 조회를 원하시면 --all-projects 옵션을 사용하세요)[/dim]")
                 return CommandResult(data=[], table_renderer=format_table_output, tree_renderer=format_tree_output, paste_renderer=format_paste_output)
 
             all_services = resource_collector.parallel_collect(

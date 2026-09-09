@@ -70,11 +70,6 @@ def parse_stmt(stmt: str):
     )
 
 
-def add_arguments(parser):
-    parser.add_argument("--name", "-n", default=None, help="Policy 이름 필터 (부분 일치)")
-    parser.add_argument("--compartment", "-c", default=None, help="컴파트먼트 이름 필터 (부분 일치)")
-    # --details 인자는 더 이상 필요 없음. 항상 상세 정보를 표시.
-
 def collect_policies(identity_client, compartments, name_filter=None):
     all_policies = []
     console = Console()

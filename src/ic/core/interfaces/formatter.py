@@ -18,29 +18,35 @@ def safe_serialize(obj: Any) -> Any:
     Safely serialize objects to JSON/YAML compatible types.
     Handles datetime, Decimal, SDK models, and arbitrary objects without throwing TypeError.
     """
+    if obj is None or isinstance(obj, (str, int, float, bool)):
+        return obj
     if isinstance(obj, (datetime.datetime, datetime.date, datetime.time)):
         return obj.isoformat()
     if isinstance(obj, decimal.Decimal):
         return int(obj) if obj % 1 == 0 else float(obj)
     if isinstance(obj, (set, frozenset)):
-        return list(obj)
+        return [safe_serialize(x) for x in obj]
     if isinstance(obj, bytes):
         return obj.decode("utf-8", errors="replace")
+    if isinstance(obj, dict):
+        return {str(k): safe_serialize(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [safe_serialize(x) for x in obj]
     if hasattr(obj, "model_dump") and callable(getattr(obj, "model_dump")):
-        return obj.model_dump(mode="json")
+        return safe_serialize(obj.model_dump(mode="json"))
     if hasattr(obj, "dict") and callable(getattr(obj, "dict")):
-        return obj.dict()
+        return safe_serialize(obj.dict())
     if hasattr(obj, "to_dict") and callable(getattr(obj, "to_dict")):
-        return obj.to_dict()
+        return safe_serialize(obj.to_dict())
     # Google Cloud Protobuf Message handling
     if hasattr(obj, "__class__") and "google.protobuf" in str(obj.__class__):
         try:
             from google.protobuf.json_format import MessageToDict
-            return MessageToDict(obj)
+            return safe_serialize(MessageToDict(obj))
         except Exception:
             pass
     if hasattr(obj, "__dict__"):
-        return {k: v for k, v in obj.__dict__.items() if not k.startswith("_")}
+        return safe_serialize({k: v for k, v in obj.__dict__.items() if not k.startswith("_")})
     return str(obj)
 
 

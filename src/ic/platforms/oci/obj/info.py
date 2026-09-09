@@ -7,14 +7,10 @@ import time
 from rich.console import Console
 from rich.table import Table
 from rich import box
+from typing import Any
 from common.log import log_info_non_console
 from common.progress_decorator import progress_bar, ManualProgress
 from ic.platforms.oci.common.utils import get_compartments, get_all_subscribed_regions
-
-def add_arguments(parser):
-    parser.add_argument("--name", "-n", default=None, help="Bucket 이름 필터 (부분 일치)")
-    parser.add_argument("--compartment", "-c", default=None, help="컴파트먼트 이름 필터 (부분 일치)")
-    parser.add_argument("--regions","-r", default=None, help="조회할 리전(,) 예: ap-seoul-1,us-ashburn-1")
 
 ###############################################################################
 # Buckets (region×comp) 병렬 (oci_info.py 에서 복원)
@@ -22,7 +18,7 @@ def add_arguments(parser):
 def fetch_bucket_one_comp(config, region, comp, name_filter):
     console  = Console()
     results  = []
-    obj      = oci.object_storage.ObjectStorageClient(config)
+    obj: Any = oci.object_storage.ObjectStorageClient(config)
 
     try:
         obj.base_client.set_region(region)

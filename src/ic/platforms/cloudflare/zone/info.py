@@ -8,58 +8,20 @@ Zones are grouped by account for clear organization.
 """
 
 import argparse
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 from rich.table import Table
 from rich import box
 
-# Import CloudFlare client and config
-try:
-    from ..client import CloudFlareClient, CloudFlareConfig
-    from ..client import AuthenticationError, RateLimitError, NetworkError, CloudFlareAPIError
-except ImportError:
-    from ic.platforms.cloudflare.client import CloudFlareClient, CloudFlareConfig
-    from ic.platforms.cloudflare.client import AuthenticationError, RateLimitError, NetworkError, CloudFlareAPIError
+from ic.platforms.cloudflare.client import (
+    CloudFlareClient, CloudFlareConfig,
+    AuthenticationError, RateLimitError, NetworkError
+)
+from ic.config.manager import ConfigManager
+from common.log import console
+from common.progress_decorator import ManualProgress
+from ic.core.interfaces import BaseCommand, CommandResult
 
-# Import config manager
-try:
-    from ic.config.manager import ConfigManager
-except ImportError:
-    try:
-        from ic.config.manager import ConfigManager
-    except ImportError:
-        import sys
-        import os
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', '..', '..'))
-        from ic.config.manager import ConfigManager
-
-# Import common utilities
-try:
-    from src.common.log import log_info, log_error, log_exception, console
-except ImportError:
-    from common.log import log_info, log_error, log_exception, console
-
-try:
-    from src.common.progress_decorator import ManualProgress
-except ImportError:
-    from common.progress_decorator import ManualProgress
-
-
-def add_arguments(parser: argparse.ArgumentParser) -> None:
-    """
-    Add CLI arguments for zone info command.
-    
-    Args:
-        parser: ArgumentParser instance to add arguments to
-    """
-    parser.add_argument(
-        "-a", "--account",
-        help="Filter by account name (case-insensitive substring match, overrides config)"
-    )
-    parser.add_argument(
-        "-z", "--zone",
-        help="Filter by zone name (case-insensitive substring match, overrides config)"
-    )
 
 
 def format_nameservers(zone: Dict[str, Any]) -> str:
@@ -178,9 +140,6 @@ def display_zones_by_account(zones_by_account: Dict[str, Dict[str, Any]]) -> Non
     console.print(f"[bold green]✓[/bold green] Retrieved {total_zones} zone(s) across {account_count} account(s)")
 
 
-from ic.core.interfaces import BaseCommand, CommandResult
-
-
 class CloudflareZoneInfoCommand(BaseCommand):
     """CloudFlare Zone information command."""
 
@@ -245,13 +204,13 @@ class CloudflareZoneInfoCommand(BaseCommand):
                 ),
             )
 
-        except AuthenticationError as e:
+        except AuthenticationError:
             console.print("[bold red]❌ CloudFlare authentication failed[/bold red]")
             return CommandResult(data={}, success=False, error="Authentication failed")
         except RateLimitError as e:
             console.print(f"[bold yellow]⚠️  Rate limit exceeded. Retry after {e.retry_after}s[/bold yellow]")
             return CommandResult(data={}, success=False, error="Rate limit exceeded")
-        except NetworkError as e:
+        except NetworkError:
             console.print("[bold red]❌ Network error connecting to CloudFlare API[/bold red]")
             return CommandResult(data={}, success=False, error="Network error")
         except Exception as e:

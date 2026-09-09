@@ -12,13 +12,10 @@ from typing import Dict, Any, Optional
 from rich.table import Table
 from rich import box
 
-# Import CloudFlare client and config
-try:
-    from ..client import CloudFlareClient, CloudFlareConfig
-    from ..client import AuthenticationError, RateLimitError, NetworkError, CloudFlareAPIError
-except ImportError:
-    from ic.platforms.cloudflare.client import CloudFlareClient, CloudFlareConfig
-    from ic.platforms.cloudflare.client import AuthenticationError, RateLimitError, NetworkError, CloudFlareAPIError
+from ic.platforms.cloudflare.client import (
+    CloudFlareClient, CloudFlareConfig,
+    AuthenticationError, RateLimitError, NetworkError, CloudFlareAPIError
+)
 
 # Import config manager
 try:
@@ -43,18 +40,6 @@ try:
 except ImportError:
     from common.progress_decorator import ManualProgress
 
-
-def add_arguments(parser: argparse.ArgumentParser) -> None:
-    """
-    Add CLI arguments for account info command.
-    
-    Args:
-        parser: ArgumentParser instance to add arguments to
-    """
-    parser.add_argument(
-        "-a", "--account",
-        help="Filter accounts by name (case-insensitive substring match, overrides config)"
-    )
 
 
 def format_account_settings(account: Dict[str, Any]) -> str:

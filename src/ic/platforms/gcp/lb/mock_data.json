@@ -8,21 +8,147 @@
     "ip_address": "34.120.55.80",
     "ip_protocol": "TCP",
     "port_range": "443",
-    "backend_services": ["prod-backend-api", "prod-backend-web"],
-    "health_checks": ["prod-hc-api", "prod-hc-web"],
-    "ssl_certificates": ["prod-wildcard-cert"]
+    "load_balancing_scheme": "EXTERNAL_MANAGED",
+    "network_tier": "PREMIUM",
+    "creation_timestamp": "2023-10-10T12:00:00.000-07:00",
+    "description": "Global HTTPS External Application Load Balancer",
+    "labels": {
+      "env": "prod",
+      "managed_by": "terraform",
+      "tier": "frontend"
+    },
+    "target": {
+      "name": "prod-target-https-proxy",
+      "type": "targetHttpsProxies",
+      "url_map": "prod-url-map",
+      "ssl_certificates": [
+        "prod-wildcard-cert"
+      ]
+    },
+    "url_map": {
+      "name": "prod-url-map",
+      "default_service": "prod-backend-web",
+      "host_rules": [
+        {
+          "hosts": ["*.example.com"],
+          "path_matcher": "path-matcher-1"
+        }
+      ],
+      "path_matchers": [
+        {
+          "name": "path-matcher-1",
+          "default_service": "prod-backend-web"
+        }
+      ]
+    },
+    "backend_services": [
+      {
+        "name": "prod-backend-api",
+        "protocol": "HTTP",
+        "port": 8080,
+        "timeout_sec": 30,
+        "session_affinity": "NONE",
+        "backends": 4,
+        "health_checks": [
+          "prod-hc-api"
+        ]
+      },
+      {
+        "name": "prod-backend-web",
+        "protocol": "HTTP",
+        "port": 80,
+        "timeout_sec": 30,
+        "session_affinity": "GENERATED_COOKIE",
+        "backends": 6,
+        "health_checks": [
+          "prod-hc-web"
+        ]
+      }
+    ],
+    "health_checks": [
+      {
+        "name": "prod-hc-api",
+        "type": "HTTP",
+        "check_interval_sec": 5,
+        "timeout_sec": 5,
+        "healthy_threshold": 2,
+        "unhealthy_threshold": 2,
+        "request_path": "/healthz",
+        "port": 8080
+      },
+      {
+        "name": "prod-hc-web",
+        "type": "HTTP",
+        "check_interval_sec": 10,
+        "timeout_sec": 5,
+        "healthy_threshold": 2,
+        "unhealthy_threshold": 3,
+        "request_path": "/",
+        "port": 80
+      }
+    ],
+    "ssl_certificates": [
+      {
+        "name": "prod-wildcard-cert",
+        "type": "MANAGED",
+        "creation_timestamp": "2023-10-01T00:00:00.000-07:00",
+        "expire_time": "2025-10-01T00:00:00.000-07:00",
+        "subject_alternative_names": [
+          "*.example.com",
+          "example.com"
+        ]
+      }
+    ],
+    "status": "ACTIVE"
   },
   {
     "project_id": "gcp-project-dev-12345",
     "project_name": "Dev Project",
-    "scope": "REGIONAL (asia-northeast3)",
+    "scope": "asia-northeast3",
     "name": "dev-internal-tcp-lb",
     "type": "INTERNAL_TCP_UDP",
     "ip_address": "10.128.1.100",
     "ip_protocol": "TCP",
     "port_range": "8080",
-    "backend_services": ["dev-backend-svc"],
-    "health_checks": ["dev-hc-tcp"],
-    "ssl_certificates": []
+    "load_balancing_scheme": "INTERNAL",
+    "network_tier": "STANDARD",
+    "creation_timestamp": "2024-01-20T08:00:00.000-07:00",
+    "description": "Dev Internal TCP Network Load Balancer",
+    "labels": {
+      "env": "dev",
+      "service": "internal-rpc"
+    },
+    "target": {
+      "name": "dev-backend-svc",
+      "type": "backendServices",
+      "url": "regions/asia-northeast3/backendServices/dev-backend-svc"
+    },
+    "url_map": {},
+    "backend_services": [
+      {
+        "name": "dev-backend-svc",
+        "protocol": "TCP",
+        "port": 8080,
+        "timeout_sec": 60,
+        "session_affinity": "CLIENT_IP",
+        "backends": 2,
+        "health_checks": [
+          "dev-hc-tcp"
+        ]
+      }
+    ],
+    "health_checks": [
+      {
+        "name": "dev-hc-tcp",
+        "type": "TCP",
+        "check_interval_sec": 10,
+        "timeout_sec": 5,
+        "healthy_threshold": 2,
+        "unhealthy_threshold": 2,
+        "port": 8080
+      }
+    ],
+    "ssl_certificates": [],
+    "status": "ACTIVE"
   }
 ]

@@ -215,6 +215,11 @@ class GcpProfileInfoCommand(BaseCommand):
             action="store_true",
             help="현재 활성화된 프로필만 출력",
         )
+        parser.add_argument(
+            "-v", "--verbose",
+            action="store_true",
+            help="상세 정보 출력",
+        )
 
     def execute(self, args, config=None) -> CommandResult:
         use_mock = getattr(args, "mock", False)

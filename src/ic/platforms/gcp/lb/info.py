@@ -10,7 +10,6 @@ try:
         TargetSslProxiesClient, HealthChecksClient, SslCertificatesClient
     )
     from google.cloud.compute_v1.types import (
-        ListForwardingRulesRequest, ListBackendServicesRequest, ListUrlMapsRequest,
         ListTargetHttpProxiesRequest, ListTargetHttpsProxiesRequest,
         ListTargetTcpProxiesRequest, ListTargetSslProxiesRequest,
         ListHealthChecksRequest, ListSslCertificatesRequest,
@@ -20,32 +19,40 @@ try:
     GCP_LB_AVAILABLE = True
 except ImportError:
     GCP_LB_AVAILABLE = False
-    ForwardingRulesClient = None
-    BackendServicesClient = None
-    UrlMapsClient = None
-    TargetHttpProxiesClient = None
-    TargetHttpsProxiesClient = None
-    TargetTcpProxiesClient = None
-    TargetSslProxiesClient = None
-    HealthChecksClient = None
-    SslCertificatesClient = None
-    gcp_exceptions = None
+    ForwardingRulesClient: Any = None
+    BackendServicesClient: Any = None
+    UrlMapsClient: Any = None
+    TargetHttpProxiesClient: Any = None
+    TargetHttpsProxiesClient: Any = None
+    TargetTcpProxiesClient: Any = None
+    TargetSslProxiesClient: Any = None
+    HealthChecksClient: Any = None
+    SslCertificatesClient: Any = None
+    AggregatedListForwardingRulesRequest: Any = None
+    ListTargetHttpProxiesRequest: Any = None
+    ListTargetHttpsProxiesRequest: Any = None
+    ListTargetTcpProxiesRequest: Any = None
+    ListTargetSslProxiesRequest: Any = None
+    ListHealthChecksRequest: Any = None
+    ListSslCertificatesRequest: Any = None
+    gcp_exceptions: Any = None
 from rich.console import Console
 from rich.table import Table
 from rich import box
-from rich.rule import Rule
 from rich.tree import Tree
+
+from ic.core.interfaces import BaseCommand, CommandResult
 
 from common.gcp_utils import (
         GCPAuthManager, GCPProjectManager, GCPResourceCollector,
-    create_gcp_client, format_gcp_output, get_gcp_resource_labels
+    format_gcp_output, get_gcp_resource_labels
     )
-from common.log import log_info, log_error, log_exception
+from common.log import log_info, log_error, log_exception, log_info_non_console
 
 console = Console()
 
 
-def fetch_load_balancers_direct(project_id: str, region_filter: str = None) -> List[Dict]:
+def fetch_load_balancers_direct(project_id: str, region_filter: Optional[str] = None) -> List[Dict]:
     """
     직접 API를 통해 GCP Load Balancer를 가져옵니다.
     
@@ -143,7 +150,7 @@ def collect_global_load_balancers(credentials, project_id: str) -> List[Dict]:
     return load_balancers
 
 
-def collect_regional_load_balancers(credentials, project_id: str, region_filter: str = None) -> List[Dict]:
+def collect_regional_load_balancers(credentials, project_id: str, region_filter: Optional[str] = None) -> List[Dict]:
     """
     Regional Load Balancer들을 수집합니다.
     
@@ -615,7 +622,7 @@ def get_ssl_certificate_details(client, project_id: str, cert_name: str) -> Dict
         return {}
 
 
-def fetch_load_balancers(project_id: str, region_filter: str = None) -> List[Dict]:
+def fetch_load_balancers(project_id: str, region_filter: Optional[str] = None) -> List[Dict]:
     """
     GCP Load Balancer를 가져옵니다.
     
@@ -893,9 +900,6 @@ def format_paste_output(lbs: List[Dict]) -> None:
         print(",".join(str(c) for c in row))
 
 
-from ic.core.interfaces import BaseCommand, CommandResult
-
-
 class GcpLbInfoCommand(BaseCommand):
     """GCP Load Balancer 정보 조회 커맨드"""
 
@@ -903,8 +907,9 @@ class GcpLbInfoCommand(BaseCommand):
     def add_arguments(cls, parser) -> None:
         cls.add_common_arguments(parser)
         parser.add_argument(
-            '-p', '--project', 
-            help='GCP 프로젝트 ID로 필터링 (예: my-project-123)'
+            '-a', '--account', '--project',
+            dest='project',
+            help='GCP 프로젝트 ID 또는 계정 (콤마 구분으로 복수 지정 가능, 예: my-project-123)'
         )
         parser.add_argument(
             '--all-projects',
@@ -912,17 +917,31 @@ class GcpLbInfoCommand(BaseCommand):
             help='접근 가능한 모든 GCP 프로젝트 조회 (대규모 환경 주의)'
         )
         parser.add_argument(
-            '-n', '--lb-name', 
-            help='Load Balancer 이름으로 필터링 (부분 일치)'
+            '-n', '--name', '--lb-name', 
+            dest='lb_name',
+            help='Load Balancer 이름으로 필터링 (콤마 구분 가능, 부분 일치)'
         )
         parser.add_argument(
-            '-r', '--region', 
+            '-r', '--region', '--regions', 
+            dest='region',
             help='리전으로 필터링 (예: us-central1, global)'
         )
         parser.add_argument(
             '-t', '--lb-type',
             choices=['HTTP_HTTPS', 'TCP_PROXY', 'SSL_PROXY', 'NETWORK_TCP_UDP', 'INTERNAL_TCP_UDP', 'INTERNAL_HTTP_HTTPS'],
             help='Load Balancer 타입으로 필터링'
+        )
+        parser.add_argument(
+            '-p', '--paste',
+            nargs='?',
+            const=True,
+            default=False,
+            help='스프레드시트 복사용 콤마(,) 구분 텍스트 출력'
+        )
+        parser.add_argument(
+            '-v', '--verbose',
+            action='store_true',
+            help='상세 정보 출력'
         )
         parser.add_argument(
             '--mock',
@@ -938,10 +957,16 @@ class GcpLbInfoCommand(BaseCommand):
             proj_filter = getattr(args, 'project', None)
             region_filter = getattr(args, 'region', None)
             type_filter = getattr(args, 'lb_type', None)
+
+            name_patterns = [p.strip().lower() for p in name_filter.split(',')] if name_filter else []
+            proj_patterns = [p.strip().lower() for p in proj_filter.split(',')] if proj_filter else []
+
             for lb in lbs:
-                if name_filter and name_filter.lower() not in str(lb.get('name', '')).lower():
+                lb_name = str(lb.get('name', '')).lower()
+                lb_proj = str(lb.get('project_id', '')).lower()
+                if name_patterns and not any(p in lb_name for p in name_patterns):
                     continue
-                if proj_filter and proj_filter.lower() not in str(lb.get('project_id', '')).lower():
+                if proj_patterns and not any(p in lb_proj for p in proj_patterns):
                     continue
                 if region_filter and region_filter.lower() not in str(lb.get('scope', '')).lower():
                     continue
@@ -962,7 +987,7 @@ class GcpLbInfoCommand(BaseCommand):
             return CommandResult(data=[], error="google-cloud-compute is not installed", success=False)
 
         try:
-            log_info("GCP Load Balancer 조회 시작")
+            log_info_non_console("GCP Load Balancer 조회 시작")
             auth_manager = GCPAuthManager()
             if not auth_manager.validate_credentials():
                 console.print("[bold red]GCP 인증에 실패했습니다. 인증 정보를 확인해주세요.[/bold red]")
@@ -973,13 +998,13 @@ class GcpLbInfoCommand(BaseCommand):
             resource_collector = GCPResourceCollector(auth_manager)
 
             if getattr(args, 'project', None):
-                projects = [args.project]
+                projects = [p.strip() for p in args.project.split(',') if p.strip()]
             else:
                 projects = project_manager.get_projects(all_projects=getattr(args, 'all_projects', False))
 
             if not projects:
                 console.print("[yellow]⚠️  GCP 프로젝트가 지정되지 않았습니다.[/yellow]")
-                console.print("💡 [dim]--project <PROJECT_ID> 옵션을 지정하거나 활성 gcloud 프로필을 설정하세요. (전체 조회를 원하시면 --all-projects 옵션을 사용하세요)[/dim]")
+                console.print("💡 [dim]-a/--project <PROJECT_ID> 옵션을 지정하거나 활성 gcloud 프로필을 설정하세요. (전체 조회를 원하시면 --all-projects 옵션을 사용하세요)[/dim]")
                 return CommandResult(data=[], table_renderer=format_table_output, tree_renderer=format_tree_output, paste_renderer=format_paste_output)
 
             all_load_balancers = resource_collector.parallel_collect(

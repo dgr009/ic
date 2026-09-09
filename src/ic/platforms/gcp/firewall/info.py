@@ -10,28 +10,28 @@ try:
     GCP_FIREWALL_AVAILABLE = True
 except ImportError:
     GCP_FIREWALL_AVAILABLE = False
-    FirewallsClient = None
-    NetworksClient = None
-    ListFirewallsRequest = None
-    ListNetworksRequest = None
-    GetFirewallRequest = None
-    gcp_exceptions = None
+    FirewallsClient: Any = None
+    NetworksClient: Any = None
+    ListFirewallsRequest: Any = None
+    ListNetworksRequest: Any = None
+    GetFirewallRequest: Any = None
+    gcp_exceptions: Any = None
 from rich.console import Console
 from rich.table import Table
 from rich import box
-from rich.rule import Rule
 from rich.tree import Tree
 
+from ic.core.interfaces import BaseCommand, CommandResult
 from common.gcp_utils import (
-        GCPAuthManager, GCPProjectManager, GCPResourceCollector,
-    create_gcp_client, format_gcp_output, get_gcp_resource_labels
-    )
-from common.log import log_info, log_error, log_exception
+    GCPAuthManager, GCPProjectManager, GCPResourceCollector,
+    format_gcp_output, get_gcp_resource_labels
+)
+from common.log import log_info, log_error, log_exception, log_info_non_console
 
 console = Console()
 
 
-def fetch_firewall_rules_direct(project_id: str, network_filter: str = None) -> List[Dict]:
+def fetch_firewall_rules_direct(project_id: str, network_filter: Optional[str] = None) -> List[Dict]:
     """
     직접 API를 통해 GCP 방화벽 규칙을 가져옵니다.
     
@@ -84,7 +84,7 @@ def fetch_firewall_rules_direct(project_id: str, network_filter: str = None) -> 
         return []
 
 
-def fetch_firewall_rules(project_id: str, network_filter: str = None) -> List[Dict]:
+def fetch_firewall_rules(project_id: str, network_filter: Optional[str] = None) -> List[Dict]:
     """
     GCP 방화벽 규칙을 가져옵니다.
     
@@ -98,8 +98,8 @@ def fetch_firewall_rules(project_id: str, network_filter: str = None) -> List[Di
     return fetch_firewall_rules_direct(project_id, network_filter)
 
 
-def collect_firewall_rule_details(firewalls_client: FirewallsClient, networks_client: NetworksClient,
-                                 project_id: str, firewall, network_filter: str = None) -> Optional[Dict]:
+def collect_firewall_rule_details(firewalls_client: Any, networks_client: Any,
+                                 project_id: str, firewall, network_filter: Optional[str] = None) -> Optional[Dict]:
     """
     방화벽 규칙의 상세 정보를 수집합니다.
     
@@ -146,6 +146,9 @@ def collect_firewall_rule_details(firewalls_client: FirewallsClient, networks_cl
             'log_config': {}
         }
         
+        allowed_rules: List[Dict[str, Any]] = []
+        denied_rules: List[Dict[str, Any]] = []
+
         # 허용 규칙 수집
         if firewall.allowed:
             for rule in firewall.allowed:
@@ -153,7 +156,7 @@ def collect_firewall_rule_details(firewalls_client: FirewallsClient, networks_cl
                     'ip_protocol': rule.i_p_protocol,
                     'ports': list(rule.ports) if rule.ports else []
                 }
-                firewall_data['allowed_rules'].append(rule_info)
+                allowed_rules.append(rule_info)
         
         # 거부 규칙 수집
         if firewall.denied:
@@ -162,8 +165,11 @@ def collect_firewall_rule_details(firewalls_client: FirewallsClient, networks_cl
                     'ip_protocol': rule.i_p_protocol,
                     'ports': list(rule.ports) if rule.ports else []
                 }
-                firewall_data['denied_rules'].append(rule_info)
+                denied_rules.append(rule_info)
         
+        firewall_data['allowed_rules'] = allowed_rules
+        firewall_data['denied_rules'] = denied_rules
+
         # 로그 설정 수집
         if hasattr(firewall, 'log_config') and firewall.log_config:
             firewall_data['log_config'] = {
@@ -182,9 +188,9 @@ def collect_firewall_rule_details(firewalls_client: FirewallsClient, networks_cl
         firewall_data['rule_targets'] = get_rule_targets(firewall_data)
         
         # 통계 정보 추가
-        firewall_data['allowed_rules_count'] = len(firewall_data['allowed_rules'])
-        firewall_data['denied_rules_count'] = len(firewall_data['denied_rules'])
-        firewall_data['total_rules_count'] = firewall_data['allowed_rules_count'] + firewall_data['denied_rules_count']
+        firewall_data['allowed_rules_count'] = len(allowed_rules)
+        firewall_data['denied_rules_count'] = len(denied_rules)
+        firewall_data['total_rules_count'] = len(allowed_rules) + len(denied_rules)
         
         return firewall_data
         
@@ -193,7 +199,7 @@ def collect_firewall_rule_details(firewalls_client: FirewallsClient, networks_cl
         return None
 
 
-def get_network_associations(networks_client: NetworksClient, project_id: str, network_name: str) -> List[Dict]:
+def get_network_associations(networks_client: Any, project_id: str, network_name: str) -> List[Dict]:
     """
     방화벽 규칙과 연결된 네트워크 정보를 가져옵니다.
     
@@ -499,7 +505,6 @@ def format_tree_output(firewall_rules: List[Dict]) -> None:
                     # 액션 아이콘
                     action = rule.get('action', 'ALLOW')
                     action_icon = "✅" if action == 'ALLOW' else "❌"
-                    action_color = "green" if action == 'ALLOW' else "red"
                     
                     # 규칙 정보
                     rule_name = rule.get("name", "N/A")
@@ -586,13 +591,6 @@ def print_firewall_table(firewall_rules):
     format_table_output(firewall_rules)
 
 
-def main(args):
-    """
-    메인 함수 - GCP 방화벽 규칙 정보를 조회하고 출력합니다.
-    
-    Args:
-        args: CLI 인자 객체
-    """
 def format_paste_output(rules: List[Dict]) -> None:
     """방화벽 규칙 목록을 -p (paste) 모드용 CSV로 출력합니다."""
     for r in rules:
@@ -607,9 +605,6 @@ def format_paste_output(rules: List[Dict]) -> None:
         print(",".join(str(c) for c in row))
 
 
-from ic.core.interfaces import BaseCommand, CommandResult
-
-
 class GcpFirewallInfoCommand(BaseCommand):
     """GCP 방화벽 규칙 정보 조회 커맨드"""
 
@@ -617,8 +612,9 @@ class GcpFirewallInfoCommand(BaseCommand):
     def add_arguments(cls, parser) -> None:
         cls.add_common_arguments(parser)
         parser.add_argument(
-            '-p', '--project', 
-            help='GCP 프로젝트 ID로 필터링 (예: my-project-123)'
+            '-a', '--account', '--project',
+            dest='project',
+            help='GCP 프로젝트 ID 또는 계정 (콤마 구분으로 복수 지정 가능, 예: my-project-123)'
         )
         parser.add_argument(
             '--all-projects',
@@ -626,17 +622,30 @@ class GcpFirewallInfoCommand(BaseCommand):
             help='접근 가능한 모든 GCP 프로젝트 조회 (대규모 환경 주의)'
         )
         parser.add_argument(
-            '-r', '--rule-name', 
-            help='방화벽 규칙 이름으로 필터링 (부분 일치)'
+            '-n', '--name', '-r', '--rule-name',
+            dest='rule_name',
+            help='방화벽 규칙 이름으로 필터링 (콤마 구분 가능, 부분 일치)'
         )
         parser.add_argument(
-            '-n', '--network', 
+            '--network', 
             help='네트워크 이름으로 필터링 (예: default, custom-vpc)'
         )
         parser.add_argument(
             '-d', '--direction', 
             choices=['INGRESS', 'EGRESS'],
             help='방화벽 규칙 방향으로 필터링'
+        )
+        parser.add_argument(
+            '-p', '--paste',
+            nargs='?',
+            const=True,
+            default=False,
+            help='스프레드시트 복사용 콤마(,) 구분 텍스트 출력'
+        )
+        parser.add_argument(
+            '-v', '--verbose',
+            action='store_true',
+            help='상세 정보 출력'
         )
         parser.add_argument(
             '--mock',
@@ -652,10 +661,16 @@ class GcpFirewallInfoCommand(BaseCommand):
             proj_filter = getattr(args, 'project', None)
             net_filter = getattr(args, 'network', None)
             dir_filter = getattr(args, 'direction', None)
+
+            name_patterns = [p.strip().lower() for p in name_filter.split(',')] if name_filter else []
+            proj_patterns = [p.strip().lower() for p in proj_filter.split(',')] if proj_filter else []
+
             for r in rules:
-                if name_filter and name_filter.lower() not in str(r.get('name', '')).lower():
+                r_name = str(r.get('name', '')).lower()
+                r_proj = str(r.get('project_id', '')).lower()
+                if name_patterns and not any(p in r_name for p in name_patterns):
                     continue
-                if proj_filter and proj_filter.lower() not in str(r.get('project_id', '')).lower():
+                if proj_patterns and not any(p in r_proj for p in proj_patterns):
                     continue
                 if net_filter and net_filter.lower() not in str(r.get('network', '')).lower():
                     continue
@@ -676,7 +691,7 @@ class GcpFirewallInfoCommand(BaseCommand):
             return CommandResult(data=[], error="google-cloud-compute is not installed", success=False)
 
         try:
-            log_info("GCP 방화벽 규칙 조회 시작")
+            log_info_non_console("GCP 방화벽 규칙 조회 시작")
             auth_manager = GCPAuthManager()
             if not auth_manager.validate_credentials():
                 console.print("[bold red]GCP 인증에 실패했습니다. 인증 정보를 확인해주세요.[/bold red]")
@@ -687,13 +702,13 @@ class GcpFirewallInfoCommand(BaseCommand):
             resource_collector = GCPResourceCollector(auth_manager)
 
             if getattr(args, 'project', None):
-                projects = [args.project]
+                projects = [p.strip() for p in args.project.split(',') if p.strip()]
             else:
                 projects = project_manager.get_projects(all_projects=getattr(args, 'all_projects', False))
 
             if not projects:
                 console.print("[yellow]⚠️  GCP 프로젝트가 지정되지 않았습니다.[/yellow]")
-                console.print("💡 [dim]--project <PROJECT_ID> 옵션을 지정하거나 활성 gcloud 프로필을 설정하세요. (전체 조회를 원하시면 --all-projects 옵션을 사용하세요)[/dim]")
+                console.print("💡 [dim]-a/--project <PROJECT_ID> 옵션을 지정하거나 활성 gcloud 프로필을 설정하세요. (전체 조회를 원하시면 --all-projects 옵션을 사용하세요)[/dim]")
                 return CommandResult(data=[], table_renderer=format_table_output, tree_renderer=format_tree_output, paste_renderer=format_paste_output)
 
             all_firewall_rules = resource_collector.parallel_collect(
