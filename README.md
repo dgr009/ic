@@ -41,7 +41,7 @@ A comprehensive, production-grade Infrastructure Command Line Interface tool for
 - **Networking**: VPC, Subnets, NAT Gateways, CLB (Load Balancers - listener rules, health check, target health analysis & network traffic bandwidth statistics), Security Groups (with Ingress/Egress rules & tree view)
 - **Authentication**: Multi-account STS AssumeRole support, Profile management (`ic tencent profile info` via `~/.tencent/credentials`)
 
-### 3. 🟩 GCP Services (Production Ready - v1.5.1)
+### 3. 🟩 GCP Services (Production Ready - v1.5.2)
 - **Compute Engine**: VM instances with status, zone, machine type (custom parsing), vCPU, memory, disks, IPs, tags, and verbose 15-column output (`ic gcp compute info -v`)
 - **Compute Detailed Inspection (`desc`)**: Full attribute discovery, dot-notation key filtering (`-k / --keys`), schema discovery (`-l / --list-keys`) for instances
 - **Load Balancing (LB)**: Forwarding rules, Target proxies, URL maps, Backend services, Health checks, and SSL certificates (`ic gcp lb info`)
@@ -230,7 +230,7 @@ ic tencent tke info
 ic tencent profile info
 ```
 
-### GCP Commands (v1.5.1)
+### GCP Commands (v1.5.2)
 
 ```bash
 # Compute Engine VM instances (summary & verbose 15-column output)
