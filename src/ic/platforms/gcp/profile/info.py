@@ -24,6 +24,7 @@ from rich.tree import Tree
 
 from ic.core.interfaces.command import BaseCommand
 from ic.core.interfaces.result import CommandResult
+from common.log import log_info_non_console
 
 console = Console()
 
@@ -96,7 +97,8 @@ class GcpProfileParser:
             cp = configparser.ConfigParser()
             try:
                 cp.read(config_file, encoding="utf-8")
-            except Exception:
+            except Exception as e:
+                log_info_non_console(f"ConfigParser read failed for {config_file}: {e}")
                 continue
 
             account = "-"

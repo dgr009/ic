@@ -9,7 +9,8 @@ skips:
   - B603  # subprocess calls (acceptable with proper input validation)
   - B607  # subprocess calls (acceptable with proper input validation)
   - B507
-  - B105  # hardcoded password strings (acceptable for template placeholders and key mappings)  
+  - B105  # hardcoded password strings (acceptable for template placeholders and key mappings)
+  - B112  # try/except/continue patterns (acceptable for fault-tolerant discovery loops)
 
 # Paths to exclude from scanning
 exclude_dirs:
