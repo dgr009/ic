@@ -41,12 +41,21 @@ A comprehensive, production-grade Infrastructure Command Line Interface tool for
 - **Networking**: VPC, Subnets, NAT Gateways, CLB (Load Balancers - listener rules, health check, target health analysis & network traffic bandwidth statistics), Security Groups (with Ingress/Egress rules & tree view)
 - **Authentication**: Multi-account STS AssumeRole support, Profile management (`ic tencent profile info` via `~/.tencent/credentials`)
 
-### 3. 🟩 GCP Services (Production Ready)
-- **Compute Engine**: VM instances with status, zone, and network interface details
-- **Cloud Storage**: Bucket lists, location, and storage class information
-- **VPC Network**: Subnets, routes, and firewall rule visibility
-- **GKE**: Kubernetes Engine clusters and node pool configurations
-- **Cloud SQL**: Database instances, engines, and status
+### 3. 🟩 GCP Services (Production Ready - v1.5.0)
+- **Compute Engine**: VM instances with status, zone, machine type (custom parsing), vCPU, memory, disks, IPs, tags, and verbose 15-column output (`ic gcp compute info -v`)
+- **Compute Detailed Inspection (`desc`)**: Full attribute discovery, dot-notation key filtering (`-k / --keys`), schema discovery (`-l / --list-keys`) for instances
+- **Load Balancing (LB)**: Forwarding rules, Target proxies, URL maps, Backend services, Health checks, and SSL certificates (`ic gcp lb info`)
+- **LB Detailed Inspection (`desc`)**: Deep hierarchical inspection of proxies, rules, backends, and health checks with dot-notation key filtering (`ic gcp lb desc`)
+- **GKE**: Kubernetes Engine clusters and node pool configurations (`ic gcp gke info`)
+- **Cloud Run**: Serverless container services, ready status, CPU/Mem, and revisions (`ic gcp run info`)
+- **Cloud Functions**: Serverless functions, triggers, runtime, and memory (`ic gcp functions info`)
+- **Cloud SQL**: Managed database instances, engine versions, HA, and status (`ic gcp sql info`)
+- **Cloud Storage**: Buckets, locations, storage classes, and lifecycle (`ic gcp storage info`)
+- **VPC & Firewall**: Virtual networks, subnets, and ingress/egress firewall rules (`ic gcp vpc info`, `ic gcp firewall info`)
+- **Cloud DNS**: Managed public and private DNS zones and record sets (`ic gcp dns info`)
+- **Resource Hierarchy & Projects**: Multi-level folder tree, project status, and active project indicators (`ic gcp project info`)
+- **Billing**: Cost by service, budgets, and alerts (`ic gcp billing info`)
+- **Profile**: gcloud CLI configurations and active account verification (`ic gcp profile info`)
 
 ### 4. 🟥 Oracle Cloud Infrastructure (OCI) (Production Ready)
 - **Compute & Containers**: VM instances, Container instances (ACI)
@@ -221,23 +230,39 @@ ic tencent tke info
 ic tencent profile info
 ```
 
-### GCP Commands
+### GCP Commands (v1.5.0)
 
 ```bash
-# Compute Engine VM instances
+# Compute Engine VM instances (summary & verbose 15-column output)
 ic gcp compute info
+ic gcp compute info -v
 
-# Cloud Storage buckets
-ic gcp storage info
+# Compute Engine detailed resource inspection (desc)
+ic gcp compute desc                                          # Full YAML dump
+ic gcp compute desc -l                                       # Discover queryable dot-notation keys
+ic gcp compute desc -k status,machine_type,internal_ip       # Filter attributes into table
 
-# VPC networks and subnets
-ic gcp vpc info
+# Load Balancers (ALB / NLB)
+ic gcp lb info
+ic gcp lb desc -l                                            # Discover LB schema keys
+ic gcp lb desc -k type,ip_address,backend_services.0.name    # Inspect LB backend services
 
-# GKE Clusters
-ic gcp gke info
+# Container & Serverless
+ic gcp gke info                                              # GKE clusters & node pools
+ic gcp run info                                              # Cloud Run services & revisions
+ic gcp functions info                                        # Cloud Functions & triggers
 
-# Cloud SQL databases
-ic gcp sql info
+# Databases, Storage & Networking
+ic gcp sql info                                              # Cloud SQL instances
+ic gcp storage info                                          # Cloud Storage buckets
+ic gcp vpc info                                              # VPC networks & subnets
+ic gcp firewall info                                         # Firewall ingress/egress rules
+ic gcp dns info                                              # Cloud DNS managed zones
+
+# Resource Hierarchy & Project Management
+ic gcp project info                                          # Active project & folder tree view
+ic gcp billing info                                          # Monthly billing costs by service
+ic gcp profile info                                          # gcloud active configurations
 ```
 
 ### OCI Commands
