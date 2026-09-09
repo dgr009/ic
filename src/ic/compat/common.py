@@ -84,7 +84,7 @@ def log_args_short(args: Any) -> None:
     logger.log_args(args)
 
 
-def gather_env_for_command(platform: str, service: str = None, command: str = None) -> Dict[str, Any]:
+def gather_env_for_command(platform: str, service: Optional[str] = None, command: Optional[str] = None) -> Dict[str, Any]:
     """
     Backward compatibility function for gather_env_for_command.
     
@@ -136,7 +136,7 @@ class GatherEnvCompat:
     """Compatibility class for common.gather_env module."""
     
     @staticmethod
-    def gather_env_for_command(platform: str, service: str = None, command: str = None) -> Dict[str, Any]:
+    def gather_env_for_command(platform: str, service: Optional[str] = None, command: Optional[str] = None) -> Dict[str, Any]:
         """Gather environment for command."""
         return gather_env_for_command(platform, service, command)
 
@@ -147,7 +147,7 @@ gather_env_compat = GatherEnvCompat()
 
 
 # Utility functions for AWS session compatibility
-def get_aws_session_compat(account_id: str, region: str = None):
+def get_aws_session_compat(account_id: str, region: Optional[str] = None):
     """
     Backward compatibility function for AWS session creation.
     
